@@ -1,0 +1,37 @@
+{%- comment -%}
+  Local-dev wrapper for the horizontal FBT snippet.
+
+  Reads the SlotEnvelope from `product.metafields.spectrum.fbt_live` (the
+  same metafield the production wrapper checks), resolves the default entry,
+  and passes it to the snippet via `entry`. Mirrors prod's contract: the
+  snippet only renders when `entry.content.recommendations` is populated.
+
+  Populate the metafield with `.context/populate-fbt-spectrum-metafield.mjs`
+  in the spectrum repo (or any equivalent that writes a SlotEnvelope with
+  slotKey=`default` and a default entry whose content.recommendations is an
+  array of product handles).
+{%- endcomment -%}
+
+{%- assign sai_envelope = product.metafields.spectrum.fbt_live.value -%}
+{%- assign sai_default_entry = nil -%}
+{%- if sai_envelope -%}
+  {%- for sai_slot in sai_envelope -%}
+    {%- if sai_slot.slotKey == 'default' -%}
+      {%- for sai_entry_candidate in sai_slot.payload.entries -%}
+        {%- if sai_entry_candidate.isDefault -%}
+          {%- assign sai_default_entry = sai_entry_candidate -%}
+          {%- break -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {%- break -%}
+    {%- endif -%}
+  {%- endfor -%}
+{%- endif -%}
+
+{%- if sai_default_entry -%}
+<div data-spectrum-lq-snippet="sai-dev-u3rw3o3e-1778264586"
+     data-spectrum-experience="dev"
+     data-spectrum-vis="on">
+  {% render '_sai-snippet-u3rw3o3e', entry: sai_default_entry %}
+</div>
+{%- endif -%}

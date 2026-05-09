@@ -1,0 +1,31 @@
+{%- comment -%}
+  Local-dev wrapper for the vertical FBT snippet.
+
+  Reads the SlotEnvelope from `product.metafields.spectrum.fbt_live` and
+  passes the default entry to the snippet via `entry`. Mirror of the
+  horizontal wrapper.
+{%- endcomment -%}
+
+{%- assign sai_envelope = product.metafields.spectrum.fbt_live.value -%}
+{%- assign sai_default_entry = nil -%}
+{%- if sai_envelope -%}
+  {%- for sai_slot in sai_envelope -%}
+    {%- if sai_slot.slotKey == 'default' -%}
+      {%- for sai_entry_candidate in sai_slot.payload.entries -%}
+        {%- if sai_entry_candidate.isDefault -%}
+          {%- assign sai_default_entry = sai_entry_candidate -%}
+          {%- break -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {%- break -%}
+    {%- endif -%}
+  {%- endfor -%}
+{%- endif -%}
+
+{%- if sai_default_entry -%}
+<div data-spectrum-lq-snippet="sai-dev-l2dcg7yd-1778264586"
+     data-spectrum-experience="dev"
+     data-spectrum-vis="on">
+  {% render '_sai-snippet-l2dcg7yd', entry: sai_default_entry %}
+</div>
+{%- endif -%}

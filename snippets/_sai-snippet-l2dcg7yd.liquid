@@ -37,31 +37,16 @@
 {%- if lock_main == nil -%}{%- assign lock_main = false -%}{%- endif -%}
 
 {%- comment -%}
-  Recommendations source: prefers SlotEnvelope passed via `entry` arg from
-  the production wrapper (`entry.content.recommendations` — array of
-  product handles). Falls back to `product.metafields.custom.fbt_products`
-  (a `list.product_reference` of full product drops) so the snippet still
-  renders when invoked without a wrapper (e.g., local `shopify theme dev`).
-  Each handle is resolved through `all_products[handle]` (Shopify caps at
-  20 unique handles per page, which is well above the FBT count).
+  Single source: SlotEnvelope passed via `entry` arg from the wrapper.
+  `entry.content.recommendations` is an array of product handles. Each
+  handle is resolved through `all_products[handle]` (Shopify caps at 20
+  unique handles per page).
+
+  Contract: this snippet only renders when invoked with an `entry` arg
+  whose `content.recommendations` is a non-empty array. Bare-render call
+  sites without a wrapper will collapse cleanly.
 {%- endcomment -%}
 {%- assign fbt_handles = entry.content.recommendations -%}
-{%- if fbt_handles == nil -%}
-  {%- assign legacy_recos = product.metafields.custom.fbt_products.value -%}
-  {%- if legacy_recos and legacy_recos.size > 0 -%}
-    {%- assign handles_str = "" -%}
-    {%- for r in legacy_recos -%}
-      {%- if r.handle -%}
-        {%- if handles_str == "" -%}
-          {%- assign handles_str = r.handle -%}
-        {%- else -%}
-          {%- assign handles_str = handles_str | append: "," | append: r.handle -%}
-        {%- endif -%}
-      {%- endif -%}
-    {%- endfor -%}
-    {%- assign fbt_handles = handles_str | split: "," -%}
-  {%- endif -%}
-{%- endif -%}
 
 {%- if fbt_handles == nil or fbt_handles.size == 0 -%}
   {%- comment -%} no recos — collapse widget {%- endcomment -%}
