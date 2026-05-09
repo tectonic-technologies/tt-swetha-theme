@@ -74,7 +74,7 @@
       <div class="sai-u3rw3o3e__card sai-u3rw3o3e__card--main" data-product-id="{{ product.id }}">
         <label class="sai-u3rw3o3e__checkbox{% if lock_main %} sai-u3rw3o3e__checkbox--locked{% endif %}">
           <input type="checkbox" data-fbt-checkbox
-            {% if default_checked %}checked{% endif %}
+            {% if lock_main or default_checked %}checked{% endif %}
             aria-label="Include {{ product.title | escape }}"
             {% if lock_main %}disabled{% endif %}>
           <span class="sai-u3rw3o3e__checkbox-mark" aria-hidden="true">
