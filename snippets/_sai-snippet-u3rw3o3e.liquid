@@ -29,11 +29,26 @@
 {%- if lock_main == nil -%}{%- assign lock_main = false -%}{%- endif -%}
 
 {%- comment -%}
-  Recommendations source: SlotEnvelope passed in via `entry` arg from the
-  wrapper. `entry.content.recommendations` is an array of product handles,
-  resolved through `all_products[handle]` (Shopify caps at 20 per page).
+  Recommendations source: prefers SlotEnvelope passed via `entry` arg from
+  the production wrapper (`entry.content.recommendations` — array of
+  product handles). Falls back to `product.metafields.custom.fbt_products`
+  (a `list.product_reference` of full product drops) so the snippet still
+  renders when invoked without a wrapper (e.g., local `shopify theme dev`).
+  Each handle is resolved through `all_products[handle]` (Shopify caps at
+  20 unique handles per page).
 {%- endcomment -%}
 {%- assign fbt_handles = entry.content.recommendations -%}
+{%- if fbt_handles == nil -%}
+  {%- assign legacy_recos = product.metafields.custom.fbt_products.value -%}
+  {%- if legacy_recos and legacy_recos.size > 0 -%}
+    {%- assign fbt_handles = "" | split: "," -%}
+    {%- for r in legacy_recos -%}
+      {%- if r.handle -%}
+        {%- assign fbt_handles = fbt_handles | concat: r.handle -%}
+      {%- endif -%}
+    {%- endfor -%}
+  {%- endif -%}
+{%- endif -%}
 
 {%- if fbt_handles == nil or fbt_handles.size == 0 -%}
   {%- comment -%} no recos — collapse widget {%- endcomment -%}
