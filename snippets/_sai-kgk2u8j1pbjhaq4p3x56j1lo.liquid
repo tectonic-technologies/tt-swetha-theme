@@ -1,7 +1,1 @@
-{%- comment -%}LOCAL OVERRIDE — bypasses slot lookup. Will be overwritten on next Studio republish.{%- endcomment -%}
-{%- assign sai_product = closest.product | default: product -%}
-{%- if sai_product -%}
-<div data-spectrum-instance-id="kgk2u8j1pbjhaq4p3x56j1lo" data-spectrum-snippet-id="l2dcg7yd" data-spectrum-experience="_system-196419092640" data-spectrum-feature-slug="fbt" data-spectrum-vis="on">
-{% render '_sai-snippet-l2dcg7yd', product: sai_product %}
-</div>
-{%- endif -%}
+<div data-fbt-debug="kgk2u8j1pbjhaq4p3x56j1lo" style="background: lime; padding: 1rem; border: 3px solid red;">FBT DEBUG: wrapper kgk2u8j1pbjhaq4p3x56j1lo was called. product is set: {{ product | default: "NIL" }}; closest.product is set: {{ closest.product | default: "NIL" }}; metafield: {{ product.metafields.custom.fbt_products.value.size | default: "NIL" }} {{ closest.product.metafields.custom.fbt_products.value.size | default: "NIL" }}</div>
