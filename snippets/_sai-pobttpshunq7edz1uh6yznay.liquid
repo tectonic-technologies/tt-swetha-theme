@@ -1,6 +1,7 @@
 {%- comment -%}LOCAL OVERRIDE — bypasses slot lookup. Will be overwritten on next Studio republish.{%- endcomment -%}
-{%- if product -%}
+{%- assign sai_product = closest.product | default: product -%}
+{%- if sai_product -%}
 <div data-spectrum-instance-id="pobttpshunq7edz1uh6yznay" data-spectrum-snippet-id="u3rw3o3e" data-spectrum-experience="_system-196419092640" data-spectrum-feature-slug="fbt" data-spectrum-vis="on">
-{% render '_sai-snippet-u3rw3o3e' %}
+{% render '_sai-snippet-u3rw3o3e', product: sai_product %}
 </div>
 {%- endif -%}
