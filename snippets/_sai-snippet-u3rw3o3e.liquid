@@ -27,6 +27,20 @@
 {%- assign total_subtext = content.total_subtext | default: 'Selected items will be added to cart.' -%}
 {%- assign lock_main = content.lock_main_product -%}
 {%- if lock_main == nil -%}{%- assign lock_main = false -%}{%- endif -%}
+{%- assign show_total_price = content.show_total_price -%}
+{%- if show_total_price == nil -%}{%- assign show_total_price = true -%}{%- endif -%}
+{%- assign section_description = content.section_description | default: '' -%}
+{%- assign checkbox_default_state = content.checkbox_default_state | default: 'selected' -%}
+{%- assign image_aspect_ratio = content.image_aspect_ratio | default: '1:1' -%}
+{%- assign image_object_fit = content.image_object_fit | default: 'cover' -%}
+{%- assign show_discount_badge = content.show_discount_badge -%}
+{%- if show_discount_badge == nil -%}{%- assign show_discount_badge = true -%}{%- endif -%}
+{%- assign default_checked = true -%}
+{%- if checkbox_default_state == 'unselected' -%}{%- assign default_checked = false -%}{%- endif -%}
+{%- assign aspect_css = '1' -%}
+{%- if image_aspect_ratio == '4:3' -%}{%- assign aspect_css = '4 / 3' -%}{%- endif -%}
+{%- if image_aspect_ratio == '3:4' -%}{%- assign aspect_css = '3 / 4' -%}{%- endif -%}
+{%- assign image_style = 'aspect-ratio: ' | append: aspect_css | append: '; object-fit: ' | append: image_object_fit | append: ';' -%}
 
 {%- comment -%}
   Single source: SlotEnvelope passed via `entry` arg from the wrapper.
@@ -49,6 +63,9 @@
 >
   <div class="sai-u3rw3o3e__inner">
   <h2 class="sai-u3rw3o3e__heading">{{ heading }}</h2>
+  {%- if section_description != blank -%}
+    <p class="sai-u3rw3o3e__description">{{ section_description }}</p>
+  {%- endif -%}
 
   <div class="sai-u3rw3o3e__layout">
     <div class="sai-u3rw3o3e__cards">
@@ -56,7 +73,8 @@
       {%- comment -%} ── Main product card — same chrome as recos. {%- endcomment -%}
       <div class="sai-u3rw3o3e__card sai-u3rw3o3e__card--main" data-product-id="{{ product.id }}">
         <label class="sai-u3rw3o3e__checkbox{% if lock_main %} sai-u3rw3o3e__checkbox--locked{% endif %}">
-          <input type="checkbox" data-fbt-checkbox checked
+          <input type="checkbox" data-fbt-checkbox
+            {% if default_checked %}checked{% endif %}
             aria-label="Include {{ product.title | escape }}"
             {% if lock_main %}disabled{% endif %}>
           <span class="sai-u3rw3o3e__checkbox-mark" aria-hidden="true">
@@ -71,6 +89,7 @@
               class="sai-u3rw3o3e__image"
               src="{{ product.featured_image | image_url: width: 400 }}"
               alt="{{ product.featured_image.alt | default: product.title | escape }}"
+              style="{{ image_style }}"
               loading="lazy"
             >
           {%- endif -%}
@@ -80,6 +99,11 @@
           <span class="sai-u3rw3o3e__price">{{ product.price | money }}</span>
           {%- if product.compare_at_price and product.compare_at_price > product.price -%}
             <span class="sai-u3rw3o3e__compare">{{ product.compare_at_price | money }}</span>
+            {%- if show_discount_badge -%}
+              {%- assign p_off_amount = product.compare_at_price | minus: product.price -%}
+              {%- assign p_off_pct = p_off_amount | times: 100 | divided_by: product.compare_at_price -%}
+              <span class="sai-u3rw3o3e__off-badge">{{ p_off_pct }}% OFF</span>
+            {%- endif -%}
           {%- endif -%}
         </div>
         {%- if product.variants.size > 1 -%}
@@ -112,7 +136,7 @@
         {%- endif -%}
         <div class="sai-u3rw3o3e__card sai-u3rw3o3e__card--reco" data-product-id="{{ r.id }}">
           <label class="sai-u3rw3o3e__checkbox">
-            <input type="checkbox" data-fbt-checkbox checked aria-label="Include {{ r.title | escape }}">
+            <input type="checkbox" data-fbt-checkbox {% if default_checked %}checked{% endif %} aria-label="Include {{ r.title | escape }}">
             <span class="sai-u3rw3o3e__checkbox-mark" aria-hidden="true">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" focusable="false">
                 <path d="M3 7L6 10L11 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -125,6 +149,7 @@
                 class="sai-u3rw3o3e__image"
                 src="{{ r.featured_image | image_url: width: 400 }}"
                 alt="{{ r.featured_image.alt | default: r.title | escape }}"
+                style="{{ image_style }}"
                 loading="lazy"
               >
             {%- endif -%}
@@ -134,6 +159,11 @@
             <span class="sai-u3rw3o3e__price">{{ r.price | money }}</span>
             {%- if r.compare_at_price and r.compare_at_price > r.price -%}
               <span class="sai-u3rw3o3e__compare">{{ r.compare_at_price | money }}</span>
+              {%- if show_discount_badge -%}
+                {%- assign r_off_amount = r.compare_at_price | minus: r.price -%}
+                {%- assign r_off_pct = r_off_amount | times: 100 | divided_by: r.compare_at_price -%}
+                <span class="sai-u3rw3o3e__off-badge">{{ r_off_pct }}% OFF</span>
+              {%- endif -%}
             {%- endif -%}
           </div>
           {%- if r.variants.size > 1 -%}
@@ -154,11 +184,13 @@
     </div>
 
     <aside class="sai-u3rw3o3e__total">
-      <div class="sai-u3rw3o3e__total-label">{{ total_label }}</div>
-      <div class="sai-u3rw3o3e__total-row">
-        <div class="sai-u3rw3o3e__total-subtext">{{ total_subtext }}</div>
-        <div class="sai-u3rw3o3e__total-amount" data-fbt-total></div>
-      </div>
+      {%- if show_total_price -%}
+        <div class="sai-u3rw3o3e__total-label">{{ total_label }}</div>
+        <div class="sai-u3rw3o3e__total-row">
+          <div class="sai-u3rw3o3e__total-subtext">{{ total_subtext }}</div>
+          <div class="sai-u3rw3o3e__total-amount" data-fbt-total></div>
+        </div>
+      {%- endif -%}
       <button type="button" class="sai-u3rw3o3e__cta" data-fbt-cta>
         <span data-fbt-cta-label>{{ cta_label }}</span>
       </button>

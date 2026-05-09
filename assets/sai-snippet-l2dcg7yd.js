@@ -158,11 +158,16 @@
           if (!product) continue
           const firstAvailable = product.variants.find((v) => v.available)
           const initial = firstAvailable || product.variants[0] || null
+          // Read initial checked state from the SSR DOM so checkbox_default_state
+          // (set in Liquid) drives the JS truth.
+          const card = this.querySelector(`[data-product-id="${productId}"]`)
+          const checkbox = card?.querySelector('[data-fbt-checkbox]')
+          const initialChecked = checkbox ? !!checkbox.checked : true
           this._rows.set(String(productId), {
             productId: String(productId),
             variantId: initial ? String(initial.id) : null,
             available: !!initial && !!initial.available,
-            checked: true,
+            checked: initialChecked,
           })
         }
       }
@@ -229,6 +234,26 @@
         labelEl.textContent = `${this._ctaBaseLabel} (${count})`
         cta.disabled = count === 0
         cta.toggleAttribute('aria-disabled', count === 0)
+        this._updateTotal()
+      }
+
+      _selectedVariants() {
+        const variants = []
+        for (const row of this._rows.values()) {
+          if (!row.checked || !row.variantId) continue
+          const product = this._data.products[row.productId]
+          const variant = product?.variants.find((v) => String(v.id) === row.variantId)
+          if (variant) variants.push(variant)
+        }
+        return variants
+      }
+
+      _updateTotal() {
+        const totalEl = this.querySelector('[data-fbt-cta-total]')
+        if (!totalEl) return
+        const variants = this._selectedVariants()
+        const cents = variants.reduce((sum, v) => sum + (Number(v.price) || 0), 0)
+        totalEl.textContent = cents > 0 ? formatMoney(cents) : ''
       }
 
       _setError(message) {

@@ -166,11 +166,16 @@
           if (!product) continue
           const firstAvailable = product.variants.find((v) => v.available)
           const initial = firstAvailable || product.variants[0] || null
+          // Read initial checked state from the SSR DOM so checkbox_default_state
+          // (set in Liquid) drives the JS truth.
+          const card = this.querySelector(`[data-product-id="${productId}"]`)
+          const checkbox = card?.querySelector('[data-fbt-checkbox]')
+          const initialChecked = checkbox ? !!checkbox.checked : true
           this._rows.set(String(productId), {
             productId: String(productId),
             variantId: initial ? String(initial.id) : null,
             available: !!initial && !!initial.available,
-            checked: true,
+            checked: initialChecked,
           })
         }
       }
