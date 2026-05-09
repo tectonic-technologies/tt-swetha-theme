@@ -28,9 +28,14 @@
 {%- assign lock_main = content.lock_main_product -%}
 {%- if lock_main == nil -%}{%- assign lock_main = false -%}{%- endif -%}
 
-{%- assign fbt_recos = product.metafields.custom.fbt_products.value -%}
+{%- comment -%}
+  Recommendations source: SlotEnvelope passed in via `entry` arg from the
+  wrapper. `entry.content.recommendations` is an array of product handles,
+  resolved through `all_products[handle]` (Shopify caps at 20 per page).
+{%- endcomment -%}
+{%- assign fbt_handles = entry.content.recommendations -%}
 
-{%- if fbt_recos == nil or fbt_recos.size == 0 -%}
+{%- if fbt_handles == nil or fbt_handles.size == 0 -%}
   {%- comment -%} no recos — collapse widget {%- endcomment -%}
 {%- else -%}
 
@@ -92,7 +97,9 @@
       {%- comment -%} ── Reco cards. `+` separator only between main and the
             first reco; subsequent recos sit next to each other separated only
             by the cards-container gap. {%- endcomment -%}
-      {%- for r in fbt_recos -%}
+      {%- for handle in fbt_handles -%}
+        {%- assign r = all_products[handle] -%}
+        {%- if r == nil or r.id == nil -%}{%- continue -%}{%- endif -%}
         {%- if forloop.first -%}
           <div class="sai-u3rw3o3e__plus" aria-hidden="true">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" focusable="false">
@@ -166,7 +173,7 @@
 {
   "main": {{ product.id | json }},
   "currency": {{ shop.currency | json }},
-  "order": [{{ product.id | json }}{%- for r in fbt_recos -%},{{ r.id | json }}{%- endfor -%}],
+  "order": [{{ product.id | json }}{%- for handle in fbt_handles -%}{%- assign r = all_products[handle] -%}{%- if r != nil and r.id != nil -%},{{ r.id | json }}{%- endif -%}{%- endfor -%}],
   "products": {
     "{{ product.id }}": {
       "id": {{ product.id | json }},
@@ -193,7 +200,9 @@
         {%- endfor -%}
       ]
     }
-    {%- for r in fbt_recos -%}
+    {%- for handle in fbt_handles -%}
+    {%- assign r = all_products[handle] -%}
+    {%- if r == nil or r.id == nil -%}{%- continue -%}{%- endif -%}
     ,
     "{{ r.id }}": {
       "id": {{ r.id | json }},

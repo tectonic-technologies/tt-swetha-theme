@@ -36,13 +36,19 @@
 {%- assign lock_main = content.lock_main_product -%}
 {%- if lock_main == nil -%}{%- assign lock_main = false -%}{%- endif -%}
 
-{%- assign fbt_recos = product.metafields.custom.fbt_products.value -%}
+{%- comment -%}
+  Recommendations source: SlotEnvelope passed in via `entry` arg from the
+  wrapper. `entry.content.recommendations` is an array of product handles.
+  Each handle is resolved through `all_products[handle]` (Shopify caps this
+  at 20 unique handles per page, which is well above the FBT count).
+{%- endcomment -%}
+{%- assign fbt_handles = entry.content.recommendations -%}
 
-{%- if fbt_recos == nil or fbt_recos.size == 0 -%}
+{%- if fbt_handles == nil or fbt_handles.size == 0 -%}
   {%- comment -%} no recos — collapse widget {%- endcomment -%}
 {%- else -%}
 
-{%- assign total_count = fbt_recos.size | plus: 1 -%}
+{%- assign total_count = fbt_handles.size | plus: 1 -%}
 
 <sai-l2dcg7yd
   class="sai-l2dcg7yd"
@@ -114,7 +120,9 @@
   </div>
 
   {%- comment -%} ── Reco cards ────────────────────────────────────────── {%- endcomment -%}
-  {%- for r in fbt_recos -%}
+  {%- for handle in fbt_handles -%}
+    {%- assign r = all_products[handle] -%}
+    {%- if r == nil or r.id == nil -%}{%- continue -%}{%- endif -%}
     <div class="sai-l2dcg7yd__card sai-l2dcg7yd__card--reco" data-product-id="{{ r.id }}">
       <div class="sai-l2dcg7yd__row">
         <a class="sai-l2dcg7yd__media" href="{{ r.url }}" tabindex="-1" aria-hidden="true">
@@ -187,7 +195,7 @@
   <script type="application/json" data-fbt-payload>
 {
   "main": {{ product.id | json }},
-  "order": [{{ product.id | json }}{%- for r in fbt_recos -%},{{ r.id | json }}{%- endfor -%}],
+  "order": [{{ product.id | json }}{%- for handle in fbt_handles -%}{%- assign r = all_products[handle] -%}{%- if r != nil and r.id != nil -%},{{ r.id | json }}{%- endif -%}{%- endfor -%}],
   "products": {
     "{{ product.id }}": {
       "id": {{ product.id | json }},
@@ -215,7 +223,9 @@
         {%- endfor -%}
       ]
     }
-    {%- for r in fbt_recos -%}
+    {%- for handle in fbt_handles -%}
+    {%- assign r = all_products[handle] -%}
+    {%- if r == nil or r.id == nil -%}{%- continue -%}{%- endif -%}
     ,
     "{{ r.id }}": {
       "id": {{ r.id | json }},
