@@ -102,7 +102,7 @@
             by the cards-container gap. {%- endcomment -%}
       {%- for handle in fbt_handles -%}
         {%- assign r = all_products[handle] -%}
-        {%- if r == nil or r.id == nil -%}{%- continue -%}{%- endif -%}
+        {%- unless r.id and r.id != blank -%}{%- continue -%}{%- endunless -%}
         {%- if forloop.first -%}
           <div class="sai-u3rw3o3e__plus" aria-hidden="true">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" focusable="false">
@@ -176,13 +176,13 @@
 {
   "main": {{ product.id | json }},
   "currency": {{ shop.currency | json }},
-  "order": [{{ product.id | json }}{%- for handle in fbt_handles -%}{%- assign r = all_products[handle] -%}{%- if r != nil and r.id != nil -%},{{ r.id | json }}{%- endif -%}{%- endfor -%}],
+  "order": [{{ product.id | json }}{%- for handle in fbt_handles -%}{%- assign r = all_products[handle] -%}{%- if r.id and r.id != blank -%},{{ r.id | json }}{%- endif -%}{%- endfor -%}],
   "products": {
     "{{ product.id }}": {
       "id": {{ product.id | json }},
       "title": {{ product.title | json }},
       "url": {{ product.url | json }},
-      "imageUrl": {{ product.featured_image | image_url: width: 400 | json }},
+      "imageUrl": {%- if product.featured_image -%}{{ product.featured_image | image_url: width: 400 | json }}{%- else -%}null{%- endif -%},
       "price": {{ product.price | json }},
       "compareAtPrice": {{ product.compare_at_price | json }},
       "options": {{ product.options | json }},
@@ -205,13 +205,13 @@
     }
     {%- for handle in fbt_handles -%}
     {%- assign r = all_products[handle] -%}
-    {%- if r == nil or r.id == nil -%}{%- continue -%}{%- endif -%}
+    {%- unless r.id and r.id != blank -%}{%- continue -%}{%- endunless -%}
     ,
     "{{ r.id }}": {
       "id": {{ r.id | json }},
       "title": {{ r.title | json }},
       "url": {{ r.url | json }},
-      "imageUrl": {{ r.featured_image | image_url: width: 400 | json }},
+      "imageUrl": {%- if r.featured_image -%}{{ r.featured_image | image_url: width: 400 | json }}{%- else -%}null{%- endif -%},
       "price": {{ r.price | json }},
       "compareAtPrice": {{ r.compare_at_price | json }},
       "options": {{ r.options | json }},

@@ -126,7 +126,7 @@
   {%- comment -%} ── Reco cards ────────────────────────────────────────── {%- endcomment -%}
   {%- for handle in fbt_handles -%}
     {%- assign r = all_products[handle] -%}
-    {%- if r == nil or r.id == nil -%}{%- continue -%}{%- endif -%}
+    {%- unless r.id and r.id != blank -%}{%- continue -%}{%- endunless -%}
     <div class="sai-l2dcg7yd__card sai-l2dcg7yd__card--reco" data-product-id="{{ r.id }}">
       <div class="sai-l2dcg7yd__row">
         <a class="sai-l2dcg7yd__media" href="{{ r.url }}" tabindex="-1" aria-hidden="true">
@@ -199,13 +199,13 @@
   <script type="application/json" data-fbt-payload>
 {
   "main": {{ product.id | json }},
-  "order": [{{ product.id | json }}{%- for handle in fbt_handles -%}{%- assign r = all_products[handle] -%}{%- if r != nil and r.id != nil -%},{{ r.id | json }}{%- endif -%}{%- endfor -%}],
+  "order": [{{ product.id | json }}{%- for handle in fbt_handles -%}{%- assign r = all_products[handle] -%}{%- if r.id and r.id != blank -%},{{ r.id | json }}{%- endif -%}{%- endfor -%}],
   "products": {
     "{{ product.id }}": {
       "id": {{ product.id | json }},
       "title": {{ product.title | json }},
       "url": {{ product.url | json }},
-      "imageUrl": {{ product.featured_image | image_url: width: 200 | json }},
+      "imageUrl": {%- if product.featured_image -%}{{ product.featured_image | image_url: width: 200 | json }}{%- else -%}null{%- endif -%},
       "price": {{ product.price | json }},
       "compareAtPrice": {{ product.compare_at_price | json }},
       "rating": {{ product.metafields.reviews.rating.value | json }},
@@ -229,13 +229,13 @@
     }
     {%- for handle in fbt_handles -%}
     {%- assign r = all_products[handle] -%}
-    {%- if r == nil or r.id == nil -%}{%- continue -%}{%- endif -%}
+    {%- unless r.id and r.id != blank -%}{%- continue -%}{%- endunless -%}
     ,
     "{{ r.id }}": {
       "id": {{ r.id | json }},
       "title": {{ r.title | json }},
       "url": {{ r.url | json }},
-      "imageUrl": {{ r.featured_image | image_url: width: 200 | json }},
+      "imageUrl": {%- if r.featured_image -%}{{ r.featured_image | image_url: width: 200 | json }}{%- else -%}null{%- endif -%},
       "price": {{ r.price | json }},
       "compareAtPrice": {{ r.compare_at_price | json }},
       "rating": {{ r.metafields.reviews.rating.value | json }},
