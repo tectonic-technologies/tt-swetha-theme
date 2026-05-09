@@ -5,6 +5,6 @@
   Update the source file; the install pipeline rewrites this snippet on every
   Studio open. DO NOT EDIT THE THEME COPY.
 {%- endcomment -%}
-<style data-spectrum-vis-gate>[data-spectrum-vis="off"]{display:none !important}</style>
+<style data-spectrum-vis-gate>[data-spectrum-lq-snippet]:not([data-spectrum-vis="on"]){display:none !important}</style>
 {{ 'spectrum-snippet.css' | asset_url | stylesheet_tag }}
 <script src="{{ 'spectrum-sdk.js' | asset_url }}" defer></script>
