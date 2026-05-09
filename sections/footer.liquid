@@ -21,6 +21,8 @@
 {%- unless request.design_mode -%}
 {%- if _sai_preview and _sai_url contains '_spectrum_ai_preview=_system-196419092640' -%}
   {% render '_sai-gldk8puptlxx5kixiyzaubta', sai_state: 'draft' %}
+{%- else -%}
+  {% render '_sai-gldk8puptlxx5kixiyzaubta', sai_state: 'live' %}
 {%- endif -%}
 {%- endunless -%}
 {%- comment -%}
@@ -131,6 +133,8 @@
 {%- unless request.design_mode -%}
 {%- if _sai_preview and _sai_url contains '_spectrum_ai_preview=_system-196419092640' -%}
   {% render '_sai-mnqu8d9v305zpqz465bvsg32', sai_state: 'draft' %}
+{%- else -%}
+  {% render '_sai-mnqu8d9v305zpqz465bvsg32', sai_state: 'live' %}
 {%- endif -%}
 {%- endunless -%}
 {%- comment -%}
