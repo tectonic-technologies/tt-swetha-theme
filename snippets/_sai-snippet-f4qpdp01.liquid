@@ -1,0 +1,130 @@
+{%- comment -%}
+  PDP FAQs — accordion of inline FAQ items + Ask AI block.
+
+  Wrapper contract (post snippet-content-slots foundation, simple slot —
+  see docs/brainstorming/2026-05-01-snippet-content-slots-foundation.md
+  §4.2 + §5.3):
+    - variant            : default variant from mo.variants.value.variants
+    - slot               : matched faqs simple slot { slotKey, payload }
+    - slot_payload       : slot.payload (already parsed JSON; NO .value
+                                          accessor — simple slots use a
+                                          json metafield, not metaobject refs)
+    - entry              : resolved default entry from slot_payload.entries
+    - mo                 : spectrum_snippet_instance metaobject drop
+    - mutation_handle    : 'mut-{instanceId}' (consumed by wrapper outer div)
+    - experience_handle  : (consumed by wrapper outer div)
+
+  variant.content fields (presentation only):
+    - heading             string (optional)   section heading
+    - input_placeholder   string (optional)   ask-input placeholder text
+
+  entry.content fields (slot-derived):
+    - items   Array<{
+                question: string,     accordion summary text; ALSO the source
+                                       for data-faq-id (derived via Liquid
+                                       `| handleize` here, mirrored in JS by
+                                       buildItem). The backend FaqSlotItem
+                                       shape does not carry an `id` field.
+                answerHtml: string,   string emitted raw (see Trust boundary
+                                       below)
+                category?: string,    optional grouping tag
+              }>
+
+  Trust boundary:
+    Backend-supplied content is trusted by contract. The snippet is a
+    passive renderer: answerHtml is emitted raw via {{ item.answerHtml }}
+    with no sanitisation, no transform, no escape. If the data shape is
+    wrong, the playbook author / portal write path is responsible — not
+    this template. Do NOT add `| escape`, `| strip_html`, or any other
+    filter here in an attempt to defend against hostile content.
+
+  Analytics:
+    - data-faq-id is derived from `item.question | handleize` so analytics
+      keys stay stable across reorders, draft→live promotes, and re-runs of
+      the playbook. Renaming a question is treated as a different FAQ.
+      Identical questions on the same product collide on the dedup key —
+      `data-index` still distinguishes them in the event payload.
+    - data-faq-id and data-faq-category attributes are emitted per <details>
+      so the runtime JS can fire faqs:open / faqs:close / faqs:ask events.
+      See packages/snippet-library/docs/faqs.analytics.md.
+{%- endcomment -%}
+
+<script src="{{ 'sai-snippet-f4qpdp01.js' | asset_url }}" async></script>
+
+{%- assign content     = variant.content -%}
+{%- assign heading     = content.heading           | default: 'Questions? Get instant replies!' -%}
+{%- assign placeholder = content.input_placeholder | default: 'Ask anything about this product' -%}
+{%- assign items       = entry.content.items -%}
+
+<sai-f4qpdp01
+  class="sai-f4qpdp01"
+  data-product-id="{{ product.id }}"
+  data-product-handle="{{ product.handle }}"
+  data-proxy-base="/apps/spectrum"
+>
+  <div class="sai-f4qpdp01__container">
+
+    {%- if items.size > 0 -%}
+      <div class="sai-f4qpdp01__accordion" role="list">
+        {%- for item in items -%}
+          <details
+            class="sai-f4qpdp01__item"
+            data-faq-id="{{ item.question | handleize }}"
+            data-faq-category="{{ item.category | default: '' }}"
+            data-index="{{ forloop.index0 }}"
+            role="listitem"
+          >
+            <summary class="sai-f4qpdp01__summary">
+              <span class="sai-f4qpdp01__question">{{ item.question }}</span>
+              <span class="sai-f4qpdp01__chevron" aria-hidden="true">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" focusable="false">
+                  <path d="M3 5L7 9L11 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </span>
+            </summary>
+            <div class="sai-f4qpdp01__answer">{{ item.answerHtml }}</div>
+          </details>
+        {%- endfor -%}
+      </div>
+    {%- endif -%}
+
+    <section class="sai-f4qpdp01__ask" data-spectrum-ai-required>
+      <div class="sai-f4qpdp01__ask-header">
+        <span class="sai-f4qpdp01__sparkles" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" focusable="false">
+            <path d="M9 1.5L10.2 5.8L14.5 7L10.2 8.2L9 12.5L7.8 8.2L3.5 7L7.8 5.8L9 1.5Z" fill="currentColor"/>
+            <path d="M14 11L14.5 12.5L16 13L14.5 13.5L14 15L13.5 13.5L12 13L13.5 12.5L14 11Z" fill="currentColor"/>
+          </svg>
+        </span>
+        <h3 class="sai-f4qpdp01__heading">{{ heading }}</h3>
+      </div>
+
+      <form class="sai-f4qpdp01__form" data-action="ask">
+        <input
+          class="sai-f4qpdp01__input"
+          name="question"
+          type="text"
+          maxlength="500"
+          autocomplete="off"
+          placeholder="{{ placeholder | escape }}"
+          aria-label="{{ heading | escape }}"
+          required
+        >
+        <button class="sai-f4qpdp01__send" type="submit" aria-label="Send question">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" focusable="false">
+            <path d="M2 14L14 8L2 2L2 6.5L10 8L2 9.5L2 14Z" fill="currentColor"/>
+          </svg>
+        </button>
+      </form>
+
+      <div class="sai-f4qpdp01__exchange" data-slot="exchange" role="status" aria-live="polite" hidden></div>
+    </section>
+
+    <footer class="sai-f4qpdp01__footer">
+      <span class="sai-f4qpdp01__brand">Powered by Spectrum AI</span>
+      <span class="sai-f4qpdp01__divider" aria-hidden="true">|</span>
+      <span class="sai-f4qpdp01__disclaimer">This answer is AI-generated. Please double check important information.</span>
+    </footer>
+
+  </div>
+</sai-f4qpdp01>

@@ -1,0 +1,252 @@
+{%- comment -%}
+  Frequently Bought Together (l2dcg7yd) — bundle widget driven by a product
+  metafield.
+
+  Wrapper contract (default variant resolution):
+    - variant            : default variant from mo.variants.value.variants
+    - mo                 : spectrum_snippet_instance metaobject drop
+    - mutation_handle    : 'mut-{instanceId}'   (consumed by wrapper outer div)
+    - experience_handle  :                      (consumed by wrapper outer div)
+    - product            : Shopify global, propagated through {%- raw -%}{% render %}{%- endraw -%}
+
+  variant.content fields:
+    - heading       string   section heading
+    - cta_label     string   add-to-cart label, count appended at runtime
+    - show_ratings  boolean  render rating badge when reviews.rating present
+
+  Data source — Shopify-native, NOT slot-derived:
+    `product.metafields.custom.fbt_products.value` is a `list.product_reference`
+    metafield holding the recommended products. Each entry is a product drop.
+    The widget renders main + recommendations as one bundle. Empty / nil
+    metafield collapses the whole widget.
+
+  Server-rendered initial state mirrors the JS post-hydration state so the
+  widget is functional before sai-snippet-l2dcg7yd.js runs (checkboxes
+  default checked, count = total rows). The custom element promotes to
+  interactive on connectedCallback.
+{%- endcomment -%}
+
+<script src="{{ 'sai-snippet-l2dcg7yd.js' | asset_url }}" async></script>
+
+{%- assign content      = variant.content -%}
+{%- assign heading      = content.heading   | default: 'Frequently Bought Together' -%}
+{%- assign cta_label    = content.cta_label | default: 'Add To Cart' -%}
+{%- assign show_ratings = content.show_ratings -%}
+{%- if show_ratings == nil -%}{%- assign show_ratings = true -%}{%- endif -%}
+{%- assign lock_main = content.lock_main_product -%}
+{%- if lock_main == nil -%}{%- assign lock_main = false -%}{%- endif -%}
+
+{%- assign fbt_recos = product.metafields.custom.fbt_products.value -%}
+
+{%- if fbt_recos == nil or fbt_recos.size == 0 -%}
+  {%- comment -%} no recos — collapse widget {%- endcomment -%}
+{%- else -%}
+
+{%- assign total_count = fbt_recos.size | plus: 1 -%}
+
+<sai-l2dcg7yd
+  class="sai-l2dcg7yd"
+  data-product-id="{{ product.id }}"
+  data-lock-main="{{ lock_main }}"
+>
+  <h2 class="sai-l2dcg7yd__heading">{{ heading }}</h2>
+
+  {%- comment -%} ── Main product card ─────────────────────────────────── {%- endcomment -%}
+  <div class="sai-l2dcg7yd__card sai-l2dcg7yd__card--main" data-product-id="{{ product.id }}">
+    <div class="sai-l2dcg7yd__sub-header">Product on this page</div>
+    <div class="sai-l2dcg7yd__row">
+      <a class="sai-l2dcg7yd__media" href="{{ product.url }}" tabindex="-1" aria-hidden="true">
+        {%- if product.featured_image -%}
+          <img
+            class="sai-l2dcg7yd__image"
+            src="{{ product.featured_image | image_url: width: 200 }}"
+            alt="{{ product.featured_image.alt | default: product.title | escape }}"
+            width="80" height="80" loading="lazy"
+          >
+        {%- endif -%}
+      </a>
+      <div class="sai-l2dcg7yd__info">
+        <a class="sai-l2dcg7yd__title" href="{{ product.url }}">{{ product.title }}</a>
+        <div class="sai-l2dcg7yd__price-row">
+          <span class="sai-l2dcg7yd__price">{{ product.price | money }}</span>
+          {%- if product.compare_at_price and product.compare_at_price > product.price -%}
+            {%- assign off_amount = product.compare_at_price | minus: product.price -%}
+            {%- assign off_pct = off_amount | times: 100 | divided_by: product.compare_at_price -%}
+            <span class="sai-l2dcg7yd__compare">{{ product.compare_at_price | money }}</span>
+            <span class="sai-l2dcg7yd__off-badge">{{ off_pct }}% OFF</span>
+          {%- endif -%}
+        </div>
+        {%- if product.variants.size > 1 -%}
+          <button
+            type="button"
+            class="sai-l2dcg7yd__variant-trigger"
+            data-variant-trigger
+            aria-haspopup="dialog"
+          >
+            <span class="sai-l2dcg7yd__variant-label">{{ product.variants.first.title }}</span>
+            <svg class="sai-l2dcg7yd__chevron" width="14" height="14" viewBox="0 0 14 14" fill="none" focusable="false" aria-hidden="true">
+              <path d="M3 5L7 9L11 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        {%- endif -%}
+      </div>
+      <div class="sai-l2dcg7yd__select">
+        <label class="sai-l2dcg7yd__checkbox{% if lock_main %} sai-l2dcg7yd__checkbox--locked{% endif %}">
+          <input type="checkbox" data-fbt-checkbox checked
+            aria-label="Include {{ product.title | escape }}"
+            {% if lock_main %}disabled{% endif %}>
+          <span class="sai-l2dcg7yd__checkbox-mark" aria-hidden="true">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" focusable="false">
+              <path d="M3 7L6 10L11 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </span>
+        </label>
+        {%- if show_ratings and product.metafields.reviews.rating.value -%}
+          <span class="sai-l2dcg7yd__rating" aria-label="Rating">
+            <svg width="14" height="14" viewBox="0 0 14 14" focusable="false" aria-hidden="true">
+              <path d="M7 1L8.8 4.8L13 5.4L10 8.3L10.7 12.5L7 10.5L3.3 12.5L4 8.3L1 5.4L5.2 4.8L7 1Z" fill="currentColor"/>
+            </svg>
+            <span>{{ product.metafields.reviews.rating.value | round: 1 }}</span>
+          </span>
+        {%- endif -%}
+      </div>
+    </div>
+  </div>
+
+  {%- comment -%} ── Reco cards ────────────────────────────────────────── {%- endcomment -%}
+  {%- for r in fbt_recos -%}
+    <div class="sai-l2dcg7yd__card sai-l2dcg7yd__card--reco" data-product-id="{{ r.id }}">
+      <div class="sai-l2dcg7yd__row">
+        <a class="sai-l2dcg7yd__media" href="{{ r.url }}" tabindex="-1" aria-hidden="true">
+          {%- if r.featured_image -%}
+            <img
+              class="sai-l2dcg7yd__image"
+              src="{{ r.featured_image | image_url: width: 200 }}"
+              alt="{{ r.featured_image.alt | default: r.title | escape }}"
+              width="80" height="80" loading="lazy"
+            >
+          {%- endif -%}
+        </a>
+        <div class="sai-l2dcg7yd__info">
+          <a class="sai-l2dcg7yd__title" href="{{ r.url }}">{{ r.title }}</a>
+          <div class="sai-l2dcg7yd__price-row">
+            <span class="sai-l2dcg7yd__price">{{ r.price | money }}</span>
+            {%- if r.compare_at_price and r.compare_at_price > r.price -%}
+              {%- assign r_off_amount = r.compare_at_price | minus: r.price -%}
+              {%- assign r_off_pct = r_off_amount | times: 100 | divided_by: r.compare_at_price -%}
+              <span class="sai-l2dcg7yd__compare">{{ r.compare_at_price | money }}</span>
+              <span class="sai-l2dcg7yd__off-badge">{{ r_off_pct }}% OFF</span>
+            {%- endif -%}
+          </div>
+          {%- if r.variants.size > 1 -%}
+            <button
+              type="button"
+              class="sai-l2dcg7yd__variant-trigger"
+              data-variant-trigger
+              aria-haspopup="dialog"
+            >
+              <span class="sai-l2dcg7yd__variant-label">{{ r.variants.first.title }}</span>
+              <svg class="sai-l2dcg7yd__chevron" width="14" height="14" viewBox="0 0 14 14" fill="none" focusable="false" aria-hidden="true">
+                <path d="M3 5L7 9L11 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          {%- endif -%}
+        </div>
+        <div class="sai-l2dcg7yd__select">
+          <label class="sai-l2dcg7yd__checkbox">
+            <input type="checkbox" data-fbt-checkbox checked aria-label="Include {{ r.title | escape }}">
+            <span class="sai-l2dcg7yd__checkbox-mark" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" focusable="false">
+                <path d="M3 7L6 10L11 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+          </label>
+          {%- if show_ratings and r.metafields.reviews.rating.value -%}
+            <span class="sai-l2dcg7yd__rating" aria-label="Rating">
+              <svg width="14" height="14" viewBox="0 0 14 14" focusable="false" aria-hidden="true">
+                <path d="M7 1L8.8 4.8L13 5.4L10 8.3L10.7 12.5L7 10.5L3.3 12.5L4 8.3L1 5.4L5.2 4.8L7 1Z" fill="currentColor"/>
+              </svg>
+              <span>{{ r.metafields.reviews.rating.value | round: 1 }}</span>
+            </span>
+          {%- endif -%}
+        </div>
+      </div>
+    </div>
+  {%- endfor -%}
+
+  <button type="button" class="sai-l2dcg7yd__cta" data-fbt-cta>
+    <span data-fbt-cta-label>{{ cta_label }} ({{ total_count }})</span>
+  </button>
+
+  <div class="sai-l2dcg7yd__error" data-fbt-error role="alert" hidden></div>
+
+  {%- comment -%}
+    JSON payload — every value piped through `| json` per generated-liquid rule §5.
+    The JS reads this once on init; no in-DOM data attributes for variant data.
+  {%- endcomment -%}
+  <script type="application/json" data-fbt-payload>
+{
+  "main": {{ product.id | json }},
+  "order": [{{ product.id | json }}{%- for r in fbt_recos -%},{{ r.id | json }}{%- endfor -%}],
+  "products": {
+    "{{ product.id }}": {
+      "id": {{ product.id | json }},
+      "title": {{ product.title | json }},
+      "url": {{ product.url | json }},
+      "imageUrl": {{ product.featured_image | image_url: width: 200 | json }},
+      "price": {{ product.price | json }},
+      "compareAtPrice": {{ product.compare_at_price | json }},
+      "rating": {{ product.metafields.reviews.rating.value | json }},
+      "options": {{ product.options | json }},
+      "available": {{ product.available | json }},
+      "variants": [
+        {%- for v in product.variants -%}
+          {%- unless forloop.first -%},{%- endunless -%}
+          {
+            "id": {{ v.id | json }},
+            "title": {{ v.title | json }},
+            "price": {{ v.price | json }},
+            "compareAtPrice": {{ v.compare_at_price | json }},
+            "available": {{ v.available | json }},
+            "options": {{ v.options | json }},
+            "inventoryQty": {{ v.inventory_quantity | json }},
+            "inventoryManaged": {{ v.inventory_management | json }}
+          }
+        {%- endfor -%}
+      ]
+    }
+    {%- for r in fbt_recos -%}
+    ,
+    "{{ r.id }}": {
+      "id": {{ r.id | json }},
+      "title": {{ r.title | json }},
+      "url": {{ r.url | json }},
+      "imageUrl": {{ r.featured_image | image_url: width: 200 | json }},
+      "price": {{ r.price | json }},
+      "compareAtPrice": {{ r.compare_at_price | json }},
+      "rating": {{ r.metafields.reviews.rating.value | json }},
+      "options": {{ r.options | json }},
+      "available": {{ r.available | json }},
+      "variants": [
+        {%- for v in r.variants -%}
+          {%- unless forloop.first -%},{%- endunless -%}
+          {
+            "id": {{ v.id | json }},
+            "title": {{ v.title | json }},
+            "price": {{ v.price | json }},
+            "compareAtPrice": {{ v.compare_at_price | json }},
+            "available": {{ v.available | json }},
+            "options": {{ v.options | json }},
+            "inventoryQty": {{ v.inventory_quantity | json }},
+            "inventoryManaged": {{ v.inventory_management | json }}
+          }
+        {%- endfor -%}
+      ]
+    }
+    {%- endfor -%}
+  }
+}
+  </script>
+</sai-l2dcg7yd>
+
+{%- endif -%}

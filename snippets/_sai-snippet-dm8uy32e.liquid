@@ -1,0 +1,25 @@
+{%- comment -%}
+  Rich PDP Content — renders compiled A+ rich sections.
+
+  Wrapper contract (per docs/tech/studio-liquid-snippets.md "Library Snippets"):
+    - variant              : default variant from mo.variants.value.variants
+    - entry                : resolved content entry from the slot payload
+    - mo                   : spectrum_snippet_instance metaobject drop
+    - mutation_handle      : 'mut-{instanceId}' (consumed by wrapper outer div)
+    - experience_handle    : (consumed by wrapper outer div)
+
+  Sections are inline in entry.content.sections (JSON). SSR emits the
+  shell; JS bind renders the full section content from the envelope
+  data. This avoids Shopify Liquid JSON depth limitations that prevent
+  accessing nested array item properties.
+
+  NOTE: do not write literal comment or doc tag syntax in documentation
+  text — Shopify Liquid nests those tags and will reject the file on
+  theme write.
+{%- endcomment -%}
+
+<script src="{{ 'sai-snippet-dm8uy32e.js' | asset_url }}" async></script>
+
+<div class="sai-dm8uy32e">
+  <div class="sai-dm8uy32e__sections"></div>
+</div>

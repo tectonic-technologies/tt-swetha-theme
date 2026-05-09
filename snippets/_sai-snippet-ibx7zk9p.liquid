@@ -1,0 +1,78 @@
+{%- comment -%}
+  Image Banner — full-width image with optional navigation link.
+
+  Wrapper contract (per docs/tech/studio-liquid-snippets.md "Library Snippets"
+  + packages/liquid-parser/src/snippet-instance-wrapper.ts buildRenderBlock):
+    - variant            : default variant from mo.variants.value.variants
+    - mo                 : spectrum_snippet_instance metaobject drop
+    - mutation_handle    : 'mut-{instanceId}' (consumed by wrapper outer div)
+    - experience_handle  : (consumed by wrapper outer div)
+
+  variant.content fields:
+    - image        { kind: 'images', refId: '<numeric>' }   reference marker; resolves against mo.images.value by _item.id
+    - alt_text     string                                    image alt text
+    - aspect_ratio '21/9' | '16/9' | '4/3' | '1/1' | 'auto'  applied as inline aspect-ratio
+    - link_url     string (optional)                         when present, banner becomes <a href>
+    - lazy_load    boolean                                   when true, img gets loading="lazy"
+
+  Always emits <a class="sai-ibx7zk9p"> with href present only when
+  link_url is set. CSS targets a.sai-ibx7zk9p[href] for hover affordance.
+  This avoids element-type swap on client-side variant change (the JS
+  toggles the href attribute, not the element type).
+
+  srcset breakpoints — keep in sync with assets/sai-snippet-ibx7zk9p.js
+  SRCSET_WIDTHS. The drift-prevention test in
+  __tests__/srcset-parity.test.ts asserts equality.
+
+  NOTE: do not write literal comment or doc tag syntax in documentation
+  text — Shopify Liquid nests those tags and will reject the file on
+  theme write.
+{%- endcomment -%}
+
+{%- assign content = variant.content -%}
+{%- assign alt_text = content.alt_text | default: '' -%}
+{%- assign aspect_ratio = content.aspect_ratio | default: '16/9' -%}
+{%- assign link_url = content.link_url -%}
+{%- if content.lazy_load == nil -%}
+  {%- assign lazy_load = false -%}
+{%- else -%}
+  {%- assign lazy_load = content.lazy_load -%}
+{%- endif -%}
+
+{%- comment -%}── Resolve image marker against mo.images.value pool ──{%- endcomment -%}
+{%- comment -%}
+  Type-coercion gotcha: Shopify Liquid `==` is type-strict, so comparing
+  `_item.id` (integer) against `content.image.refId` (string) returns false
+  even when the numeric values match. We coerce the integer id to a string
+  via `| append: ''` before comparing. Without this, the loop never matches
+  and the banner fails to render.
+{%- endcomment -%}
+{%- assign image = nil -%}
+{%- if content.image and content.image.refId -%}
+  {%- for _item in mo.images.value -%}
+    {%- assign _item_id_str = _item.id | append: '' -%}
+    {%- if _item_id_str == content.image.refId -%}
+      {%- assign image = _item -%}
+      {%- break -%}
+    {%- endif -%}
+  {%- endfor -%}
+{%- endif -%}
+
+{%- if image != blank -%}
+  <a class="sai-ibx7zk9p"
+     {%- if link_url != blank %} href="{{ link_url }}"{% endif -%}
+     {%- unless aspect_ratio == 'auto' %} style="aspect-ratio: {{ aspect_ratio }}"{% endunless -%}
+  >
+    <img
+      src="{{ image | image_url: width: 2400 }}"
+      srcset="{{ image | image_url: width: 600 }} 600w,
+              {{ image | image_url: width: 1200 }} 1200w,
+              {{ image | image_url: width: 2400 }} 2400w"
+      sizes="100vw"
+      {%- if image.width and image.height %} width="{{ image.width }}" height="{{ image.height }}"{% endif %}
+      alt="{{ alt_text | escape }}"
+      {%- if lazy_load %} loading="lazy"{% endif %}
+      class="sai-ibx7zk9p__image">
+  </a>
+{%- endif -%}
+<script src="{{ 'sai-snippet-ibx7zk9p.js' | asset_url }}" async></script>

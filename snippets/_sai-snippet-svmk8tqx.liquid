@@ -1,0 +1,261 @@
+{%- comment -%}
+  Shoppable Videos — JS-rendered cards strip + dialog player.
+
+  Wrapper contract (per docs/tech/studio-liquid-snippets.md "Library Snippets"):
+    - variant            : default variant from mo.variants.value.variants
+    - slot               : matched shoppable_videos slot entry
+    - slot_payload       : slot.payload.value
+    - entry              : resolved content entry from the slot payload
+    - videos_union       : union of videos referenced by every slotKey used by variants
+    - mo                 : spectrum_snippet_instance metaobject drop
+    - mutation_handle    : 'mut-{instanceId}' (consumed by wrapper outer div)
+    - experience_handle  : (consumed by wrapper outer div)
+
+  variant.content fields:
+    - heading      string (optional)                                   section heading
+    - subheading   string (optional)                                   supporting copy under heading
+    - preset       'default' | 'grid'                                  layout modifier; applied as BEM class
+  entry.content fields:
+    - videoHandles string[]                                            references resolved
+                                                                       client-side against the bespoke pool
+
+  Render strategy (per plan §15#8 + post-cutover decision to drop SSR cards/slides):
+  - SSR emits the shell, heading/subheading, ONE skeleton placeholder per refId,
+    the dialog scaffold (close/mute/nav buttons + empty __dialog-slides), and
+    the bespoke pool block. No matching against the instance metaobject at
+    SSR time; no per-video URL/poster resolution at the cards/slides sites.
+  - The asset JS (loaded async) reads the pool, calls applyVariant on init AND
+    on every targeting swap, and rebuilds the grid: each refId either becomes
+    a real <button class="__card"> (pool entry has video_url) or a styled
+    <div class="__card __card--unavailable"> indicator (pool entry missing
+    or no video_url — visible-degraded mode per project error-handling
+    philosophy).
+  - Skeleton placeholders share the __card class so CSS aspect-ratio + width
+    apply unchanged → no CLS when JS swaps placeholder → real card.
+  - Only real cards open the dialog; unavailable indicators are aria-hidden
+    and pointer-events:none.
+
+  Pool block (rich JSON) is the single source of truth for per-video data:
+  resolved video URL (mp4 picked server-side), poster URL (image_url filter
+  applied), and the full product_tags array with money filters and
+  image_url filters applied. JS string-builders consume it directly.
+
+  NOTE: do not write literal comment or doc tag syntax in documentation
+  text — Shopify Liquid nests those tags and will reject the file on
+  theme write.
+{%- endcomment -%}
+
+<script src="{{ 'sai-snippet-svmk8tqx.js' | asset_url }}" async></script>
+
+{%- assign content = variant.content -%}
+{%- assign slot_content = entry.content -%}
+{%- assign heading = content.heading -%}
+{%- assign subheading = content.subheading -%}
+{%- assign preset = content.preset | default: 'default' -%}
+{%- assign video_handles = slot_content.videoHandles -%}
+
+{%- if video_handles.size > 0 -%}
+<sai-svmk8tqx class="sai-svmk8tqx{% unless preset == 'default' %} sai-svmk8tqx--{{ preset }}{% endunless %}">
+  <div class="sai-svmk8tqx__container">
+
+    {%- if heading != blank or subheading != blank -%}
+      <div class="sai-svmk8tqx__header">
+        {%- if heading != blank -%}
+          <h2 class="sai-svmk8tqx__heading">{{ heading }}</h2>
+        {%- endif -%}
+        {%- if subheading != blank -%}
+          <p class="sai-svmk8tqx__subheading">{{ subheading }}</p>
+        {%- endif -%}
+      </div>
+    {%- endif -%}
+
+    {%- comment -%}
+      Skeleton placeholders — one per video handle. JS reads data-handle, looks up
+      pool[handle], then either replaces the placeholder with a real card
+      (pool entry has video_url) or upgrades it to __card--unavailable
+      (pool missing or no video_url). Aspect-ratio is reserved by the shared
+      __card class so the swap is CLS-free.
+    {%- endcomment -%}
+    <div class="sai-svmk8tqx__grid" role="list">
+      {%- for handle in video_handles -%}
+        <div
+          class="sai-svmk8tqx__card sai-svmk8tqx__card--placeholder"
+          data-handle="{{ handle }}"
+          aria-hidden="true"
+        ></div>
+      {%- endfor -%}
+    </div>
+
+    {%- comment -%}
+      Dialog scaffold only — JS injects slides into __dialog-slides on init
+      and on every applyVariant. Nav buttons always emitted with `hidden`;
+      JS toggles based on resolved video count after applyVariant runs.
+      `__dialog-nav[hidden] { display: none; }` in CSS makes hidden actually
+      hide them on tablet+ (where the class rule otherwise wins).
+    {%- endcomment -%}
+    <dialog class="sai-svmk8tqx__dialog" aria-modal="true" aria-label="{{ heading | default: 'Video' | escape }}">
+      <button class="sai-svmk8tqx__dialog-close" type="button" data-action="close" aria-label="Close video">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true" focusable="false">
+          <path d="M1.5 1.5L12.5 12.5M12.5 1.5L1.5 12.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+        </svg>
+      </button>
+
+      <button class="sai-svmk8tqx__dialog-mute" type="button" data-action="mute" aria-label="Unmute video">
+        <svg class="sai-svmk8tqx__mute-icon--muted" width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M11 5L6 9H2v6h4l5 4V5z" fill="currentColor"/>
+          <path d="M23 9l-6 6M17 9l6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        <svg class="sai-svmk8tqx__mute-icon--sound" width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="display:none">
+          <path d="M11 5L6 9H2v6h4l5 4V5z" fill="currentColor"/>
+          <path d="M15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </button>
+
+      <button class="sai-svmk8tqx__dialog-nav sai-svmk8tqx__dialog-nav--prev" type="button" data-action="prev" aria-label="Previous video" hidden>
+        <svg width="10" height="16" viewBox="0 0 10 16" fill="none" aria-hidden="true">
+          <path d="M9 1L1 8L9 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+      <button class="sai-svmk8tqx__dialog-nav sai-svmk8tqx__dialog-nav--next" type="button" data-action="next" aria-label="Next video" hidden>
+        <svg width="10" height="16" viewBox="0 0 10 16" fill="none" aria-hidden="true">
+          <path d="M1 1L9 8L1 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+
+      <div class="sai-svmk8tqx__dialog-slides"></div>
+    </dialog>
+
+  </div>
+</sai-svmk8tqx>
+
+{%- comment -%}
+  Bespoke pool — sibling of <sai-svmk8tqx>, NOT inside it (the JS reads
+  it via direct-children iteration on the outer instance container).
+  Carries every video's resolved data: video URL (mp4 picked server-side),
+  poster URL (image_url filter applied), and the full product_tags array
+  with money-formatted prices, variant data, override fields. JS rebuild
+  reads this on every variant resolution.
+
+  Pool keying is by metaobject handle (matches entry.content.videoHandles).
+  Iteration walks videos_union once — no matching, no filtering;
+  a targeted variant whose refIds differ from the default still finds its
+  videos here.
+{%- endcomment -%}
+<script type="application/json" data-spectrum-snippet-pool>
+{
+  "shoppable_videos":{
+    {%- for handle in video_handles -%}
+      {%- assign entry = metaobjects.spectrum_shoppable_video[handle] -%}
+      {%- if entry -%}
+      {%- unless forloop.first -%},{%- endunless -%}
+
+      {%- comment -%}── Per-video URL/poster resolution ──{%- endcomment -%}
+      {%- assign video_url = '' -%}
+      {%- assign video_file = entry.video_source.value -%}
+      {%- if video_file != blank -%}
+        {%- if video_file.sources != blank -%}
+          {%- for source in video_file.sources -%}
+            {%- if source.format == 'mp4' and video_url == '' -%}
+              {%- assign video_url = source.url -%}
+            {%- endif -%}
+          {%- endfor -%}
+          {%- if video_url == '' -%}
+            {%- assign video_url = video_file.sources.first.url -%}
+          {%- endif -%}
+        {%- elsif video_file.url != blank -%}
+          {%- assign video_url = video_file.url -%}
+        {%- endif -%}
+      {%- endif -%}
+      {%- assign poster_url = '' -%}
+      {%- if entry.poster_image.value != blank -%}
+        {%- assign poster_url = entry.poster_image.value | image_url: width: 600 -%}
+      {%- endif -%}
+      {%- assign preview_url = '' -%}
+      {%- assign preview_file = entry.preview_video.value -%}
+      {%- if preview_file != blank -%}
+        {%- if preview_file.sources != blank -%}
+          {%- for source in preview_file.sources -%}
+            {%- if source.format == 'mp4' and preview_url == '' -%}
+              {%- assign preview_url = source.url -%}
+            {%- endif -%}
+          {%- endfor -%}
+          {%- if preview_url == '' -%}
+            {%- assign preview_url = preview_file.sources.first.url -%}
+          {%- endif -%}
+        {%- elsif preview_file.url != blank -%}
+          {%- assign preview_url = preview_file.url -%}
+        {%- endif -%}
+      {%- endif -%}
+
+      {{ handle | json }}:{
+        "title":{{ entry.title | default: 'Video' | json }},
+        "video_url":{{ video_url | json }},
+        "poster_url":{{ poster_url | json }},
+        "preview_url":{{ preview_url | json }},
+        "product_tags":[
+          {%- comment -%}
+            Gate on `!= blank` to mirror the original SSR dialog-slides loop.
+            Typed-list reference fields are array-typed, so entry.product_tags
+            should always be defined on schema-conformant entries; this is
+            defensive against unset/nil cases (e.g. an entry written before
+            the field existed) where `.value.size` would be nil and `(0..nil)`
+            is undefined behaviour in Liquid.
+          {%- endcomment -%}
+          {%- if entry.product_tags != blank -%}
+          {%- assign total_tags = entry.product_tags.value.size -%}
+          {%- assign first_tag = true -%}
+          {%- for i in (0..total_tags) -%}
+            {%- if i >= total_tags -%}{%- break -%}{%- endif -%}
+            {%- assign tagged = nil -%}
+            {%- for t in entry.product_tags.value offset: i limit: 1 -%}
+              {%- assign tagged = t -%}
+            {%- endfor -%}
+            {%- if tagged -%}
+              {%- assign product = tagged.product.value -%}
+              {%- if product -%}
+                {%- unless first_tag -%},{%- endunless -%}
+                {%- assign first_tag = false -%}
+                {%- assign target_variant = tagged.pre_selected_variant.value | default: product.selected_or_first_available_variant -%}
+                {%- assign single_variant = false -%}
+                {%- if product.variants.size == 1 -%}{%- assign single_variant = true -%}{%- endif -%}
+                {%- assign display_name = tagged.display_name_override.value | default: product.title -%}
+                {%- assign cta_text = tagged.cta_text_override.value | default: 'Add to cart' -%}
+                {%- assign thumb_img = tagged.thumbnail_override.value | default: product.featured_image -%}
+                {%- assign thumb_url = '' -%}
+                {%- if thumb_img != blank -%}
+                  {%- assign thumb_url = thumb_img | image_url: width: 160 -%}
+                {%- endif -%}
+                {%- assign show_compare = false -%}
+                {%- if target_variant.compare_at_price > target_variant.price -%}
+                  {%- assign show_compare = true -%}
+                {%- endif -%}
+                {
+                  "display_name":{{ display_name | json }},
+                  "product_url":{{ product.url | json }},
+                  "thumb_url":{{ thumb_url | json }},
+                  "price_override":{{ tagged.price_override.value | json }},
+                  "cta_text":{{ cta_text | json }},
+                  "cta_url":{{ tagged.cta_url_override.value | json }},
+                  "single_variant":{{ single_variant | json }},
+                  "variant_id":{{ target_variant.id | json }},
+                  "variant_available":{{ target_variant.available | json }},
+                  "variant_price":{{ target_variant.price | money | json }},
+                  "variant_compare_at_price":{{ target_variant.compare_at_price | money | json }},
+                  "show_compare":{{ show_compare | json }},
+                  "product_price":{{ product.price | money | json }},
+                  "cart_url":{{ routes.cart_url | default: '/cart' | json }},
+                  "tag_id":{{ tagged.system.id | json }},
+                  "product_id":{{ product.id | json }}
+                }
+              {%- endif -%}
+            {%- endif -%}
+          {%- endfor -%}
+          {%- endif -%}
+        ]
+      }
+      {%- endif -%}
+    {%- endfor -%}
+  }
+}
+</script>
+{%- endif -%}

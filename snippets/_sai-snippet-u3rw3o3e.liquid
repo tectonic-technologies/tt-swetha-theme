@@ -1,0 +1,229 @@
+{%- comment -%}
+  Frequently Bought Together — Horizontal (u3rw3o3e).
+
+  Same data source and behaviour as the Vertical variant (l2dcg7yd):
+  reads `product.metafields.custom.fbt_products.value` and renders the
+  current product + recommended products as one bundle. Differences are
+  presentational only:
+    - Cards laid out horizontally with `+` separators between them.
+    - Right-side Total panel that sums selected variant prices live and
+      hosts the aggregate Add To Cart button.
+
+  variant.content fields:
+    - heading        string   section heading
+    - cta_label      string   ATC button label inside the total panel
+    - total_label    string   small heading above the total amount
+    - total_subtext  string   helper line under the total amount
+
+  Empty / nil metafield collapses the whole widget — no empty card.
+{%- endcomment -%}
+
+<script src="{{ 'sai-snippet-u3rw3o3e.js' | asset_url }}" async></script>
+
+{%- assign content       = variant.content -%}
+{%- assign heading       = content.heading       | default: 'Frequently Bought Together' -%}
+{%- assign cta_label     = content.cta_label     | default: 'Add to cart' -%}
+{%- assign total_label   = content.total_label   | default: 'Total' -%}
+{%- assign total_subtext = content.total_subtext | default: 'Selected items will be added to cart.' -%}
+{%- assign lock_main = content.lock_main_product -%}
+{%- if lock_main == nil -%}{%- assign lock_main = false -%}{%- endif -%}
+
+{%- assign fbt_recos = product.metafields.custom.fbt_products.value -%}
+
+{%- if fbt_recos == nil or fbt_recos.size == 0 -%}
+  {%- comment -%} no recos — collapse widget {%- endcomment -%}
+{%- else -%}
+
+<sai-u3rw3o3e
+  class="sai-u3rw3o3e"
+  data-product-id="{{ product.id }}"
+  data-lock-main="{{ lock_main }}"
+>
+  <div class="sai-u3rw3o3e__inner">
+  <h2 class="sai-u3rw3o3e__heading">{{ heading }}</h2>
+
+  <div class="sai-u3rw3o3e__layout">
+    <div class="sai-u3rw3o3e__cards">
+
+      {%- comment -%} ── Main product card — same chrome as recos. {%- endcomment -%}
+      <div class="sai-u3rw3o3e__card sai-u3rw3o3e__card--main" data-product-id="{{ product.id }}">
+        <label class="sai-u3rw3o3e__checkbox{% if lock_main %} sai-u3rw3o3e__checkbox--locked{% endif %}">
+          <input type="checkbox" data-fbt-checkbox checked
+            aria-label="Include {{ product.title | escape }}"
+            {% if lock_main %}disabled{% endif %}>
+          <span class="sai-u3rw3o3e__checkbox-mark" aria-hidden="true">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" focusable="false">
+              <path d="M3 7L6 10L11 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </span>
+        </label>
+        <a class="sai-u3rw3o3e__media" href="{{ product.url }}" tabindex="-1" aria-hidden="true">
+          {%- if product.featured_image -%}
+            <img
+              class="sai-u3rw3o3e__image"
+              src="{{ product.featured_image | image_url: width: 400 }}"
+              alt="{{ product.featured_image.alt | default: product.title | escape }}"
+              loading="lazy"
+            >
+          {%- endif -%}
+        </a>
+        <a class="sai-u3rw3o3e__title" href="{{ product.url }}">{{ product.title }}</a>
+        <div class="sai-u3rw3o3e__price-row">
+          <span class="sai-u3rw3o3e__price">{{ product.price | money }}</span>
+          {%- if product.compare_at_price and product.compare_at_price > product.price -%}
+            <span class="sai-u3rw3o3e__compare">{{ product.compare_at_price | money }}</span>
+          {%- endif -%}
+        </div>
+        {%- if product.variants.size > 1 -%}
+          <button
+            type="button"
+            class="sai-u3rw3o3e__variant-trigger"
+            data-variant-trigger
+            aria-haspopup="dialog"
+          >
+            <span class="sai-u3rw3o3e__variant-label">{{ product.variants.first.options.first }}</span>
+            <svg class="sai-u3rw3o3e__chevron" width="12" height="12" viewBox="0 0 14 14" fill="none" focusable="false" aria-hidden="true">
+              <path d="M3 5L7 9L11 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        {%- endif -%}
+      </div>
+
+      {%- comment -%} ── Reco cards. `+` separator only between main and the
+            first reco; subsequent recos sit next to each other separated only
+            by the cards-container gap. {%- endcomment -%}
+      {%- for r in fbt_recos -%}
+        {%- if forloop.first -%}
+          <div class="sai-u3rw3o3e__plus" aria-hidden="true">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" focusable="false">
+              <path d="M7 2V12M2 7H12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+          </div>
+        {%- endif -%}
+        <div class="sai-u3rw3o3e__card sai-u3rw3o3e__card--reco" data-product-id="{{ r.id }}">
+          <label class="sai-u3rw3o3e__checkbox">
+            <input type="checkbox" data-fbt-checkbox checked aria-label="Include {{ r.title | escape }}">
+            <span class="sai-u3rw3o3e__checkbox-mark" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" focusable="false">
+                <path d="M3 7L6 10L11 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+          </label>
+          <a class="sai-u3rw3o3e__media" href="{{ r.url }}" tabindex="-1" aria-hidden="true">
+            {%- if r.featured_image -%}
+              <img
+                class="sai-u3rw3o3e__image"
+                src="{{ r.featured_image | image_url: width: 400 }}"
+                alt="{{ r.featured_image.alt | default: r.title | escape }}"
+                loading="lazy"
+              >
+            {%- endif -%}
+          </a>
+          <a class="sai-u3rw3o3e__title" href="{{ r.url }}">{{ r.title }}</a>
+          <div class="sai-u3rw3o3e__price-row">
+            <span class="sai-u3rw3o3e__price">{{ r.price | money }}</span>
+            {%- if r.compare_at_price and r.compare_at_price > r.price -%}
+              <span class="sai-u3rw3o3e__compare">{{ r.compare_at_price | money }}</span>
+            {%- endif -%}
+          </div>
+          {%- if r.variants.size > 1 -%}
+            <button
+              type="button"
+              class="sai-u3rw3o3e__variant-trigger"
+              data-variant-trigger
+              aria-haspopup="dialog"
+            >
+              <span class="sai-u3rw3o3e__variant-label">{{ r.variants.first.options.first }}</span>
+              <svg class="sai-u3rw3o3e__chevron" width="12" height="12" viewBox="0 0 14 14" fill="none" focusable="false" aria-hidden="true">
+                <path d="M3 5L7 9L11 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          {%- endif -%}
+        </div>
+      {%- endfor -%}
+    </div>
+
+    <aside class="sai-u3rw3o3e__total">
+      <div class="sai-u3rw3o3e__total-label">{{ total_label }}</div>
+      <div class="sai-u3rw3o3e__total-row">
+        <div class="sai-u3rw3o3e__total-subtext">{{ total_subtext }}</div>
+        <div class="sai-u3rw3o3e__total-amount" data-fbt-total></div>
+      </div>
+      <button type="button" class="sai-u3rw3o3e__cta" data-fbt-cta>
+        <span data-fbt-cta-label>{{ cta_label }}</span>
+      </button>
+      <div class="sai-u3rw3o3e__error" data-fbt-error role="alert" hidden></div>
+    </aside>
+  </div>
+  </div>
+
+  {%- comment -%}
+    JSON payload — same shape as the vertical variant. Per-value `| json`
+    per generated-liquid rule §5; integer ids manually quoted as object keys
+    since `| json` on a number emits unquoted digits (invalid JSON keys).
+  {%- endcomment -%}
+  <script type="application/json" data-fbt-payload>
+{
+  "main": {{ product.id | json }},
+  "currency": {{ shop.currency | json }},
+  "order": [{{ product.id | json }}{%- for r in fbt_recos -%},{{ r.id | json }}{%- endfor -%}],
+  "products": {
+    "{{ product.id }}": {
+      "id": {{ product.id | json }},
+      "title": {{ product.title | json }},
+      "url": {{ product.url | json }},
+      "imageUrl": {{ product.featured_image | image_url: width: 400 | json }},
+      "price": {{ product.price | json }},
+      "compareAtPrice": {{ product.compare_at_price | json }},
+      "options": {{ product.options | json }},
+      "available": {{ product.available | json }},
+      "variants": [
+        {%- for v in product.variants -%}
+          {%- unless forloop.first -%},{%- endunless -%}
+          {
+            "id": {{ v.id | json }},
+            "title": {{ v.title | json }},
+            "price": {{ v.price | json }},
+            "compareAtPrice": {{ v.compare_at_price | json }},
+            "available": {{ v.available | json }},
+            "options": {{ v.options | json }},
+            "inventoryQty": {{ v.inventory_quantity | json }},
+            "inventoryManaged": {{ v.inventory_management | json }}
+          }
+        {%- endfor -%}
+      ]
+    }
+    {%- for r in fbt_recos -%}
+    ,
+    "{{ r.id }}": {
+      "id": {{ r.id | json }},
+      "title": {{ r.title | json }},
+      "url": {{ r.url | json }},
+      "imageUrl": {{ r.featured_image | image_url: width: 400 | json }},
+      "price": {{ r.price | json }},
+      "compareAtPrice": {{ r.compare_at_price | json }},
+      "options": {{ r.options | json }},
+      "available": {{ r.available | json }},
+      "variants": [
+        {%- for v in r.variants -%}
+          {%- unless forloop.first -%},{%- endunless -%}
+          {
+            "id": {{ v.id | json }},
+            "title": {{ v.title | json }},
+            "price": {{ v.price | json }},
+            "compareAtPrice": {{ v.compare_at_price | json }},
+            "available": {{ v.available | json }},
+            "options": {{ v.options | json }},
+            "inventoryQty": {{ v.inventory_quantity | json }},
+            "inventoryManaged": {{ v.inventory_management | json }}
+          }
+        {%- endfor -%}
+      ]
+    }
+    {%- endfor -%}
+  }
+}
+  </script>
+</sai-u3rw3o3e>
+
+{%- endif -%}

@@ -1,0 +1,2128 @@
+/**
+ * Spectrum SDK — Centralised API layer for all platform interactions.
+ *
+ * Every Shopify storefront API call (cart, product, recommendations)
+ * and Spectrum app proxy call (reviews, wishlist) should go through
+ * this module instead of hitting endpoints directly. This decouples
+ * business logic from the underlying platform, making it easier to
+ * test, swap providers, or add cross-cutting concerns (logging,
+ * retries, analytics) in one place.
+ *
+ * ═══════════════════════════════════════════════════════════════════════
+ * AI AGENT INSTRUCTIONS (Cursor / Claude / Codex)
+ * ═══════════════════════════════════════════════════════════════════════
+ *
+ * RULE: Never call Shopify or app proxy endpoints directly. Always use
+ * this SDK.
+ *
+ * Available via `window.Spectrum` (global). Ships verbatim to the merchant
+ * theme as a classic `<script src>`; do not introduce ES module syntax
+ * (`import`/`export`) here — the browser will refuse to parse the file.
+ *
+ * ── Cart ────────────────────────────────────────────────────────────
+ *   Spectrum.cart.get()                          → cart JSON
+ *   Spectrum.cart.add(items, { sections })        → add items (JSON body)
+ *   Spectrum.cart.addFromForm(formData)            → add items (FormData body)
+ *   Spectrum.cart.change(data, { sections })       → change line item qty
+ *   Spectrum.cart.update(data, { sections })       → update attributes/note
+ *   Spectrum.cart.clear()                          → empty the cart
+ *   Spectrum.cart.applyCoupon(code)                → apply discount code
+ *   All cart methods accept { signal } for AbortController support.
+ *   Pass { sections: ['cart-drawer'] } to get rendered HTML in response.
+ *   cart.add / cart.addFromForm auto-apply the best PA coupon code
+ *   by scanning pa-data-* tags in the DOM (fire-and-forget).
+ *
+ * ── Products ────────────────────────────────────────────────────────
+ *   Spectrum.products.getByHandle(handle)         → product JSON
+ *   Spectrum.products.getRecommendations(id, { intent, limit })
+ *
+ * ── Sections (HTML) ─────────────────────────────────────────────────
+ *   Spectrum.sections.fetch(url)                  → rendered HTML string
+ *
+ * ── Platform ────────────────────────────────────────────────────────
+ *   Spectrum.platform.loadFeatures(features)      → Shopify.loadFeatures
+ *   Spectrum.platform.payments.init()             → PaymentButton.init
+ *   Spectrum.platform.payments.isReady()          → bool
+ *   Spectrum.platform.payments.expressInit()      → StorefrontExpressButtons
+ *   Spectrum.platform.payments.isExpressReady()   → bool
+ *   Spectrum.platform.xr.isReady                  → bool (getter)
+ *   Spectrum.platform.xr.addModels(models)        → ShopifyXR.addModels
+ *   Spectrum.platform.xr.setupElements()          → ShopifyXR.setupXRElements
+ *   Spectrum.platform.xr.createModelViewer(el)    → new ModelViewerUI
+ *
+ * ── Price Adjustments ───────────────────────────────────────────────
+ *   Spectrum.priceAdjustments.reinit()            → dispatches pa:reinit
+ *   Spectrum.priceAdjustments.calcSavings(item, priceCents) → savings in cents
+ *   Spectrum.priceAdjustments.findBest(items, priceCents)   → { item, savings }
+ *   Spectrum.priceAdjustments.applyBestCoupon(items, priceCents)
+ *     → find best discount, auto-apply its code (best-effort, never throws)
+ *
+ * ── Money ───────────────────────────────────────────────────────────
+ *   Spectrum.money.format(cents, format?)         → formatted string
+ *   Standalone formatter — does NOT depend on Shopify.formatMoney.
+ *
+ * ── Reviews (app proxy) ─────────────────────────────────────────────
+ *   All return { ok, data } or { ok, error: { message, code } }.
+ *   Spectrum.reviews.getReviews(handle, opts?)    → paginated reviews
+ *   Spectrum.reviews.getStats(handle)             → rating summary
+ *   Spectrum.reviews.submitReview(data)           → create review
+ *   Spectrum.reviews.voteOnReview(reviewId, type, opts?) → upvote/downvote
+ *   Spectrum.reviews.uploadMedia(file)            → upload image/video
+ *
+ * ── Wishlist (app proxy) ────────────────────────────────────────────
+ *   All return { ok, data } or { ok, error: { message, code } }.
+ *   Guest visitors use localStorage; items auto-merge on login.
+ *   Spectrum.wishlist.getWishlists(opts?)         → list wishlists
+ *   Spectrum.wishlist.createWishlist(name)        → create wishlist
+ *   Spectrum.wishlist.updateWishlist(id, data)    → rename etc.
+ *   Spectrum.wishlist.deleteWishlist(id)          → delete wishlist
+ *   Spectrum.wishlist.addItem(wishlistId, data)   → add (guest-aware)
+ *   Spectrum.wishlist.removeItem(wId, itemId)     → remove item
+ *   Spectrum.wishlist.updateItem(wId, itemId, d)  → update item
+ *   Spectrum.wishlist.removeByProduct(productGid) → remove (guest-aware)
+ *   Spectrum.wishlist.getShared(shareToken, opts?) → shared wishlist
+ *
+ * ── Search (app proxy) ────────────────────────────────────────────
+ *   All return { ok, data } or { ok, error: { message, code } }.
+ *   Backend envelope { success, data } is unwrapped automatically.
+ *   Spectrum.search.query(q, opts?)               → search results
+ *   Spectrum.search.getFacets(q, opts?)            → facet distributions
+ *   Spectrum.search.predictive(q, opts?)           → auto-cancel + cached
+ *   Spectrum.search.getRecent()                    → recent queries (localStorage)
+ *   Spectrum.search.addRecent(query)               → save to recent history
+ *   Spectrum.search.recommendInlineFilters(q, opts?) → recommended inline filters
+ *   Spectrum.search.clearRecent()                  → clear recent history
+ *   query/predictive accept { sort, page, hitsPerPage, filters, signal }.
+ *   Filters use backend syntax: { 'filter.v.vendor': 'Nike', 'filter.v.price.lte': '200' }
+ *   predictive() aborts previous in-flight request; returns null if cancelled.
+ *   Redirect responses auto-navigate via window.location.href.
+ *
+ * ── Configuration ───────────────────────────────────────────────────
+ *   Spectrum.configure({ root, moneyFormat })     → override defaults
+ *   Call once at theme init if the store uses non-standard routes or
+ *   a custom money format. Omit to auto-detect from Shopify globals.
+ *   App proxy URL and customer are read from window.__spectrumAi.
+ *
+ * ── Events ───────────────────────────────────────────────────────────
+ *   Spectrum.events.emit(name, detail)           → dispatch custom event
+ *   Spectrum.events.on(name, callback)            → listen for custom event
+ *   Spectrum.events.off(name, callback)           → remove listener
+ *   Events use the app embed's event bus ($spectrum: prefix, on document).
+ *   Naming: 'domain:action' kebab-case (e.g. 'wishlist:added').
+ *
+ * ── Native (Mobile WebView) ──────────────────────────────────────────
+ *   Spectrum.native.getCheckoutUrl({ cartType, slug })
+ *     → Promise<string>  Resolved checkout URL for the user's current cart.
+ *   - cartType: 'default' (Shopify Ajax) | 'bundle'  (default: 'default')
+ *   - slug:     required when cartType !== 'default'
+ *   Throws on resolver failure. Used by the mobile WebView shell to hand a
+ *   URL to ShopifyCheckoutSheetKit. Web traffic never calls this.
+ *
+ * ── Currency ──────────────────────────────────────────────────────────
+ *   Spectrum.getActiveCurrency()                  → ISO 4217 code or undefined
+ *   Returns window.Shopify.currency.active — the customer's
+ *   presentation currency. Use in analytics payloads and price formatting.
+ *
+ * ── Version ──────────────────────────────────────────────────────────
+ *   Spectrum.VERSION                              → semver string
+ *
+ * ── What does NOT belong here ───────────────────────────────────────
+ *   • Trivial property reads (Shopify.designMode, Shopify.shop, etc.)
+ *   • Generic DOM utilities (postLink, CountryProvinceSelector)
+ *   • Custom pub/sub beyond Spectrum's event bus — each store owns its own
+ *     (_track() fires analytics; _emit() fires custom events as cross-cutting concerns)
+ *   • Third-party app integrations (Extend, Bold, Nosto, etc.)
+ *   • UI component wiring that doesn't touch a platform API
+ *
+ * When adding new methods, ask: "Does this wrap a platform API call
+ * with meaningful value (error handling, config, null-safety)?"
+ * If it's just aliasing a one-liner global read, it doesn't belong.
+ * ═══════════════════════════════════════════════════════════════════════
+ */
+
+// ─── Configuration ───────────────────────────────────────────────────
+
+const VERSION = '1.5.0';
+
+const _config = {};
+
+/**
+ * Override SDK defaults. Call once during theme initialisation.
+ * @param {Object}  options
+ * @param {string}  [options.root]        Root path prefix (default: Shopify routes root)
+ * @param {string}  [options.moneyFormat] Shopify money_format string (default: theme.money_format)
+ */
+function configure(options = {}) {
+  Object.assign(_config, options);
+}
+
+function _root() {
+  return _config.root || window.Shopify?.routes?.root || '/';
+}
+
+function _defaultMoneyFormat() {
+  return _config.moneyFormat || window.theme?.money_format || '{{amount}}';
+}
+
+// ─── Internal Helpers — Shopify API ──────────────────────────────────
+
+const _JSON_HEADERS = { 'Content-Type': 'application/json' };
+
+/**
+ * Shared fetch wrapper for all Shopify JSON API calls.
+ *
+ * - Prepends the Shopify root path to the endpoint
+ * - Serialises body as JSON when provided (passes FormData as-is)
+ * - Throws on HTTP errors, preferring the server's `description` field
+ * - Normalises Shopify's non-standard pattern of returning HTTP 200
+ *   with { status: 422, description: "…" } in the body
+ */
+async function _request(endpoint, { method = 'GET', body, signal } = {}) {
+  const options = { method, signal };
+
+  if (body !== undefined) {
+    if (body instanceof FormData) {
+      options.body = body;
+    } else {
+      options.headers = _JSON_HEADERS;
+      options.body = JSON.stringify(body);
+    }
+  }
+
+  const res = await fetch(`${_root()}${endpoint}`, options);
+
+  if (!res.ok) {
+    let message = `Request to ${endpoint} failed (${res.status})`;
+    try {
+      const data = await res.json();
+      if (data.description) message = data.description;
+    } catch {}
+    throw new Error(message);
+  }
+
+  const data = await res.json();
+
+  if (typeof data.status === 'number' && data.status >= 400 && data.description) {
+    throw new Error(data.description);
+  }
+
+  return data;
+}
+
+/**
+ * Shared fetch wrapper for endpoints that return HTML (section rendering).
+ * Throws on non-2xx responses.
+ */
+async function _requestHTML(url, { signal } = {}) {
+  const res = await fetch(url, { signal });
+  if (!res.ok) {
+    throw new Error(`Section request failed (${res.status})`);
+  }
+  return res.text();
+}
+
+// ─── Internal Helpers — App Proxy ────────────────────────────────────
+
+function _proxyBase() {
+  const url = window.__spectrumAi?.baseProxyUrl;
+  return url ? url.replace(/\/+$/, '') : null;
+}
+
+function _customer() {
+  return window.__spectrumAi?.customer || null;
+}
+
+function _isLoggedIn() {
+  return !!_customer();
+}
+
+function _normalizeSuccess(data) {
+  return { ok: true, data };
+}
+
+function _normalizeError(raw, fallbackCode) {
+  let message = 'Unknown error';
+  let code = fallbackCode || 'UNKNOWN';
+
+  if (raw && typeof raw === 'object') {
+    if (typeof raw.error === 'string') message = raw.error;
+    else if (typeof raw.message === 'string') message = raw.message;
+    if (typeof raw.code === 'string') code = raw.code;
+  } else if (typeof raw === 'string') {
+    message = raw;
+  }
+
+  return { ok: false, error: { message, code } };
+}
+
+function _pickDefined(obj) {
+  if (!obj) return {};
+  const result = {};
+  for (const k of Object.keys(obj)) {
+    if (obj[k] !== undefined && obj[k] !== null) result[k] = obj[k];
+  }
+  return result;
+}
+
+function _toQueryString(params) {
+  if (!params) return '';
+  return Object.keys(params)
+    .filter((k) => params[k] !== undefined && params[k] !== null)
+    .map((k) => `${encodeURIComponent(k)}=${encodeURIComponent(params[k])}`)
+    .join('&');
+}
+
+function _buildUrl(base, path, queryParams) {
+  let url = base + (path || '');
+  const qs = _toQueryString(queryParams);
+  if (qs) url += '?' + qs;
+  return url;
+}
+
+async function _getJSON(url, { signal } = {}) {
+  try {
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      credentials: 'same-origin',
+      signal,
+    });
+    const body = await res.json();
+    if (!res.ok) return _normalizeError(body, `HTTP_${res.status}`);
+    return _normalizeSuccess(body);
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      return _normalizeError({ error: 'Request aborted', code: 'ABORTED' }, 'ABORTED');
+    }
+    return _normalizeError({ error: err.message, code: 'NETWORK_ERROR' }, 'NETWORK_ERROR');
+  }
+}
+
+async function _postJSON(url, body, { signal } = {}) {
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify(body),
+      signal,
+    });
+    const data = await res.json();
+    if (!res.ok) return _normalizeError(data, `HTTP_${res.status}`);
+    return _normalizeSuccess(data);
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      return _normalizeError({ error: 'Request aborted', code: 'ABORTED' }, 'ABORTED');
+    }
+    return _normalizeError({ error: err.message, code: 'NETWORK_ERROR' }, 'NETWORK_ERROR');
+  }
+}
+
+async function _postFormData(url, formData, { signal } = {}) {
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      credentials: 'same-origin',
+      body: formData,
+      signal,
+    });
+    const data = await res.json();
+    if (!res.ok) return _normalizeError(data, `HTTP_${res.status}`);
+    return _normalizeSuccess(data);
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      return _normalizeError({ error: 'Request aborted', code: 'ABORTED' }, 'ABORTED');
+    }
+    return _normalizeError({ error: err.message, code: 'NETWORK_ERROR' }, 'NETWORK_ERROR');
+  }
+}
+
+// ─── Internal — Analytics ────────────────────────────────────────────
+
+/**
+ * Fire an analytics event via the Spectrum web pixel pipeline.
+ * Fire-and-forget — never throws, never blocks.
+ * Events arrive in PostHog as `$spectrum:{name}`.
+ *
+ * @param {string} name  Event name in snake_case (e.g. 'wishlist_add')
+ * @param {Object} [properties]  Feature-specific properties (camelCase keys)
+ */
+function _track(name, properties) {
+  try { window.__spectrumAi?.analytics?.trackEvent(name, properties); } catch (_) { /* silent */ }
+}
+
+// ─── Internal — Events ──────────────────────────────────────────────
+
+/**
+ * Dispatch a custom JS event via the Spectrum app embed event bus.
+ * Fire-and-forget — never throws, never blocks.
+ * Events arrive on `document` as `$spectrum:{name}`.
+ *
+ * @param {string} name   Event name in domain:action format (e.g. 'wishlist:added')
+ * @param {Object} [detail]  Event payload (flat object, camelCase keys)
+ */
+function _emit(name, detail) {
+  try { window.__spectrumAi?.emit?.(name, detail); } catch (_) { /* silent */ }
+}
+
+/** Extract numeric ID from a Shopify GID (e.g. 'gid://shopify/Product/123' → '123'). */
+function _numericId(gid) { return gid?.split('/').pop() || gid; }
+
+/** Active storefront currency code (ISO 4217). Reflects the customer's presentation currency. */
+function _currency() { return window.Shopify?.currency?.active; }
+
+/** Build properties for the wishlist_add event. */
+function _wishlistAddProps(wishlistId, data, guest) {
+  const props = { product: { id: _numericId(data.shopifyProductGid) }, wishlistId, guest };
+  if (data.handle) props.product.handle = data.handle;
+  if (data.title) props.product.title = data.title;
+  if (data.image) props.product.image = data.image;
+  if (data.shopifyVariantGid) props.variant = { id: _numericId(data.shopifyVariantGid) };
+  if (data.metadata?.priceAtAdd != null) {
+    props.price = { amount: data.metadata.priceAtAdd, currencyCode: data.metadata.currencyCode };
+  }
+  return props;
+}
+
+// ─── Internal — PA Auto-Apply ────────────────────────────────────────
+
+/**
+ * Scan all pa-data-* script tags in the DOM, find the best discount
+ * that has a coupon code, and apply it. Fire-and-forget — never throws.
+ * Called automatically after cart.add / cart.addFromForm.
+ */
+function _autoApplyBestCoupon() {
+  try {
+    const tags = document.querySelectorAll('script[id^="pa-data-"]');
+    let bestCode = null;
+    let bestSavings = 0;
+
+    for (const tag of tags) {
+      let items;
+      try { items = JSON.parse(tag.textContent); } catch { continue; }
+      if (!Array.isArray(items) || !items.length) continue;
+
+      const key = tag.id.replace('pa-data-', '');
+      const priceEl = document.querySelector(`[data-pa-id="${key}"]`);
+      const priceCents = priceEl
+        ? parseInt(priceEl.getAttribute('data-variant-price'), 10)
+        : 0;
+      if (!priceCents) continue;
+
+      for (const item of items) {
+        if (!item.code) continue;
+        const savings = priceAdjustments.calcSavings(item, priceCents);
+        if (savings > bestSavings) {
+          bestSavings = savings;
+          bestCode = item.code;
+        }
+      }
+    }
+
+    if (bestCode) cart.applyCoupon(bestCode);
+  } catch {}
+}
+
+// ─── Cart ────────────────────────────────────────────────────────────
+
+const cart = {
+  /**
+   * Fetch the current cart.
+   * @param {Object}       [opts]
+   * @param {AbortSignal}  [opts.signal]
+   * @returns {Promise<Object>} Full cart object
+   */
+  get({ signal } = {}) {
+    return _request('cart.js', { signal });
+  },
+
+  /**
+   * Add one or more items to the cart.
+   * After a successful add, auto-applies the best PA coupon from the DOM.
+   * @param {Object|Object[]} items  Single item or array of { id, quantity, properties? }
+   * @param {Object}           [opts]
+   * @param {string|string[]}  [opts.sections]  Section IDs to include rendered HTML in response
+   * @param {AbortSignal}      [opts.signal]
+   * @returns {Promise<Object>} The added-items response (includes `sections` if requested)
+   * @throws {Error} With a user-facing message on failure
+   */
+  async add(items, { signal, sections } = {}) {
+    const payload = Array.isArray(items) ? items : [items];
+    const body = { items: payload };
+    if (sections) body.sections = sections;
+    const result = await _request('cart/add.js', { method: 'POST', body, signal });
+    _autoApplyBestCoupon();
+    return result;
+  },
+
+  /**
+   * Add to cart from a FormData object (e.g. from a product <form>).
+   * After a successful add, auto-applies the best PA coupon from the DOM.
+   * @param {FormData}     formData
+   * @param {Object}       [opts]
+   * @param {AbortSignal}  [opts.signal]
+   * @returns {Promise<Object>} The added-items response
+   */
+  async addFromForm(formData, { signal } = {}) {
+    const result = await _request('cart/add.js', { method: 'POST', body: formData, signal });
+    _autoApplyBestCoupon();
+    return result;
+  },
+
+  /**
+   * Change a line item's quantity.
+   * @param {Object}           data          { line, quantity } or { id, quantity }
+   * @param {Object}           [opts]
+   * @param {string|string[]}  [opts.sections]  Section IDs to include rendered HTML in response
+   * @param {AbortSignal}      [opts.signal]
+   * @returns {Promise<Object>} Updated cart (includes `sections` if requested)
+   * @throws {Error} On failure (including quantity limits, out-of-stock, etc.)
+   */
+  change(data, { signal, sections } = {}) {
+    const body = sections ? { ...data, sections } : data;
+    return _request('cart/change.js', { method: 'POST', body, signal });
+  },
+
+  /**
+   * Update cart attributes, line items, or note.
+   * @param {Object}           data          { attributes?, updates?, note? }
+   * @param {Object}           [opts]
+   * @param {string|string[]}  [opts.sections]  Section IDs to include rendered HTML in response
+   * @param {AbortSignal}      [opts.signal]
+   * @returns {Promise<Object>} Updated cart (includes `sections` if requested)
+   */
+  update(data, { signal, sections } = {}) {
+    const body = sections ? { ...data, sections } : data;
+    return _request('cart/update.js', { method: 'POST', body, signal });
+  },
+
+  /**
+   * Remove all items from the cart.
+   * @param {Object}       [opts]
+   * @param {AbortSignal}  [opts.signal]
+   * @returns {Promise<Object>} Empty cart
+   */
+  clear({ signal } = {}) {
+    return _request('cart/clear.js', { method: 'POST', signal });
+  },
+
+  /**
+   * Apply a discount code to the current cart via Shopify's /discount endpoint.
+   * @param {string} code  Discount / coupon code
+   * @returns {Promise<boolean>} true if the request succeeded
+   */
+  async applyCoupon(code) {
+    if (!code) return false;
+    try {
+      await fetch(`${_root()}discount/${encodeURIComponent(code)}`);
+      return true;
+    } catch {
+      return false;
+    }
+  },
+};
+
+// ─── Products ────────────────────────────────────────────────────────
+
+const products = {
+  /**
+   * Fetch product JSON by handle.
+   * @param {string}       handle  Product handle (URL slug)
+   * @param {Object}       [opts]
+   * @param {AbortSignal}  [opts.signal]
+   * @returns {Promise<Object>} Full product object
+   */
+  getByHandle(handle, { signal } = {}) {
+    return _request(`products/${handle}.js`, { signal });
+  },
+
+  /**
+   * Fetch product recommendations.
+   * @param {string|number} productId
+   * @param {Object}        [opts]
+   * @param {string}        [opts.intent='related'] 'related' | 'complementary'
+   * @param {number}        [opts.limit]   Max number of products to return
+   * @param {AbortSignal}   [opts.signal]
+   * @returns {Promise<Object>} { products: [...] }
+   */
+  getRecommendations(productId, { intent = 'related', limit, signal } = {}) {
+    let url = `recommendations/products.json?product_id=${productId}&intent=${intent}`;
+    if (limit != null) url += `&limit=${limit}`;
+    return _request(url, { signal });
+  },
+};
+
+// ─── Sections (HTML rendering) ───────────────────────────────────────
+
+const sections = {
+  /**
+   * Fetch a section's rendered HTML.
+   * @param {string}       url
+   * @param {Object}       [opts]
+   * @param {AbortSignal}  [opts.signal]
+   * @returns {Promise<string>} Raw HTML text
+   */
+  fetch(url, { signal } = {}) {
+    return _requestHTML(url, { signal });
+  },
+};
+
+// ─── Platform ────────────────────────────────────────────────────────
+
+const platform = {
+  /**
+   * Lazy-load a Shopify platform feature (e.g. shopify-xr, model-viewer-ui).
+   * @param {Array<{name:string, version:string, onLoad:Function}>} features
+   */
+  loadFeatures(features) {
+    window.Shopify?.loadFeatures?.(features);
+  },
+
+  payments: {
+    /** @returns {boolean} Whether the dynamic checkout button SDK is loaded */
+    isReady() {
+      return Boolean(window.Shopify?.PaymentButton);
+    },
+
+    /**
+     * Initialise dynamic checkout (Buy Now) buttons.
+     * @returns {boolean} true if initialisation ran, false if SDK not yet loaded
+     */
+    init() {
+      if (window.Shopify?.PaymentButton) {
+        window.Shopify.PaymentButton.init();
+        return true;
+      }
+      return false;
+    },
+
+    /** @returns {boolean} Whether the Storefront Express Buttons SDK is loaded */
+    isExpressReady() {
+      return Boolean(window.Shopify?.StorefrontExpressButtons);
+    },
+
+    /**
+     * Initialise Storefront Express Buttons (newer express checkout).
+     * @returns {boolean} true if initialisation ran, false if SDK not yet loaded
+     */
+    expressInit() {
+      if (window.Shopify?.StorefrontExpressButtons) {
+        window.Shopify.StorefrontExpressButtons.initialize();
+        return true;
+      }
+      return false;
+    },
+  },
+
+  xr: {
+    /** @returns {boolean} Whether the ShopifyXR runtime is loaded */
+    get isReady() {
+      return Boolean(window.ShopifyXR);
+    },
+
+    /** Register 3D models with the XR runtime. */
+    addModels(models) {
+      window.ShopifyXR?.addModels(models);
+    },
+
+    /** Attach XR interaction to model-viewer elements on the page. */
+    setupElements() {
+      window.ShopifyXR?.setupXRElements();
+    },
+
+    /**
+     * Create a ModelViewerUI instance for a <model-viewer> element.
+     * @param {Element} element
+     * @returns {Object|null} ModelViewerUI instance, or null if not available
+     */
+    createModelViewer(element) {
+      if (window.Shopify?.ModelViewerUI) {
+        return new window.Shopify.ModelViewerUI(element);
+      }
+      return null;
+    },
+  },
+};
+
+// ─── Price Adjustments ───────────────────────────────────────────────
+
+const priceAdjustments = {
+  /** Re-apply price adjustments to any newly rendered product elements. */
+  reinit() {
+    document.dispatchEvent(new CustomEvent('pa:reinit'));
+  },
+
+  /**
+   * Calculate savings in cents for a single PA item at a given price.
+   * @param {{ code:string, discount_type:string, discount_value:number }} item
+   * @param {number} priceCents  Variant price in cents
+   * @returns {number} Savings in cents (0 if item is invalid)
+   */
+  calcSavings(item, priceCents) {
+    if (!item?.discount_type || !item.discount_value) return 0;
+    if (item.discount_type === 'percentage') {
+      return Math.round(priceCents * item.discount_value / 100);
+    }
+    if (item.discount_type === 'amount' || item.discount_type === 'fixed') {
+      return Math.round(item.discount_value * 100);
+    }
+    return 0;
+  },
+
+  /**
+   * Find the PA item with the highest savings for a given price.
+   * @param {Array}  items       PA items array from metafield data
+   * @param {number} priceCents  Variant price in cents
+   * @returns {{ item:Object, savings:number }|null}
+   */
+  findBest(items, priceCents) {
+    if (!Array.isArray(items) || !priceCents) return null;
+    let best = null;
+    let bestSavings = 0;
+    for (const item of items) {
+      const savings = this.calcSavings(item, priceCents);
+      if (savings > bestSavings) {
+        bestSavings = savings;
+        best = item;
+      }
+    }
+    return best ? { item: best, savings: bestSavings } : null;
+  },
+
+  /**
+   * Find the best discount from PA items and auto-apply its coupon code.
+   * Best-effort: returns null silently on failure or if no code exists.
+   * @param {Array}  items       PA items array from metafield data
+   * @param {number} priceCents  Variant price in cents
+   * @returns {Promise<{ item:Object, savings:number }|null>}
+   */
+  async applyBestCoupon(items, priceCents) {
+    const best = this.findBest(items, priceCents);
+    if (!best?.item.code) return null;
+    try {
+      const applied = await cart.applyCoupon(best.item.code);
+      return applied ? best : null;
+    } catch {
+      return null;
+    }
+  },
+};
+
+// ─── Money Formatting ────────────────────────────────────────────────
+
+function _formatWithDelimiters(cents, precision, thousands, decimal) {
+  if (isNaN(cents) || cents == null) return '0';
+
+  const fixed = (cents / 100).toFixed(precision);
+  const parts = fixed.split('.');
+  const dollars = parts[0].replace(/(\d)(?=(\d{3})+(?!\d))/g, `$1${thousands}`);
+  const remainder = parts[1] ? `${decimal}${parts[1]}` : '';
+  return dollars + remainder;
+}
+
+function _formatMoney(cents, format) {
+  if (typeof cents === 'string') cents = cents.replace('.', '');
+  cents = parseInt(cents, 10) || 0;
+
+  const formatString = format || _defaultMoneyFormat();
+  const placeholderRegex = /\{\{\s*(\w+)\s*\}\}/;
+  const match = formatString.match(placeholderRegex);
+  if (!match) return formatString;
+
+  let value;
+  switch (match[1]) {
+    case 'amount':
+      value = _formatWithDelimiters(cents, 2, ',', '.');
+      break;
+    case 'amount_no_decimals':
+      value = _formatWithDelimiters(cents, 0, ',', '.');
+      break;
+    case 'amount_with_comma_separator':
+      value = _formatWithDelimiters(cents, 2, '.', ',');
+      break;
+    case 'amount_no_decimals_with_comma_separator':
+      value = _formatWithDelimiters(cents, 0, '.', ',');
+      break;
+    case 'amount_with_apostrophe_separator':
+      value = _formatWithDelimiters(cents, 2, "'", '.');
+      break;
+    case 'amount_with_period_and_space_separator':
+      value = _formatWithDelimiters(cents, 2, ' ', '.');
+      break;
+    default:
+      value = _formatWithDelimiters(cents, 2, ',', '.');
+  }
+
+  return formatString.replace(placeholderRegex, value);
+}
+
+const money = {
+  /**
+   * Format cents into a locale-aware money string.
+   * Uses a standalone formatter compatible with all Shopify money_format
+   * placeholders — does not depend on Shopify.formatMoney being present.
+   * @param {number|string} cents
+   * @param {string}        [format]  Shopify money_format string; falls back to configured default
+   * @returns {string}
+   */
+  format(cents, format) {
+    return _formatMoney(cents, format);
+  },
+};
+
+// ─── Internal — Guest Wishlist ───────────────────────────────────────
+
+const _GUEST_STORAGE_KEY = '__spectrum_wishlist_guest';
+
+function _getGuestItems() {
+  try {
+    const raw = localStorage.getItem(_GUEST_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed.items) ? parsed.items : [];
+  } catch {
+    return [];
+  }
+}
+
+function _addGuestItem(item) {
+  try {
+    const items = _getGuestItems();
+    const isDuplicate = items.some(
+      (existing) =>
+        existing.shopifyProductGid === item.shopifyProductGid &&
+        (existing.shopifyVariantGid || null) === (item.shopifyVariantGid || null),
+    );
+    if (isDuplicate) return;
+    const entry = Object.assign({}, item);
+    if (!entry.addedAt) entry.addedAt = new Date().toISOString();
+    items.push(entry);
+    localStorage.setItem(_GUEST_STORAGE_KEY, JSON.stringify({ items }));
+  } catch {}
+}
+
+function _removeGuestItem(productGid) {
+  try {
+    const items = _getGuestItems();
+    const filtered = items.filter((i) => i.shopifyProductGid !== productGid);
+    localStorage.setItem(_GUEST_STORAGE_KEY, JSON.stringify({ items: filtered }));
+  } catch {}
+}
+
+function _clearGuestItems() {
+  try {
+    localStorage.removeItem(_GUEST_STORAGE_KEY);
+  } catch {}
+}
+
+function _mergeGuestToServer() {
+  const base = _proxyBase();
+  if (!base) return Promise.resolve(_normalizeError('Proxy not configured', 'NO_PROXY'));
+  return _postJSON(_buildUrl(`${base}/wishlist`, '/merge'), { items: _getGuestItems() });
+}
+
+// ─── Reviews (App Proxy) ─────────────────────────────────────────────
+
+const reviews = {
+  /** @returns {Promise<{ok:boolean, data?:Object, error?:{message:string, code:string}}>} */
+  async getReviews(productHandle, opts) {
+    const base = _proxyBase();
+    if (!base) return _normalizeError('Proxy not configured', 'NO_PROXY');
+    return _getJSON(_buildUrl(`${base}/reviews`, `/${encodeURIComponent(productHandle)}`, _pickDefined(opts)));
+  },
+
+  async submitReview(data) {
+    const base = _proxyBase();
+    if (!base) return _normalizeError('Proxy not configured', 'NO_PROXY');
+    const result = await _postJSON(_buildUrl(`${base}/reviews`, ''), data);
+    if (result.ok) {
+      const product = {};
+      if (data.productId != null) product.id = String(data.productId);
+      if (data.productHandle) product.handle = data.productHandle;
+      const props = {
+        rating: data.rating,
+        product: Object.keys(product).length > 0 ? product : undefined,
+        mediaCount: Array.isArray(data.media) ? data.media.length : 0,
+      };
+      if (data.__spectrumVariant) props.__spectrumVariant = data.__spectrumVariant;
+      _track('review_submit', props);
+      _emit('review:submitted', data);
+    }
+    return result;
+  },
+
+  async voteOnReview(reviewId, voteType, opts) {
+    const base = _proxyBase();
+    if (!base) return _normalizeError('Proxy not configured', 'NO_PROXY');
+    const result = await _postJSON(_buildUrl(`${base}/reviews`, `/${encodeURIComponent(reviewId)}/vote`), { voteType });
+    if (result.ok) {
+      const props = { reviewId, voteType };
+      if (opts?.__spectrumVariant) props.__spectrumVariant = opts.__spectrumVariant;
+      if (opts?.productId != null || opts?.productHandle) {
+        props.product = {};
+        if (opts.productId != null) props.product.id = String(opts.productId);
+        if (opts.productHandle) props.product.handle = opts.productHandle;
+      }
+      _track('review_vote', props);
+      const emitPayload = { reviewId, voteType };
+      if (opts?.__spectrumVariant) emitPayload.__spectrumVariant = opts.__spectrumVariant;
+      _emit('review:voted', emitPayload);
+    }
+    return result;
+  },
+
+  async getStats(productHandle) {
+    const base = _proxyBase();
+    if (!base) return _normalizeError('Proxy not configured', 'NO_PROXY');
+    return _getJSON(_buildUrl(`${base}/reviews`, `/stats/${encodeURIComponent(productHandle)}`));
+  },
+
+  async uploadMedia(file) {
+    const base = _proxyBase();
+    if (!base) return _normalizeError('Proxy not configured', 'NO_PROXY');
+    const formData = new FormData();
+    formData.append('file', file);
+    return _postFormData(_buildUrl(`${base}/reviews`, '/media/upload'), formData);
+  },
+};
+
+// ─── Wishlist (App Proxy) ────────────────────────────────────────────
+
+const wishlist = {
+  async getWishlists(opts) {
+    const base = _proxyBase();
+    if (!base) return _normalizeError('Proxy not configured', 'NO_PROXY');
+    return _getJSON(_buildUrl(`${base}/wishlist`, '', _pickDefined(opts)));
+  },
+
+  async createWishlist(name) {
+    const base = _proxyBase();
+    if (!base) return _normalizeError('Proxy not configured', 'NO_PROXY');
+    return _postJSON(_buildUrl(`${base}/wishlist`, ''), { name });
+  },
+
+  async updateWishlist(id, data) {
+    const base = _proxyBase();
+    if (!base) return _normalizeError('Proxy not configured', 'NO_PROXY');
+    return _postJSON(_buildUrl(`${base}/wishlist`, `/${encodeURIComponent(id)}/update`), data);
+  },
+
+  async deleteWishlist(id) {
+    const base = _proxyBase();
+    if (!base) return _normalizeError('Proxy not configured', 'NO_PROXY');
+    return _postJSON(_buildUrl(`${base}/wishlist`, `/${encodeURIComponent(id)}/delete`), {});
+  },
+
+  async addItem(wishlistId, data) {
+    const guest = !_isLoggedIn();
+    if (guest) {
+      _addGuestItem(data);
+      _track('wishlist_add', _wishlistAddProps(wishlistId, data, true));
+      // Emit passes raw caller data (not the enriched analytics shape) — listeners use
+      // shopifyProductGid for UI sync; extra fields (title, image) ride along but are not contractual.
+      _emit('wishlist:added', data);
+      return _normalizeSuccess({ guest: true });
+    }
+    const base = _proxyBase();
+    if (!base) return _normalizeError('Proxy not configured', 'NO_PROXY');
+    const result = await _postJSON(_buildUrl(`${base}/wishlist`, `/${encodeURIComponent(wishlistId)}/items`), data);
+    if (result.ok) {
+      _track('wishlist_add', _wishlistAddProps(wishlistId, data, false));
+      _emit('wishlist:added', data);
+    }
+    return result;
+  },
+
+  async removeItem(wishlistId, itemId, metadata) {
+    const base = _proxyBase();
+    if (!base) return _normalizeError('Proxy not configured', 'NO_PROXY');
+    const result = await _postJSON(
+      _buildUrl(`${base}/wishlist`, `/${encodeURIComponent(wishlistId)}/items/${encodeURIComponent(itemId)}/delete`),
+      {},
+    );
+    if (result.ok) {
+      const trackProps = { wishlistId, itemId };
+      if (metadata?.productGid) {
+        trackProps.product = { id: _numericId(metadata.productGid) };
+        if (metadata.handle) trackProps.product.handle = metadata.handle;
+      }
+      trackProps.guest = false;
+      _track('wishlist_remove', trackProps);
+      _emit('wishlist:removed', { wishlistId, itemId });
+    }
+    return result;
+  },
+
+  async updateItem(wishlistId, itemId, data) {
+    const base = _proxyBase();
+    if (!base) return _normalizeError('Proxy not configured', 'NO_PROXY');
+    return _postJSON(
+      _buildUrl(`${base}/wishlist`, `/${encodeURIComponent(wishlistId)}/items/${encodeURIComponent(itemId)}/update`),
+      data,
+    );
+  },
+
+  async removeByProduct(productGid, metadata) {
+    const guest = !_isLoggedIn();
+    const removeProps = { product: { id: _numericId(productGid) }, guest };
+    if (metadata?.handle) removeProps.product.handle = metadata.handle;
+    if (metadata?.title) removeProps.product.title = metadata.title;
+    if (guest) {
+      _removeGuestItem(productGid);
+      _track('wishlist_remove', removeProps);
+      _emit('wishlist:removed', { shopifyProductGid: productGid });
+      return _normalizeSuccess({ guest: true, removedCount: 1 });
+    }
+    const base = _proxyBase();
+    if (!base) return _normalizeError('Proxy not configured', 'NO_PROXY');
+    const result = await _postJSON(_buildUrl(`${base}/wishlist`, '/items/remove-by-product'), { shopifyProductGid: productGid });
+    if (result.ok) {
+      _track('wishlist_remove', removeProps);
+      _emit('wishlist:removed', { shopifyProductGid: productGid });
+    }
+    return result;
+  },
+
+  async getShared(shareToken, opts) {
+    const base = _proxyBase();
+    if (!base) return _normalizeError('Proxy not configured', 'NO_PROXY');
+    return _getJSON(_buildUrl(`${base}/wishlist`, `/shared/${encodeURIComponent(shareToken)}`, _pickDefined(opts)));
+  },
+};
+
+// ─── Internal Helpers — Search ───────────────────────────────────────
+
+/**
+ * Fetch wrapper for search endpoints that unwraps the backend's
+ * { success, data } envelope into the SDK's { ok, data } contract.
+ */
+async function _searchJSON(url, { signal } = {}) {
+  try {
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      credentials: 'same-origin',
+      signal,
+    });
+    const body = await res.json();
+
+    if (!res.ok || body.success === false) {
+      return _normalizeError(
+        { error: body.error || `Search request failed (${res.status})`, code: body.code },
+        body.code || `HTTP_${res.status}`,
+      );
+    }
+
+    return _normalizeSuccess(body.data);
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      return _normalizeError({ error: 'Request aborted', code: 'ABORTED' }, 'ABORTED');
+    }
+    return _normalizeError({ error: err.message, code: 'NETWORK_ERROR' }, 'NETWORK_ERROR');
+  }
+}
+
+// ─── Internal — Search Predictive ───────────────────────────────────
+
+let _predictiveController = null;
+const _predictiveCache = new Map();
+const _PREDICTIVE_CACHE_TTL = 30000; // 30 seconds
+const _PREDICTIVE_CACHE_MAX = 50;
+
+function _predictiveCacheKey(q, opts) {
+  const filterStr = opts.filters ? JSON.stringify(opts.filters) : '';
+  const sortStr = opts.sort || '';
+  return `${q}|${sortStr}|${filterStr}`;
+}
+
+function _predictiveCacheGet(key) {
+  const entry = _predictiveCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.ts > _PREDICTIVE_CACHE_TTL) {
+    _predictiveCache.delete(key);
+    return null;
+  }
+  // Move to end (most recently used)
+  _predictiveCache.delete(key);
+  _predictiveCache.set(key, entry);
+  return entry.result;
+}
+
+function _predictiveCacheSet(key, result) {
+  if (_predictiveCache.size >= _PREDICTIVE_CACHE_MAX) {
+    const oldest = _predictiveCache.keys().next().value;
+    _predictiveCache.delete(oldest);
+  }
+  _predictiveCache.set(key, { result, ts: Date.now() });
+}
+
+// ─── Internal — Recent Searches ─────────────────────────────────────
+
+const _RECENT_STORAGE_KEY = '__spectrum_search_recent';
+const _RECENT_MAX = 20;
+
+function _getRecentSearches() {
+  try {
+    const raw = localStorage.getItem(_RECENT_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function _saveRecentSearches(searches) {
+  try {
+    localStorage.setItem(_RECENT_STORAGE_KEY, JSON.stringify(searches));
+  } catch {}
+}
+
+// ─── Search (App Proxy) ─────────────────────────────────────────────
+
+const search = {
+  /**
+   * Execute a search query. Always fetches fresh (no caching).
+   * Auto-redirects when a merchandising rule returns a redirect URL.
+   * @param {string}       q           Search query (max 500 chars; empty = browse mode)
+   * @param {Object}       [opts]
+   * @param {string}       [opts.sort]        Sort field:direction (e.g. 'price:asc')
+   * @param {number}       [opts.page]        Page number (1-1000)
+   * @param {number}       [opts.hitsPerPage] Results per page (1-100, default 20)
+   * @param {Object}       [opts.filters]     Filter params using backend syntax
+   *   e.g. { 'filter.v.vendor': 'Nike', 'filter.v.price.gte': '50' }
+   * @param {AbortSignal}  [opts.signal]      AbortController signal
+   * @returns {Promise<{ok:boolean, data?:Object, error?:{message:string, code:string}}>}
+   */
+  async query(q, opts = {}) {
+    const base = _proxyBase();
+    if (!base) return _normalizeError('Proxy not configured', 'NO_PROXY');
+
+    const params = {};
+    if (q) params.q = q;
+    if (opts.sort) params.sort = opts.sort;
+    if (opts.page) params.page = opts.page;
+    if (opts.hitsPerPage) params.hitsPerPage = opts.hitsPerPage;
+
+    if (opts.filters) {
+      for (const [key, value] of Object.entries(opts.filters)) {
+        if (value !== undefined && value !== null) params[key] = value;
+      }
+    }
+
+    const url = _buildUrl(`${base}/search`, '', params);
+    const result = await _searchJSON(url, { signal: opts.signal });
+
+    if (result.ok && result.data && result.data.redirect) {
+      window.location.href = result.data.redirect;
+      return result;
+    }
+
+    return result;
+  },
+
+  /**
+   * Fetch facet distributions for the current query and filters.
+   * @param {string}       q           Search query
+   * @param {Object}       [opts]
+   * @param {Object}       [opts.filters]     Active filters (same syntax as query)
+   * @param {AbortSignal}  [opts.signal]      AbortController signal
+   * @returns {Promise<{ok:boolean, data?:Object, error?:{message:string, code:string}}>}
+   */
+  async getFacets(q, opts = {}) {
+    const base = _proxyBase();
+    if (!base) return _normalizeError('Proxy not configured', 'NO_PROXY');
+
+    const params = {};
+    if (q) params.q = q;
+
+    if (opts.filters) {
+      for (const [key, value] of Object.entries(opts.filters)) {
+        if (value !== undefined && value !== null) params[key] = value;
+      }
+    }
+
+    const url = _buildUrl(`${base}/facets`, '', params);
+    return _searchJSON(url, { signal: opts.signal });
+  },
+
+  /**
+   * Predictive search with auto-cancel and in-memory LRU cache.
+   * Each call aborts the previous in-flight request. Returns null
+   * when a request is cancelled (superseded by a newer call).
+   * Cached results are returned within a 30-second TTL window.
+   * @param {string}       q           Search query
+   * @param {Object}       [opts]      Same options as query()
+   * @returns {Promise<{ok:boolean, data?:Object, error?:{message:string, code:string}}|null>}
+   */
+  async predictive(q, opts = {}) {
+    if (_predictiveController) {
+      _predictiveController.abort();
+    }
+    _predictiveController = new AbortController();
+
+    const cacheKey = _predictiveCacheKey(q, opts);
+    const cached = _predictiveCacheGet(cacheKey);
+    if (cached) return cached;
+
+    const base = _proxyBase();
+    if (!base) return _normalizeError('Proxy not configured', 'NO_PROXY');
+
+    const params = {};
+    if (q) params.q = q;
+    if (opts.sort) params.sort = opts.sort;
+    if (opts.page) params.page = opts.page;
+    if (opts.hitsPerPage) params.hitsPerPage = opts.hitsPerPage;
+    if (opts.filters) {
+      for (const [key, value] of Object.entries(opts.filters)) {
+        if (value !== undefined && value !== null) params[key] = value;
+      }
+    }
+
+    const url = _buildUrl(`${base}/search`, '', params);
+    const result = await _searchJSON(url, { signal: _predictiveController.signal });
+
+    if (!result.ok && result.error && result.error.code === 'ABORTED') {
+      return null;
+    }
+
+    if (result.ok) {
+      _predictiveCacheSet(cacheKey, result);
+    }
+
+    if (result.ok && result.data && result.data.redirect) {
+      window.location.href = result.data.redirect;
+      return result;
+    }
+
+    return result;
+  },
+
+  /**
+   * Get recent search queries from localStorage.
+   * @returns {string[]} Most recent first, max 20 entries
+   */
+  getRecent() {
+    return _getRecentSearches();
+  },
+
+  /**
+   * Add a search query to recent history. Deduplicates (moves to top).
+   * @param {string} query  The search term to save
+   */
+  addRecent(query) {
+    if (!query || typeof query !== 'string') return;
+    const trimmed = query.trim();
+    if (!trimmed) return;
+    const searches = _getRecentSearches();
+    const filtered = searches.filter((s) => s !== trimmed);
+    filtered.unshift(trimmed);
+    _saveRecentSearches(filtered.slice(0, _RECENT_MAX));
+  },
+
+  /**
+   * Clear all recent search history from localStorage.
+   */
+  clearRecent() {
+    try {
+      localStorage.removeItem(_RECENT_STORAGE_KEY);
+    } catch {}
+  },
+
+  /**
+   * Fetch recommended inline filters for a search query.
+   * Returns filter suggestions the user can toggle on/off to refine results.
+   * When active filters are provided, recommendations are scoped to the
+   * filtered result set (e.g., only colors available within the current vendor).
+   *
+   * @param {string}       q              Search query (required, non-empty)
+   * @param {Object}       [opts]
+   * @param {Object}       [opts.filters]  Applied filters for context-aware recommendations
+   *   e.g. { 'filter.v.vendor': 'Nike', 'filter.v.price.lte': '200' }
+   * @param {AbortSignal}  [opts.signal]   AbortController signal
+   * @returns {Promise<{ok:boolean, data?:RecommendInlineFiltersData, error?:{message:string, code:string}}>}
+   *
+   * @typedef {Object} RecommendInlineFiltersData
+   * @property {string} searchTerms          Cleaned search terms (query minus extracted filter intent)
+   * @property {RecommendedFilter[]} filters Array of recommended filters
+   * @property {string} intentContext        Inferred user intent context (e.g. "casual, fashion")
+   * @property {number} confidence           Backend confidence score (0-1)
+   *
+   * @typedef {Object} RecommendedFilter
+   * @property {string} field         Facet field name (e.g. "color", "price")
+   * @property {string} fieldType     Field type: "variant_option" | "standard" | "tag" | "metafield"
+   * @property {string|number} value  Recommended filter value
+   * @property {string} displayName   Human-readable label for the chip UI
+   * @property {string} filterParam   Ready-to-use URL param key (e.g. "filter.v.o.color")
+   */
+  async recommendInlineFilters(q, opts = {}) {
+    const base = _proxyBase();
+    if (!base) return _normalizeError('Proxy not configured', 'NO_PROXY');
+
+    const params = {};
+    if (q) params.q = q;
+
+    if (opts.filters) {
+      for (const [key, value] of Object.entries(opts.filters)) {
+        if (value !== undefined && value !== null) params[key] = value;
+      }
+    }
+
+    const url = _buildUrl(`${base}/search/recommendInlineFilters`, '', params);
+    return _searchJSON(url, { signal: opts.signal });
+  },
+};
+
+// ─── Events ─────────────────────────────────────────────────────────
+
+const events = {
+  /**
+   * Dispatch a custom event via the Spectrum app embed.
+   * @param {string} name    Event name without $spectrum: prefix (e.g. 'wishlist:added')
+   * @param {Object} [detail] Event payload
+   */
+  emit(name, detail) {
+    _emit(name, detail);
+  },
+
+  /**
+   * Listen for a Spectrum custom event.
+   * @param {string}   name     Event name without $spectrum: prefix
+   * @param {Function} callback Event handler receiving the CustomEvent
+   */
+  on(name, callback) {
+    document.addEventListener(`$spectrum:${name}`, callback);
+  },
+
+  /**
+   * Remove a Spectrum custom event listener.
+   * @param {string}   name     Event name without $spectrum: prefix
+   * @param {Function} callback The same function reference passed to on()
+   */
+  off(name, callback) {
+    document.removeEventListener(`$spectrum:${name}`, callback);
+  },
+};
+
+// ─── Currency ────────────────────────────────────────────────────────
+
+/**
+ * Active storefront currency code (ISO 4217). Reflects the customer's
+ * presentation currency (correct for multi-currency stores).
+ * @returns {string|undefined} e.g. 'USD', 'GBP', or undefined if unavailable
+ */
+function getActiveCurrency() {
+  return _currency();
+}
+
+// ─── Video Element ───────────────────────────────────────────────────
+
+/**
+ * <spectrum-video> — Lazy-loading video custom element with adaptive
+ * source selection, viewport-aware autoplay, and single-audio coordination.
+ *
+ * Attributes:
+ *   data-src           — MP4 URL (required unless data-sources provided)
+ *   data-sources       — JSON array of {url, width} for adaptive quality
+ *   data-poster        — Poster image URL for the <video> element
+ *   data-autoplay      — "muted" to enable autoplay (always muted)
+ *   data-load          — "viewport" (default) | "hover" | "click" | "eager"
+ *   data-preload-margin— IntersectionObserver rootMargin (default: "200px")
+ *   data-loop          — Loop playback
+ *   style="aspect-ratio: W/H" — CLS prevention (set in Liquid)
+ *
+ * Events (bubble): spectrum-video:loaded, spectrum-video:play,
+ *   spectrum-video:pause, spectrum-video:error, spectrum-video:unloaded,
+ *   spectrum-video:mute, spectrum-video:unmute
+ */
+
+let _activeUnmutedVideo = null;
+
+class SpectrumVideo extends HTMLElement {
+  static get observedAttributes() {
+    return ['data-src', 'data-sources'];
+  }
+
+  connectedCallback() {
+    this._state = 'idle';
+    this._video = null;
+    this._loadObserver = null;
+    this._visibilityObserver = null;
+    this._wantsPlay = false;
+
+    // CLS belt-and-suspenders (inline style in Liquid is primary)
+    if (!this.style.display) this.style.display = 'block';
+    if (!this.style.position) this.style.position = 'relative';
+    this.style.overflow = 'hidden';
+
+    this._setupLoad();
+  }
+
+  disconnectedCallback() {
+    this._teardown();
+    if (_activeUnmutedVideo === this) _activeUnmutedVideo = null;
+  }
+
+  attributeChangedCallback(name, oldVal, newVal) {
+    if (oldVal === newVal) return;
+    if (this._state !== 'idle') {
+      this.unload();
+      this._setupLoad();
+    }
+  }
+
+  // ─── Public API ─────────────────────────────────────────────────────
+
+  play() {
+    this._wantsPlay = true;
+    if (!this._video) {
+      this._loadVideo();
+      return;
+    }
+    if (this._state === 'ready') this._video.play().catch(() => {});
+  }
+
+  pause() {
+    if (this._video) this._video.pause();
+  }
+
+  load() {
+    if (!this._video) this._loadVideo();
+  }
+
+  unload() {
+    if (this._state === 'idle' && !this._video) return;
+    if (this._video) {
+      this._video.pause();
+      this._video.removeAttribute('src');
+      this._video.load();
+      this._video.remove();
+      this._video = null;
+    }
+    this._showPoster();
+    this._wantsPlay = false;
+    this._state = 'idle';
+    this._dispatch('unloaded');
+  }
+
+  mute() {
+    if (this._video) this._video.muted = true;
+    if (_activeUnmutedVideo === this) _activeUnmutedVideo = null;
+    this._dispatch('mute');
+  }
+
+  unmute() {
+    if (_activeUnmutedVideo && _activeUnmutedVideo !== this) {
+      _activeUnmutedVideo.mute();
+    }
+    _activeUnmutedVideo = this;
+    if (this._video) this._video.muted = false;
+    this._dispatch('unmute');
+  }
+
+  get playing() {
+    return this._state === 'ready' && this._video && !this._video.paused;
+  }
+
+  get loaded() {
+    return this._state === 'ready';
+  }
+
+  get muted() {
+    return this._video ? this._video.muted : true;
+  }
+
+  // ─── Private ────────────────────────────────────────────────────────
+
+  _setupLoad() {
+    const mode = this.dataset.load || 'viewport';
+
+    if (mode === 'eager') {
+      this._loadVideo();
+      return;
+    }
+
+    if (mode === 'hover') {
+      this._hoverHandler = () => { this._loadVideo(); this.removeEventListener('pointerenter', this._hoverHandler); };
+      this.addEventListener('pointerenter', this._hoverHandler);
+      return;
+    }
+
+    if (mode === 'click') {
+      this._clickHandler = () => { this._wantsPlay = true; this._loadVideo(); this.removeEventListener('click', this._clickHandler); };
+      this.addEventListener('click', this._clickHandler);
+      return;
+    }
+
+    // Default: viewport
+    const margin = this.dataset.preloadMargin || '200px';
+    // Capture the observer locally — `this._loadObserver` can be nulled by
+    // `_teardown()` (disconnectedCallback / attributeChangedCallback) between
+    // the IO scheduling its delivery and the callback running. Reading
+    // `this._loadObserver` inside the callback would throw against null;
+    // disconnecting the captured local always targets the right observer.
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          this._loadVideo();
+          observer.disconnect();
+          if (this._loadObserver === observer) this._loadObserver = null;
+        }
+      },
+      { rootMargin: margin }
+    );
+    this._loadObserver = observer;
+    observer.observe(this);
+  }
+
+  _loadVideo() {
+    if (this._state !== 'idle') return;
+    this._state = 'loading';
+
+    const video = document.createElement('video');
+    video.muted = true;
+    video.setAttribute('muted', '');
+    video.loop = this.hasAttribute('data-loop');
+    video.playsInline = true;
+    video.setAttribute('playsinline', '');
+    video.setAttribute('webkit-playsinline', '');
+    video.setAttribute('disablepictureinpicture', '');
+    video.preload = 'metadata';
+
+    if (this.dataset.autoplay) video.setAttribute('autoplay', '');
+    if (this.dataset.poster) video.poster = this.dataset.poster;
+
+    Object.assign(video.style, {
+      position: 'absolute',
+      inset: '0',
+      width: '100%',
+      height: '100%',
+      objectFit: 'cover',
+    });
+
+    video.addEventListener('loadedmetadata', () => this._onCanPlay(), { once: true });
+    video.addEventListener('error', (e) => this._onError(e), { once: true });
+
+    this._video = video;
+    this.appendChild(video);
+    video.src = this._pickSource();
+    video.load();
+  }
+
+  _pickSource() {
+    const sourcesAttr = this.dataset.sources;
+    if (sourcesAttr) {
+      try {
+        const sources = JSON.parse(sourcesAttr);
+        if (Array.isArray(sources) && sources.length > 0) {
+          const target = this.clientWidth * (window.devicePixelRatio || 1);
+          const sorted = sources.slice().sort((a, b) => a.width - b.width);
+          const match = sorted.find((s) => s.width >= target);
+          return (match || sorted[sorted.length - 1]).url;
+        }
+      } catch (_) { /* fall through to data-src */ }
+    }
+    return this.dataset.src || '';
+  }
+
+  _onCanPlay() {
+    this._state = 'ready';
+    this._hidePoster();
+    this._dispatch('loaded', { src: this._video.src });
+    // Set up visibility observer first so it becomes the single source of truth
+    // for play/pause on autoplay elements — its initial fire handles the first play.
+    if (this.dataset.autoplay) {
+      this._setupVisibility();
+    } else if (this._wantsPlay) {
+      // Non-autoplay element with queued play intent (e.g., controller called play())
+      this._video.play().catch(() => {});
+    }
+    this._wantsPlay = false;
+  }
+
+  _onError(_e) {
+    const errorMsg = this._video?.error?.message || 'Video load failed';
+    const errorCode = this._video?.error?.code;
+    this._state = 'idle';
+    if (this._video) {
+      this._video.remove();
+      this._video = null;
+    }
+    this._showPoster();
+    this._dispatch('error', { error: errorMsg, code: errorCode });
+  }
+
+  _setupVisibility() {
+    if (!this.dataset.autoplay) return;
+
+    this._visibilityObserver = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          this._video?.play().catch(() => {});
+          this._dispatch('play');
+        } else {
+          this._video?.pause();
+          this._dispatch('pause');
+        }
+      },
+      { threshold: 0.5 }
+    );
+    this._visibilityObserver.observe(this);
+  }
+
+  _hidePoster() {
+    const img = this.querySelector(':scope > img');
+    if (img) img.style.display = 'none';
+  }
+
+  _showPoster() {
+    const img = this.querySelector(':scope > img');
+    if (img) img.style.display = '';
+  }
+
+  _teardown() {
+    if (this._loadObserver) { this._loadObserver.disconnect(); this._loadObserver = null; }
+    if (this._visibilityObserver) { this._visibilityObserver.disconnect(); this._visibilityObserver = null; }
+    if (this._hoverHandler) { this.removeEventListener('pointerenter', this._hoverHandler); this._hoverHandler = null; }
+    if (this._clickHandler) { this.removeEventListener('click', this._clickHandler); this._clickHandler = null; }
+    if (this._video) { this._video.pause(); this._video = null; }
+  }
+
+  _dispatch(name, detail = {}) {
+    this.dispatchEvent(new CustomEvent(`spectrum-video:${name}`, { bubbles: true, detail }));
+  }
+}
+
+if (typeof customElements !== 'undefined' && !customElements.get('spectrum-video')) {
+  customElements.define('spectrum-video', SpectrumVideo);
+}
+
+// ─── Countdown ───────────────────────────────────────────────────────
+
+/**
+ * SpectrumCountdown — generic countdown/timer primitive for snippets.
+ *
+ * Math + events; the snippet owns DOM, triggers, and lifecycle. Three
+ * config modes: 'duration' (relative ms with optional persistence),
+ * 'epoch' (absolute end timestamp), and 'recurring' (typed recurrence
+ * rule, optionally windowed). Zod schemas in
+ * `packages/snippet-library/src/schemas.ts` mirror the accepted config
+ * shapes.
+ *
+ * Event surface:
+ *   tick    — every interval (default 1s) and once on start()
+ *   expire  — Duration / Epoch only; once when remainingMs hits 0
+ *   enter   — Recurring; per occurrence (Intent A) or window start (Intent B)
+ *   exit    — Recurring (Intent B only); at window end, before re-arm
+ *
+ * TickState payload:
+ *   { remainingMs, totalMs, percent, days, hours, minutes, seconds, state? }
+ *   `state` is 'before' | 'in' for Recurring, omitted otherwise.
+ *
+ * `percent` semantics: 0..100, clamped, measured against `totalMs`. For
+ * Duration / Epoch (with `startsAt`) it counts up to 100 across the
+ * configured span. For Recurring it is meaningful only in the `'in'`
+ * state (window progress); in the `'before'` state, `totalMs` equals
+ * `remainingMs` so `percent` stays at 0 by construction — render
+ * "starts in X" copy from `remainingMs` directly, not from `percent`.
+ */
+
+const _COUNTDOWN_TICK_MS = 1000;
+const _COUNTDOWN_STORAGE_PREFIX = '__spectrum_countdown_';
+
+/**
+ * Resolve a wall-clock (Y/M/D h:m) in `tz` to a UTC epoch. Iterates 3 times
+ * to converge across DST transitions and TZ-offset wraps.
+ *
+ * Uses `Date.UTC` for both the target and the format-derived "actual" wall-
+ * clock so the minute delta represents real elapsed time even when the two
+ * straddle a month boundary (a flat ordinal encoding overcounts the gap
+ * across short months and causes runaway iterations).
+ */
+function _zonedToEpoch(year, month, day, hour, minute, tz) {
+  const targetMs = Date.UTC(year, month - 1, day, hour, minute, 0);
+  let guess = targetMs;
+  for (let i = 0; i < 3; i++) {
+    const parts = _zonedParts(guess, tz);
+    const actualMs = Date.UTC(
+      parts.year,
+      parts.month - 1,
+      parts.day,
+      parts.hour,
+      parts.minute,
+      0,
+    );
+    const diffMs = actualMs - targetMs;
+    if (diffMs === 0) break;
+    guess -= diffMs;
+  }
+  return guess;
+}
+
+/** Decompose an epoch into wall-clock parts in `tz`. */
+function _zonedParts(epochMs, tz) {
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+  const parts = fmt.formatToParts(new Date(epochMs));
+  const map = {};
+  for (const p of parts) map[p.type] = p.value;
+  // Some runtimes return "24" for midnight in en-CA; normalise to "00".
+  const hourValue = map.hour === '24' ? 0 : parseInt(map.hour, 10);
+  return {
+    year: parseInt(map.year, 10),
+    month: parseInt(map.month, 10),
+    day: parseInt(map.day, 10),
+    hour: hourValue,
+    minute: parseInt(map.minute, 10),
+  };
+}
+
+/** Days since Unix epoch for a TZ-local date. */
+function _daysSinceEpoch(year, month, day) {
+  // Treat as UTC noon to avoid TZ-rounding off-by-one issues.
+  return Math.floor(Date.UTC(year, month - 1, day, 12) / 86_400_000);
+}
+
+/**
+ * Smallest occurrence epoch ≥ `from` for the recurrence rule, evaluated in
+ * `tz`. Walks day-by-day from `from`'s local date; bounded at 400 iterations
+ * to cap worst-case cost (e.g. monthly with `dayOfMonth: 31` skipping short
+ * months, or annual recurrence which needs ~365 days of headroom).
+ */
+function _nextOccurrence(rule, from, tz) {
+  const start = _zonedParts(from, tz);
+  let { year, month, day } = start;
+  for (let i = 0; i < 400; i++) {
+    const matches = _occurrencesOnDay(rule, year, month, day, tz);
+    for (const epochMs of matches) {
+      if (epochMs >= from) return epochMs;
+    }
+    // Advance one day in the local calendar.
+    const nextDayEpoch = _zonedToEpoch(year, month, day, 12, 0, tz) + 86_400_000;
+    const nextParts = _zonedParts(nextDayEpoch, tz);
+    year = nextParts.year;
+    month = nextParts.month;
+    day = nextParts.day;
+  }
+  throw new Error('SpectrumCountdown: no upcoming occurrence within search window');
+}
+
+/** Occurrence epochs (sorted ascending) on a given local date for the rule. */
+function _occurrencesOnDay(rule, year, month, day, tz) {
+  switch (rule.every) {
+    case 'hour': {
+      const result = [];
+      for (let h = 0; h < 24; h += rule.interval) {
+        result.push(_zonedToEpoch(year, month, day, h, rule.atMinute, tz));
+      }
+      return result;
+    }
+    case 'day': {
+      if (_daysSinceEpoch(year, month, day) % rule.interval !== 0) return [];
+      return [_zonedToEpoch(year, month, day, rule.atHour, rule.atMinute, tz)];
+    }
+    case 'month': {
+      if (day !== rule.dayOfMonth) return [];
+      const monthsSinceEpoch = (year - 1970) * 12 + (month - 1);
+      if (monthsSinceEpoch % rule.interval !== 0) return [];
+      return [_zonedToEpoch(year, month, day, rule.atHour, rule.atMinute, tz)];
+    }
+    default:
+      return [];
+  }
+}
+
+/** Compute the breakdown fields from a non-negative ms remainder. */
+function _splitDuration(remainingMs) {
+  const totalSeconds = Math.max(0, Math.floor(remainingMs / 1000));
+  return {
+    days: Math.floor(totalSeconds / 86400),
+    hours: Math.floor((totalSeconds % 86400) / 3600),
+    minutes: Math.floor((totalSeconds % 3600) / 60),
+    seconds: totalSeconds % 60,
+  };
+}
+
+class SpectrumCountdown {
+  constructor(config) {
+    this._config = SpectrumCountdown._normalizeConfig(config);
+    this._listeners = { tick: [], expire: [], enter: [], exit: [] };
+    this._running = false;
+    this._timeoutId = null;
+    this._anchor = null;
+    this._expired = false;
+    this._lastSnapshot = null;
+    this._constructionTime = Date.now();
+    this._tick = this._tick.bind(this);
+    this._onVisibilityChange = this._onVisibilityChange.bind(this);
+  }
+
+  /**
+   * Normalises raw config to the internal shape with sensible defaults
+   * (persist=none, occurrenceDurationMs=0, tz=visitor browser). Studio is the
+   * authoring path and is responsible for validating config shape — the class
+   * trusts what it receives. Genuinely malformed input (missing required
+   * fields, wrong types) surfaces as `TypeError` from downstream math or a
+   * "no upcoming occurrence" throw from `_nextOccurrence` — loud enough.
+   */
+  static _normalizeConfig(config) {
+    const { kind } = config;
+    if (kind === 'duration') {
+      return {
+        kind: 'duration',
+        ms: config.ms,
+        persist: config.persist || 'none',
+        persistKey:
+          typeof config.persistKey === 'string' && config.persistKey.length > 0
+            ? config.persistKey
+            : null,
+      };
+    }
+    if (kind === 'epoch') {
+      return {
+        kind: 'epoch',
+        endsAt: config.endsAt,
+        startsAt: typeof config.startsAt === 'number' ? config.startsAt : null,
+      };
+    }
+    if (kind === 'recurring') {
+      return {
+        kind: 'recurring',
+        recurrence: config.recurrence,
+        occurrenceDurationMs:
+          typeof config.occurrenceDurationMs === 'number' ? config.occurrenceDurationMs : 0,
+        tz:
+          typeof config.tz === 'string' && config.tz.length > 0
+            ? config.tz
+            : Intl.DateTimeFormat().resolvedOptions().timeZone,
+      };
+    }
+    throw new Error(`SpectrumCountdown: unknown kind "${kind}"`);
+  }
+
+  on(event, fn) {
+    const list = this._listeners[event];
+    if (!list || typeof fn !== 'function') return () => {};
+    list.push(fn);
+    return () => {
+      const idx = list.indexOf(fn);
+      if (idx !== -1) list.splice(idx, 1);
+    };
+  }
+
+  start() {
+    if (this._running) return;
+    this._running = true;
+    if (this._config.kind === 'duration') this._initDurationAnchor();
+    document.addEventListener('visibilitychange', this._onVisibilityChange);
+    this._tick();
+  }
+
+  destroy() {
+    this._running = false;
+    if (this._timeoutId !== null) {
+      clearTimeout(this._timeoutId);
+      this._timeoutId = null;
+    }
+    document.removeEventListener('visibilitychange', this._onVisibilityChange);
+    this._listeners = { tick: [], expire: [], enter: [], exit: [] };
+    // Reset semantic state so a future start() begins fresh — without this,
+    // re-starting a Recurring timer would compare against a stale snapshot
+    // and fire spurious enter/exit, and Duration with persist:'none' would
+    // continue counting from a pre-destroy anchor. Storage records survive
+    // (matching the documented "Does NOT clear storage" contract).
+    this._lastSnapshot = null;
+    this._expired = false;
+    this._anchor = null;
+  }
+
+  _onVisibilityChange() {
+    if (document.visibilityState === 'visible') {
+      if (this._timeoutId !== null) {
+        clearTimeout(this._timeoutId);
+        this._timeoutId = null;
+      }
+      if (this._running) this._tick();
+    }
+  }
+
+  _storageBackend() {
+    const c = this._config;
+    if (c.kind !== 'duration' || c.persist === 'none') return null;
+    return c.persist === 'session' ? window.sessionStorage : window.localStorage;
+  }
+
+  _storageKey() {
+    const c = this._config;
+    // persistKey is guaranteed non-null when persist !== 'none' (validated in
+    // _normalizeConfig); _storageBackend short-circuits this method otherwise.
+    return `${_COUNTDOWN_STORAGE_PREFIX}${c.persistKey}_${c.ms}`;
+  }
+
+  _initDurationAnchor() {
+    if (this._anchor !== null) return;
+    const storage = this._storageBackend();
+    if (!storage) {
+      this._anchor = Date.now();
+      return;
+    }
+    const key = this._storageKey();
+    const raw = storage.getItem(key);
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (typeof parsed.startedAt === 'number' && Number.isFinite(parsed.startedAt)) {
+          this._anchor = parsed.startedAt;
+          return;
+        }
+      } catch (_err) {
+        // Fall through and write a fresh anchor.
+      }
+    }
+    this._anchor = Date.now();
+    storage.setItem(key, JSON.stringify({ startedAt: this._anchor }));
+  }
+
+  _tick() {
+    if (!this._running) return;
+    if (this._config.kind === 'recurring') {
+      this._tickRecurring();
+    } else {
+      this._tickTerminal();
+    }
+  }
+
+  _tickTerminal() {
+    const c = this._config;
+    const now = Date.now();
+    let startedAt;
+    let totalMs;
+    let endsAt;
+    if (c.kind === 'duration') {
+      startedAt = this._anchor;
+      totalMs = c.ms;
+      endsAt = this._anchor + c.ms;
+    } else {
+      startedAt = c.startsAt !== null ? c.startsAt : this._constructionTime;
+      totalMs = Math.max(1, c.endsAt - startedAt);
+      endsAt = c.endsAt;
+    }
+    const remainingMs = Math.max(0, endsAt - now);
+    this._dispatchTick(this._buildTickState(remainingMs, totalMs, undefined));
+    if (remainingMs <= 0) {
+      if (!this._expired) {
+        this._expired = true;
+        this._dispatch('expire');
+      }
+      return;
+    }
+    this._scheduleTick(_COUNTDOWN_TICK_MS);
+  }
+
+  _tickRecurring() {
+    const c = this._config;
+    const now = Date.now();
+    const snap = SpectrumCountdown._computeRecurringSnapshot(
+      c.recurrence,
+      c.occurrenceDurationMs,
+      now,
+      c.tz,
+    );
+    this._fireRecurringTransitions(this._lastSnapshot, snap, c.occurrenceDurationMs);
+    let totalMs;
+    let remainingMs;
+    if (snap.state === 'in') {
+      totalMs = c.occurrenceDurationMs;
+      remainingMs = Math.max(0, snap.windowEnd - now);
+    } else {
+      totalMs = Math.max(1, snap.nextStart - now);
+      remainingMs = totalMs;
+    }
+    this._dispatchTick(this._buildTickState(remainingMs, totalMs, snap.state));
+    this._lastSnapshot = snap;
+    const target = snap.state === 'in' ? snap.windowEnd : snap.nextStart;
+    const delay = Math.max(50, Math.min(_COUNTDOWN_TICK_MS, target - now));
+    this._scheduleTick(delay);
+  }
+
+  static _computeRecurringSnapshot(rule, durationMs, now, tz) {
+    if (durationMs > 0) {
+      const candidateStart = _nextOccurrence(rule, now - durationMs, tz);
+      if (candidateStart <= now && candidateStart + durationMs > now) {
+        return {
+          state: 'in',
+          windowStart: candidateStart,
+          windowEnd: candidateStart + durationMs,
+          nextStart: null,
+        };
+      }
+      const upcoming = candidateStart > now ? candidateStart : _nextOccurrence(rule, now, tz);
+      return { state: 'before', windowStart: null, windowEnd: null, nextStart: upcoming };
+    }
+    const upcoming = _nextOccurrence(rule, now + 1, tz);
+    return { state: 'before', windowStart: null, windowEnd: null, nextStart: upcoming };
+  }
+
+  _fireRecurringTransitions(prev, current, durationMs) {
+    if (prev === null) return;
+    if (durationMs === 0) {
+      if (current.nextStart !== prev.nextStart) this._dispatch('enter');
+      return;
+    }
+    const sameWindow =
+      prev.state === 'in' && current.state === 'in' && prev.windowStart === current.windowStart;
+    const sameBefore =
+      prev.state === 'before' &&
+      current.state === 'before' &&
+      prev.nextStart === current.nextStart;
+    if (sameWindow || sameBefore) return;
+    if (prev.state === 'in') this._dispatch('exit');
+    if (current.state === 'in') this._dispatch('enter');
+    if (prev.state === 'before' && current.state === 'before') {
+      // A whole window came and went between ticks; surface both transitions.
+      this._dispatch('enter');
+      this._dispatch('exit');
+    }
+  }
+
+  _scheduleTick(delayMs) {
+    this._timeoutId = setTimeout(this._tick, delayMs);
+  }
+
+  _buildTickState(remainingMs, totalMs, state) {
+    const safeRemaining = Math.max(0, remainingMs);
+    const safeTotal = totalMs > 0 ? totalMs : 1;
+    const percent = Math.max(0, Math.min(100, ((safeTotal - safeRemaining) / safeTotal) * 100));
+    const split = _splitDuration(safeRemaining);
+    const out = {
+      remainingMs: safeRemaining,
+      totalMs: safeTotal,
+      percent,
+      days: split.days,
+      hours: split.hours,
+      minutes: split.minutes,
+      seconds: split.seconds,
+    };
+    if (state !== undefined) out.state = state;
+    return out;
+  }
+
+  _dispatchTick(state) {
+    this._dispatchListeners('tick', state);
+  }
+
+  _dispatch(event) {
+    this._dispatchListeners(event, undefined);
+  }
+
+  _dispatchListeners(event, payload) {
+    const list = this._listeners[event];
+    if (!list || list.length === 0) return;
+    // Iterate a copy so handlers that mutate listeners don't skip neighbours.
+    const snapshot = list.slice();
+    for (const fn of snapshot) {
+      try {
+        if (payload === undefined) fn();
+        else fn(payload);
+      } catch (err) {
+        console.warn(`SpectrumCountdown: ${event} listener threw`, err);
+      }
+    }
+  }
+}
+
+// ─── Native (Mobile WebView) ─────────────────────────────────────────
+
+/**
+ * Native bridge helpers — used by the mobile WebView shell.
+ *
+ * Surfaces a checkout URL resolver. The native shell calls this when the
+ * user taps Checkout, then hands the resolved URL to ShopifyCheckoutSheetKit.
+ * Web traffic never calls this; gating happens at the call site in the
+ * theme handler (checks `window.__spectrumMobileApp`).
+ */
+const native = {
+  /**
+   * Resolve the absolute checkout URL for the user's current cart.
+   *
+   * - 'default' — follows /checkout's redirect chain and returns the
+   *   resolved URL (the same URL Shopify would have landed on).
+   * - 'bundle'  — reads the Spectrum bundle cart for the given slug and
+   *   returns its checkoutUrl. Requires `window.__spectrumAi.bundle`
+   *   (the edge SDK cart bundle) to be loaded.
+   *
+   * @param {Object}             [opts]
+   * @param {'default'|'bundle'} [opts.cartType]  Default 'default'.
+   * @param {string}             [opts.slug]      Required for 'bundle'.
+   * @returns {Promise<string>}  Absolute checkout URL.
+   * @throws  {Error}            On resolver failure (never returns empty).
+   */
+  async getCheckoutUrl({ cartType = 'default', slug } = {}) {
+    if (cartType === 'default') {
+      const res = await fetch(`${_root()}checkout`, {
+        redirect: 'follow',
+        credentials: 'include',
+      });
+      if (!res.url) throw new Error('Failed to resolve default checkout URL');
+      return res.url;
+    }
+
+    if (cartType === 'bundle') {
+      if (!slug) throw new Error('slug required for bundle cart');
+      const bundleApi = window.__spectrumAi?.bundle;
+      if (!bundleApi) throw new Error('Bundle cart SDK not loaded');
+      const result = await bundleApi.getCart(slug);
+      if (!result?.ok) throw new Error('Failed to fetch bundle cart');
+      const url = result.data?.checkoutUrl;
+      if (!url) throw new Error('Bundle cart has no checkout URL');
+      return url;
+    }
+
+    throw new Error(`Unsupported cartType: ${cartType}`);
+  },
+};
+
+// ─── Public SDK ──────────────────────────────────────────────────────
+
+const SpectrumSDK = {
+  VERSION,
+  configure,
+  getActiveCurrency,
+  cart,
+  products,
+  sections,
+  platform,
+  priceAdjustments,
+  money,
+  reviews,
+  wishlist,
+  search,
+  events,
+  native,
+  VideoElement: SpectrumVideo,
+  Countdown: SpectrumCountdown,
+};
+
+window.Spectrum = SpectrumSDK;
+
+// ─── Auto-Merge Guest Wishlist on Login ──────────────────────────────
+
+if (_isLoggedIn()) {
+  const guestItems = _getGuestItems();
+  if (guestItems.length > 0) {
+    _mergeGuestToServer().then((result) => {
+      if (result.ok) _clearGuestItems();
+      const merged = result.ok ? result.data?.merged ?? guestItems.length : 0;
+      const duplicates = result.ok ? result.data?.duplicates ?? 0 : 0;
+      _track('wishlist_merge', { itemsMerged: merged, duplicatesSkipped: duplicates });
+      _emit('wishlist:merged', {});
+    });
+  }
+}
