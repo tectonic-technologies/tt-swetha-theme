@@ -212,10 +212,14 @@
 
   <button type="button" class="sai-l2dcg7yd__cta" data-fbt-cta>
     <span data-fbt-cta-label>{{ cta_label }} ({{ total_count }})</span>
-    {%- if show_total_price -%}
-      <span class="sai-l2dcg7yd__cta-total" data-fbt-cta-total></span>
-    {%- endif -%}
   </button>
+  {%- if show_total_price -%}
+    <div class="sai-l2dcg7yd__total-line">
+      <span class="sai-l2dcg7yd__total-label">Total</span>
+      <span class="sai-l2dcg7yd__total-separator" aria-hidden="true">—</span>
+      <span class="sai-l2dcg7yd__total-amount" data-fbt-cta-total></span>
+    </div>
+  {%- endif -%}
 
   <div class="sai-l2dcg7yd__error" data-fbt-error role="alert" hidden></div>
 
