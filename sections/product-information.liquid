@@ -403,6 +403,8 @@
 {%- unless request.design_mode -%}
 {%- if _sai_preview and _sai_url contains '_spectrum_ai_preview=_system-196419092640' -%}
   {% render '_sai-pobttpshunq7edz1uh6yznay', sai_state: 'draft' %}
+{%- else -%}
+  {% render '_sai-pobttpshunq7edz1uh6yznay', sai_state: 'live' %}
 {%- endif -%}
 {%- endunless -%}
 {%- comment -%}
