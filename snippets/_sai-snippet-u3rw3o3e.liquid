@@ -41,12 +41,17 @@
 {%- if fbt_handles == nil -%}
   {%- assign legacy_recos = product.metafields.custom.fbt_products.value -%}
   {%- if legacy_recos and legacy_recos.size > 0 -%}
-    {%- assign fbt_handles = "" | split: "," -%}
+    {%- assign handles_str = "" -%}
     {%- for r in legacy_recos -%}
       {%- if r.handle -%}
-        {%- assign fbt_handles = fbt_handles | concat: r.handle -%}
+        {%- if handles_str == "" -%}
+          {%- assign handles_str = r.handle -%}
+        {%- else -%}
+          {%- assign handles_str = handles_str | append: "," | append: r.handle -%}
+        {%- endif -%}
       {%- endif -%}
     {%- endfor -%}
+    {%- assign fbt_handles = handles_str | split: "," -%}
   {%- endif -%}
 {%- endif -%}
 
