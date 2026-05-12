@@ -300,7 +300,15 @@
 
         this._track(`${FEATURE_SLUG}:add_to_cart_clicked`, { item_count: items.length })
 
+        // Section IDs we ask Shopify to render server-side and return inline
+        // in the cart-add response. Dawn-derived themes use these three section
+        // names; other themes that follow the standard pattern usually do too.
+        // Sections the merchant theme doesn't define are simply omitted from
+        // the response — no error, no overhead.
+        const sectionsToRequest = ['cart-drawer', 'cart-notification', 'cart-icon-bubble']
+
         let succeeded = false
+        let cartResponse = null
         try {
           const cartApi = window.Spectrum?.cart
           if (!cartApi || typeof cartApi.add !== 'function') {
@@ -308,28 +316,35 @@
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               credentials: 'same-origin',
-              body: JSON.stringify({ items }),
+              body: JSON.stringify({ items, sections: sectionsToRequest }),
             })
             if (!res.ok) {
               const body = await res.json().catch(() => ({}))
               throw new Error(body?.description || body?.message || 'Could not add to cart')
             }
+            cartResponse = await res.json().catch(() => null)
           } else {
-            const result = await cartApi.add(items)
-            if (result && result.ok === false) {
-              throw new Error(result.error?.message || 'Could not add to cart')
+            cartResponse = await cartApi.add(items, { sections: sectionsToRequest })
+            if (cartResponse && cartResponse.ok === false) {
+              throw new Error(cartResponse.error?.message || 'Could not add to cart')
             }
           }
 
           succeeded = true
           this._track(`${FEATURE_SLUG}:added_to_cart`, { item_count: items.length })
 
-          // Theme integration: dispatch the events that mainstream themes
-          // listen for to open their cart drawer / refresh line items.
-          // We do NOT navigate to /cart — themes that don't open a drawer
-          // keep the user on the PDP, which is the right default for an
-          // FBT widget. Themes that want the legacy redirect can listen
-          // for `cart:build` and route themselves.
+          // Theme integration. Three-pronged because no single mechanism
+          // works across the long tail of Shopify themes:
+          //   1. Swap rendered section HTML into the DOM (works on every
+          //      theme that follows Shopify's modern section pattern —
+          //      Dawn, Symmetry, Impulse, Prestige, etc.).
+          //   2. Try to open the drawer via the most common patterns
+          //      (Dawn's <cart-drawer>, [aria-controls="cart-drawer"], etc.).
+          //   3. Dispatch a wide net of cart-update events so themes with
+          //      their own pub/sub catch the change even if their drawer
+          //      isn't section-rendered.
+          this._applyCartSections(cartResponse?.sections)
+          this._openCartDrawer()
           const cartRefreshEvents = [
             'cart:refresh',
             'cart:build',
@@ -340,6 +355,13 @@
             window.dispatchEvent(new CustomEvent(name, { detail: { items } }))
             document.dispatchEvent(new CustomEvent(name, { detail: { items } }))
           }
+
+          // Merchant-controlled post-add navigation. On themes without a
+          // cart drawer (no <cart-drawer>, no cart-* sections), there's
+          // nothing to open — leaving the user on the PDP without
+          // navigation feels stuck. The merchant opts into 'redirect-to-cart'
+          // or 'redirect-to-checkout' from the Studio prop panel.
+          this._afterAddAction = this._data.afterAddAction || 'stay'
         } catch (err) {
           this._setError(err?.message || 'Could not add to cart')
           this._track(`${FEATURE_SLUG}:add_to_cart_failed`, {
@@ -361,6 +383,79 @@
             cta.toggleAttribute('aria-disabled', empty)
           }
         }
+      }
+
+      // Replace the inner HTML of every section the merchant theme has
+      // installed under one of the standard cart-section names. Shopify's
+      // section response includes the full `<div id="shopify-section-...">`
+      // wrapper; we extract just the inner content so we don't double-wrap
+      // and we preserve the wrapper element's existing custom-element
+      // upgrade / event bindings.
+      _applyCartSections(sections) {
+        if (!sections || typeof sections !== 'object') return
+        for (const [sectionId, html] of Object.entries(sections)) {
+          if (typeof html !== 'string' || !html) continue
+          const target = document.getElementById(`shopify-section-${sectionId}`)
+          if (!target) continue
+          try {
+            const doc = new DOMParser().parseFromString(html, 'text/html')
+            const incoming = doc.getElementById(`shopify-section-${sectionId}`)
+            if (incoming) {
+              target.innerHTML = incoming.innerHTML
+            }
+          } catch (_) {
+            /* malformed section html — leave the DOM untouched */
+          }
+        }
+      }
+
+      // Try the handful of patterns mainstream Shopify themes use to expose
+      // their cart drawer. Each attempt no-ops if the element isn't there.
+      // Returns true on the first successful open so we don't fire two
+      // mechanisms at once.
+      _openCartDrawer() {
+        // 1. Dawn-derived: <cart-drawer> custom element with an open() method.
+        const cartDrawerEl = document.querySelector('cart-drawer')
+        if (cartDrawerEl && typeof cartDrawerEl.open === 'function') {
+          try {
+            cartDrawerEl.open()
+            return true
+          } catch (_) {
+            /* fall through to next pattern */
+          }
+        }
+
+        // 2. <cart-notification> bubble (Dawn's non-drawer variant).
+        const cartNotificationEl = document.querySelector('cart-notification')
+        if (cartNotificationEl && typeof cartNotificationEl.open === 'function') {
+          try {
+            cartNotificationEl.open()
+            return true
+          } catch (_) {
+            /* fall through */
+          }
+        }
+
+        // 3. ARIA-wired toggle button. Many themes mark their cart drawer
+        //    trigger with aria-controls pointing at the drawer's id.
+        const ariaToggle = document.querySelector(
+          '[aria-controls="cart-drawer"], [aria-controls="CartDrawer"]',
+        )
+        if (ariaToggle instanceof HTMLElement) {
+          ariaToggle.click()
+          return true
+        }
+
+        // 4. data-attribute toggles seen in third-party themes.
+        const dataToggle = document.querySelector(
+          '[data-cart-drawer-toggle], [data-action="open-cart"]',
+        )
+        if (dataToggle instanceof HTMLElement) {
+          dataToggle.click()
+          return true
+        }
+
+        return false
       }
 
       _setLoading(loading) {
@@ -385,8 +480,17 @@
         cta.setAttribute('aria-disabled', 'true')
         cta.setAttribute('data-state', 'added')
         labelEl.textContent = 'Added to cart ✓'
+        const action = this._afterAddAction || 'stay'
         if (this._successTimer) clearTimeout(this._successTimer)
         this._successTimer = setTimeout(() => {
+          if (action === 'redirect-to-cart') {
+            window.location.href = '/cart'
+            return
+          }
+          if (action === 'redirect-to-checkout') {
+            window.location.href = '/checkout'
+            return
+          }
           cta.removeAttribute('data-state')
           // _updateCta restores the "Add To Cart (N)" label from
           // _ctaBaseLabel + current selection count, and flips disabled

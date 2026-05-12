@@ -55,6 +55,11 @@
 {%- assign show_total_price = content.show_total_price -%}
 {%- if show_total_price == nil -%}{%- assign show_total_price = true -%}{%- endif -%}
 
+{%- assign after_add_action = content.after_add_action -%}
+{%- if after_add_action != 'stay' and after_add_action != 'redirect-to-cart' and after_add_action != 'redirect-to-checkout' -%}
+  {%- assign after_add_action = 'stay' -%}
+{%- endif -%}
+
 {%- assign show_ratings = content.show_ratings -%}
 {%- if show_ratings == nil -%}{%- assign show_ratings = true -%}{%- endif -%}
 
@@ -430,6 +435,7 @@
 {
   "main": {{ product.id | json }},
   "currency": {{ shop.currency | json }},
+  "afterAddAction": {{ after_add_action | json }},
   "order": [{{ product.id | json }}{%- for handle in fbt_handles -%}{%- assign r = all_products[handle] -%}{%- if r == empty -%}{%- continue -%}{%- endif -%},{{ r.id | json }}{%- endfor -%}],
   "products": [
     {
