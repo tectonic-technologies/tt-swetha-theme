@@ -29,6 +29,10 @@
   const FEATURE_SLUG = 'fbt'
   const LOW_STOCK_THRESHOLD = 10
   const MODAL_CLOSE_TIMEOUT_MS = 360
+  // After a successful add, hold the CTA in "Added" state briefly. Long
+  // enough for visual feedback when the theme doesn't open a drawer; short
+  // enough that selection edits feel responsive.
+  const SUCCESS_FEEDBACK_MS = 1500
 
   function noopTrack() {}
 
@@ -296,6 +300,7 @@
 
         this._track(`${FEATURE_SLUG}:add_to_cart_clicked`, { item_count: items.length })
 
+        let succeeded = false
         try {
           const cartApi = window.Spectrum?.cart
           if (!cartApi || typeof cartApi.add !== 'function') {
@@ -316,6 +321,7 @@
             }
           }
 
+          succeeded = true
           this._track(`${FEATURE_SLUG}:added_to_cart`, { item_count: items.length })
 
           // Theme integration: dispatch the events that mainstream themes
@@ -340,12 +346,16 @@
             error_message: err?.message || String(err),
           })
         } finally {
-          // Always restore the CTA so the user isn't stuck on themes whose
-          // cart drawer doesn't open from the dispatched events. The CTA is
-          // disabled during the request, which is the natural double-tap
-          // guard while the network call is in flight.
           this._setLoading(false)
-          if (cta) {
+          if (succeeded) {
+            // Hold the CTA in a brief "Added" state. Two reasons:
+            //   1. Visual feedback — themes that don't open a drawer
+            //      otherwise leave the user with no signal that the add
+            //      worked.
+            //   2. Double-tap guard — the user can't add the same bundle
+            //      again until the success state clears.
+            this._enterSuccessState()
+          } else if (cta) {
             const empty = this._selectedItems().length === 0
             cta.disabled = empty
             cta.toggleAttribute('aria-disabled', empty)
@@ -360,7 +370,30 @@
           if (loading) cta.setAttribute('data-loading', 'true')
           else cta.removeAttribute('data-loading')
         }
+        // Toggling the [hidden] attribute is what flips the loader between
+        // display:none (SSR default) and display:inline-flex (base rule).
+        // The data-loading attribute on the CTA hides the sibling label so
+        // the absolute-positioned spinner sits on top.
         if (loader) loader.hidden = !loading
+      }
+
+      _enterSuccessState() {
+        const cta = this.querySelector('[data-fbt-cta]')
+        const labelEl = this.querySelector('[data-fbt-cta-label]')
+        if (!cta || !labelEl) return
+        cta.disabled = true
+        cta.setAttribute('aria-disabled', 'true')
+        cta.setAttribute('data-state', 'added')
+        labelEl.textContent = 'Added to cart ✓'
+        if (this._successTimer) clearTimeout(this._successTimer)
+        this._successTimer = setTimeout(() => {
+          cta.removeAttribute('data-state')
+          // _updateCta restores the "Add To Cart (N)" label from
+          // _ctaBaseLabel + current selection count, and flips disabled
+          // based on whether anything is still selected.
+          this._updateCta()
+          this._successTimer = null
+        }, SUCCESS_FEEDBACK_MS)
       }
 
       // ── Variant modal ──────────────────────────────────────────────────────

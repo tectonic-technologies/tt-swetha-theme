@@ -1205,7 +1205,9 @@ a.sai-ibx7zk9p[href]:hover .sai-ibx7zk9p__image {
   margin-block-start: var(--sai-size-4);
 }
 
-.sai-pb3tmxq9--vertical .sai-pb3tmxq9__cta > span {
+/* The loader is positioned absolute and must keep its own flex display so the
+   spinner stays centered. Excluding it from this rule preserves both. */
+.sai-pb3tmxq9--vertical .sai-pb3tmxq9__cta > span:not(.sai-pb3tmxq9__loader) {
   display: block;
 }
 
