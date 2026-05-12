@@ -264,6 +264,12 @@
         {%- endif -%}
         <button type="button" class="sai-pb3tmxq9__cta" data-fbt-cta>
           <span data-fbt-cta-label>{{ cta_label }} ({{ total_count }})</span>
+          <span class="sai-pb3tmxq9__loader" data-fbt-loader hidden aria-hidden="true">
+            <svg class="sai-pb3tmxq9__spinner" viewBox="0 0 24 24" fill="none" focusable="false">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-opacity="0.25" stroke-width="3"/>
+              <path d="M22 12a10 10 0 0 0-10-10" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+            </svg>
+          </span>
         </button>
         <div class="sai-pb3tmxq9__error" data-fbt-error role="alert" hidden></div>
       </aside>
@@ -401,6 +407,12 @@
           <span class="sai-pb3tmxq9__total-amount" data-fbt-total></span>
         </span>
       {%- endif -%}
+      <span class="sai-pb3tmxq9__loader" data-fbt-loader hidden aria-hidden="true">
+        <svg class="sai-pb3tmxq9__spinner" viewBox="0 0 24 24" fill="none" focusable="false">
+          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-opacity="0.25" stroke-width="3"/>
+          <path d="M22 12a10 10 0 0 0-10-10" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+        </svg>
+      </span>
     </button>
 
     <div class="sai-pb3tmxq9__error" data-fbt-error role="alert" hidden></div>

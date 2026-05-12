@@ -726,6 +726,7 @@ a.sai-ibx7zk9p[href]:hover .sai-ibx7zk9p__image {
   --sai-pb3tmxq9-pill-disabled-fg: rgba(0, 0, 0, 0.45);
   --sai-pb3tmxq9-done-bg: #121212;
   --sai-pb3tmxq9-done-fg: #ffffff;
+  --sai-pb3tmxq9-loader-size: 1.125rem;
 }
 
 .sai-pb3tmxq9 {
@@ -1502,6 +1503,51 @@ a.sai-ibx7zk9p[href]:hover .sai-ibx7zk9p__image {
   font-weight: 700;
   cursor: pointer;
   letter-spacing: 0.05em;
+}
+
+/* ── Add-to-cart loader ──────────────────────────────────────────────────── */
+
+/* The button is the positioning context. While loading, the loader overlays
+   the button content (label + inline total). Label is kept in the DOM but
+   visibility:hidden so the button preserves its width. */
+.sai-pb3tmxq9__cta {
+  position: relative;
+}
+
+.sai-pb3tmxq9__loader {
+  position: absolute;
+  inset: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: currentColor;
+  pointer-events: none;
+}
+
+.sai-pb3tmxq9__loader[hidden] {
+  display: none;
+}
+
+.sai-pb3tmxq9__cta[data-loading="true"] > :not(.sai-pb3tmxq9__loader) {
+  visibility: hidden;
+}
+
+.sai-pb3tmxq9__spinner {
+  inline-size: var(--sai-pb3tmxq9-loader-size);
+  block-size: var(--sai-pb3tmxq9-loader-size);
+  animation: sai-pb3tmxq9-spin 0.8s linear infinite;
+}
+
+@keyframes sai-pb3tmxq9-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sai-pb3tmxq9__spinner {
+    animation-duration: 2s;
+  }
 }
 /* ======= SPECTRUM_AI_SNIPPET_CSS:END id=pb3tmxq9 ======= */
 
