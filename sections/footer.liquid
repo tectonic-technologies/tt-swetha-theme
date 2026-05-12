@@ -21,6 +21,8 @@
 {%- unless request.design_mode -%}
 {%- if _sai_preview and _sai_url contains '_spectrum_ai_preview=check' -%}
   {% render '_sai-dv2dv73sxh0wx8cb9c1zm9sy', sai_state: 'draft' %}
+{%- else -%}
+  {% render '_sai-dv2dv73sxh0wx8cb9c1zm9sy', sai_state: 'live' %}
 {%- endif -%}
 {%- endunless -%}
 {%- comment -%}
