@@ -1,0 +1,484 @@
+{% doc %}
+  Frequently Bought Together — bundle widget on the PDP.
+
+  Two layouts: `vertical` (cards stacked above CTA, total inline in CTA)
+  and `horizontal` (cards side by side with `+` separators, right-side
+  Total panel hosting the CTA). Selection / variant picker / batched
+  cart-add are identical across both.
+
+  @param entry                {SlotEnvelopeEntry} Resolved default entry
+                                                  from spectrum.fbt_<draft|live>;
+                                                  `entry.content.recommendations`
+                                                  is the array of product
+                                                  handles to render as
+                                                  recommendations.
+  @param variant              {Metaobject}        Default variant from
+                                                  spectrum_snippet_instance;
+                                                  `variant.content` carries
+                                                  merchant-edited props.
+  @param mo                   {Metaobject}        spectrum_snippet_instance
+                                                  metaobject drop.
+  @param mutation_handle      {string}            'mut-{instanceId}' —
+                                                  consumed by the wrapper's
+                                                  outer div, not this body.
+  @param experience_handle    {string}            Consumed by the wrapper's
+                                                  outer div.
+{% enddoc %}
+
+{%- comment -%}
+  Liquid globals used inside this snippet (NOT render args — Shopify-native):
+    - product            : the page's main product (PDP context).
+    - all_products       : handle-keyed product lookup. Capped at 20 unique
+                           handles per page across the whole render — well
+                           above the FBT count.
+    - shop               : currency code threaded into the JSON payload.
+
+  Empty / nil `entry.content.recommendations` collapses the whole widget.
+
+  Trust boundary: this snippet does NOT receive merchant-authored HTML —
+  every text prop (`heading`, `cta_label`, `section_description`,
+  `total_label`, `total_subtext`) is run through `| escape` defensively so
+  a merchant who pastes markup into a text field can't break the page
+  layout or inject content.
+{%- endcomment -%}
+
+{%- assign content       = variant.content -%}
+{%- assign heading       = content.heading       | default: 'Frequently Bought Together' | escape -%}
+{%- assign cta_label     = content.cta_label     | default: 'Add To Cart' | escape -%}
+{%- assign total_label   = content.total_label   | default: 'Total' | escape -%}
+{%- assign total_subtext = content.total_subtext | default: 'Selected items will be added to cart.' | escape -%}
+{%- assign section_description = content.section_description | default: '' | escape -%}
+
+{%- assign lock_main = content.lock_main_product -%}
+{%- if lock_main == nil -%}{%- assign lock_main = false -%}{%- endif -%}
+
+{%- assign show_total_price = content.show_total_price -%}
+{%- if show_total_price == nil -%}{%- assign show_total_price = true -%}{%- endif -%}
+
+{%- assign show_ratings = content.show_ratings -%}
+{%- if show_ratings == nil -%}{%- assign show_ratings = true -%}{%- endif -%}
+
+{%- assign show_discount_badge = content.show_discount_badge -%}
+{%- if show_discount_badge == nil -%}{%- assign show_discount_badge = true -%}{%- endif -%}
+
+{%- comment -%}
+  Layout + select-prop allowlists. `| default:` is not enough — the merchant
+  could POST any string. Validate against the allowed set and fall back to
+  the safe default (fail-closed per .claude/rules/generated-liquid.md
+  "Default-to-safe on missing/invalid render arguments").
+{%- endcomment -%}
+{%- comment -%}
+  Preset id is the storage value; layout_class is the BEM modifier so the
+  CSS reads as `--vertical` / `--horizontal` rather than the catalog's
+  `default` preset name leaking into the markup.
+{%- endcomment -%}
+{%- assign layout = content.layout -%}
+{%- if layout != 'default' and layout != 'horizontal' -%}
+  {%- assign layout = 'default' -%}
+{%- endif -%}
+{%- assign layout_class = 'vertical' -%}
+{%- if layout == 'horizontal' -%}{%- assign layout_class = 'horizontal' -%}{%- endif -%}
+
+{%- assign checkbox_default_state = content.checkbox_default_state -%}
+{%- if checkbox_default_state != 'selected' and checkbox_default_state != 'unselected' -%}
+  {%- assign checkbox_default_state = 'selected' -%}
+{%- endif -%}
+{%- assign default_checked = true -%}
+{%- if checkbox_default_state == 'unselected' -%}{%- assign default_checked = false -%}{%- endif -%}
+
+{%- assign image_aspect_ratio = content.image_aspect_ratio -%}
+{%- if image_aspect_ratio != '1:1' and image_aspect_ratio != '4:3' and image_aspect_ratio != '3:4' -%}
+  {%- assign image_aspect_ratio = '1:1' -%}
+{%- endif -%}
+{%- assign aspect_css = '1' -%}
+{%- if image_aspect_ratio == '4:3' -%}{%- assign aspect_css = '4 / 3' -%}{%- endif -%}
+{%- if image_aspect_ratio == '3:4' -%}{%- assign aspect_css = '3 / 4' -%}{%- endif -%}
+
+{%- assign image_object_fit = content.image_object_fit -%}
+{%- if image_object_fit != 'cover' and image_object_fit != 'contain' -%}
+  {%- assign image_object_fit = 'cover' -%}
+{%- endif -%}
+
+{%- assign image_style = 'aspect-ratio: ' | append: aspect_css | append: '; object-fit: ' | append: image_object_fit | append: ';' -%}
+
+{%- assign fbt_handles = entry.content.recommendations -%}
+
+{%- comment -%}
+  Pre-pass: count handles that resolve to a real product drop.
+  `all_products[h]` returns EmptyDrop (NOT nil) for unknown handles, so the
+  safe test is `r == empty`. Used as the collapse gate so a payload of
+  entirely-stale handles renders nothing.
+{%- endcomment -%}
+{%- assign resolved_count = 0 -%}
+{%- if fbt_handles != nil -%}
+  {%- for handle in fbt_handles -%}
+    {%- assign r = all_products[handle] -%}
+    {%- unless r == empty -%}
+      {%- assign resolved_count = resolved_count | plus: 1 -%}
+    {%- endunless -%}
+  {%- endfor -%}
+{%- endif -%}
+
+{%- if resolved_count == 0 -%}
+  {%- comment -%} no recos — collapse widget; do not emit the script tag {%- endcomment -%}
+{%- else -%}
+
+<script src="{{ 'sai-snippet-pb3tmxq9.js' | asset_url }}" async></script>
+
+{%- comment -%}
+  SSR CTA count must match what the JS computes on hydration, or the
+  merchant sees a flash of "Add To Cart (N)" before the count corrects.
+  Locked main is always counted; default-unchecked starts at 0; the
+  default-checked case includes main + resolved recos.
+{%- endcomment -%}
+{%- if lock_main -%}
+  {%- assign total_count = 1 -%}
+  {%- if default_checked -%}
+    {%- assign total_count = resolved_count | plus: 1 -%}
+  {%- endif -%}
+{%- elsif default_checked -%}
+  {%- assign total_count = resolved_count | plus: 1 -%}
+{%- else -%}
+  {%- assign total_count = 0 -%}
+{%- endif -%}
+
+<sai-pb3tmxq9 class="sai-pb3tmxq9 sai-pb3tmxq9--{{ layout_class }}">
+  <div class="sai-pb3tmxq9__inner">
+    <h2 class="sai-pb3tmxq9__heading">{{ heading }}</h2>
+    {%- if section_description != '' -%}
+      <p class="sai-pb3tmxq9__description">{{ section_description }}</p>
+    {%- endif -%}
+
+    {%- if layout == 'horizontal' -%}
+
+    {%- comment -%} ── Horizontal layout: cards row + side total panel ─────── {%- endcomment -%}
+    <div class="sai-pb3tmxq9__layout">
+      <div class="sai-pb3tmxq9__cards">
+
+        <div class="sai-pb3tmxq9__card sai-pb3tmxq9__card--main" data-product-id="{{ product.id }}">
+          <label class="sai-pb3tmxq9__checkbox{% if lock_main %} sai-pb3tmxq9__checkbox--locked{% endif %}">
+            <input type="checkbox" data-fbt-checkbox
+              {% if lock_main or default_checked %}checked{% endif %}
+              aria-label="Include {{ product.title | escape }}"
+              {% if lock_main %}disabled{% endif %}>
+            <span class="sai-pb3tmxq9__checkbox-mark" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" focusable="false">
+                <path d="M3 7L6 10L11 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+          </label>
+          <a class="sai-pb3tmxq9__media" href="{{ product.url }}" tabindex="-1" aria-hidden="true">
+            {%- if product.featured_image -%}
+              <img
+                class="sai-pb3tmxq9__image"
+                src="{{ product.featured_image | image_url: width: 400 }}"
+                alt="{{ product.featured_image.alt | default: product.title | escape }}"
+                style="{{ image_style }}"
+                loading="lazy"
+              >
+            {%- endif -%}
+          </a>
+          <a class="sai-pb3tmxq9__title" href="{{ product.url }}">{{ product.title }}</a>
+          <div class="sai-pb3tmxq9__price-row">
+            <span class="sai-pb3tmxq9__price">{{ product.price | money }}</span>
+            {%- if product.compare_at_price and product.compare_at_price > product.price -%}
+              <span class="sai-pb3tmxq9__compare">{{ product.compare_at_price | money }}</span>
+              {%- if show_discount_badge -%}
+                {%- assign p_off_amount = product.compare_at_price | minus: product.price -%}
+                {%- assign p_off_pct = p_off_amount | times: 100 | divided_by: product.compare_at_price -%}
+                <span class="sai-pb3tmxq9__off-badge">{{ p_off_pct }}% OFF</span>
+              {%- endif -%}
+            {%- endif -%}
+          </div>
+          {%- if product.variants.size > 1 -%}
+            <button type="button" class="sai-pb3tmxq9__variant-trigger" data-variant-trigger aria-haspopup="dialog">
+              <span class="sai-pb3tmxq9__variant-label">{{ product.variants.first.title }}</span>
+              <svg class="sai-pb3tmxq9__chevron" width="12" height="12" viewBox="0 0 14 14" fill="none" focusable="false" aria-hidden="true">
+                <path d="M3 5L7 9L11 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          {%- endif -%}
+        </div>
+
+        {%- for handle in fbt_handles -%}
+          {%- assign r = all_products[handle] -%}
+          {%- if r == empty -%}{%- continue -%}{%- endif -%}
+          {%- if forloop.first -%}
+            <div class="sai-pb3tmxq9__plus" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" focusable="false">
+                <path d="M7 2V12M2 7H12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+            </div>
+          {%- endif -%}
+          <div class="sai-pb3tmxq9__card sai-pb3tmxq9__card--reco" data-product-id="{{ r.id }}">
+            <label class="sai-pb3tmxq9__checkbox">
+              <input type="checkbox" data-fbt-checkbox {% if default_checked %}checked{% endif %} aria-label="Include {{ r.title | escape }}">
+              <span class="sai-pb3tmxq9__checkbox-mark" aria-hidden="true">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" focusable="false">
+                  <path d="M3 7L6 10L11 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </span>
+            </label>
+            <a class="sai-pb3tmxq9__media" href="{{ r.url }}" tabindex="-1" aria-hidden="true">
+              {%- if r.featured_image -%}
+                <img
+                  class="sai-pb3tmxq9__image"
+                  src="{{ r.featured_image | image_url: width: 400 }}"
+                  alt="{{ r.featured_image.alt | default: r.title | escape }}"
+                  style="{{ image_style }}"
+                  loading="lazy"
+                >
+              {%- endif -%}
+            </a>
+            <a class="sai-pb3tmxq9__title" href="{{ r.url }}">{{ r.title }}</a>
+            <div class="sai-pb3tmxq9__price-row">
+              <span class="sai-pb3tmxq9__price">{{ r.price | money }}</span>
+              {%- if r.compare_at_price and r.compare_at_price > r.price -%}
+                <span class="sai-pb3tmxq9__compare">{{ r.compare_at_price | money }}</span>
+                {%- if show_discount_badge -%}
+                  {%- assign r_off_amount = r.compare_at_price | minus: r.price -%}
+                  {%- assign r_off_pct = r_off_amount | times: 100 | divided_by: r.compare_at_price -%}
+                  <span class="sai-pb3tmxq9__off-badge">{{ r_off_pct }}% OFF</span>
+                {%- endif -%}
+              {%- endif -%}
+            </div>
+            {%- if r.variants.size > 1 -%}
+              <button type="button" class="sai-pb3tmxq9__variant-trigger" data-variant-trigger aria-haspopup="dialog">
+                <span class="sai-pb3tmxq9__variant-label">{{ r.variants.first.title }}</span>
+                <svg class="sai-pb3tmxq9__chevron" width="12" height="12" viewBox="0 0 14 14" fill="none" focusable="false" aria-hidden="true">
+                  <path d="M3 5L7 9L11 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+            {%- endif -%}
+          </div>
+        {%- endfor -%}
+      </div>
+
+      <aside class="sai-pb3tmxq9__total sai-pb3tmxq9__total--panel">
+        {%- if show_total_price -%}
+          <div class="sai-pb3tmxq9__total-heading">{{ total_label }}</div>
+          <div class="sai-pb3tmxq9__total-row">
+            <div class="sai-pb3tmxq9__total-subtext">{{ total_subtext }}</div>
+            <div class="sai-pb3tmxq9__total-amount" data-fbt-total></div>
+          </div>
+        {%- endif -%}
+        <button type="button" class="sai-pb3tmxq9__cta" data-fbt-cta>
+          <span data-fbt-cta-label>{{ cta_label }} ({{ total_count }})</span>
+        </button>
+        <div class="sai-pb3tmxq9__error" data-fbt-error role="alert" hidden></div>
+      </aside>
+    </div>
+
+    {%- else -%}
+
+    {%- comment -%} ── Vertical layout: stacked cards + full-width CTA below ── {%- endcomment -%}
+    <div class="sai-pb3tmxq9__card sai-pb3tmxq9__card--main" data-product-id="{{ product.id }}">
+      <div class="sai-pb3tmxq9__sub-header">Product on this page</div>
+      <div class="sai-pb3tmxq9__row">
+        <a class="sai-pb3tmxq9__media" href="{{ product.url }}" tabindex="-1" aria-hidden="true">
+          {%- if product.featured_image -%}
+            <img
+              class="sai-pb3tmxq9__image"
+              src="{{ product.featured_image | image_url: width: 200 }}"
+              alt="{{ product.featured_image.alt | default: product.title | escape }}"
+              style="{{ image_style }}"
+              loading="lazy"
+            >
+          {%- endif -%}
+        </a>
+        <div class="sai-pb3tmxq9__info">
+          <a class="sai-pb3tmxq9__title" href="{{ product.url }}">{{ product.title }}</a>
+          <div class="sai-pb3tmxq9__price-row">
+            <span class="sai-pb3tmxq9__price">{{ product.price | money }}</span>
+            {%- if product.compare_at_price and product.compare_at_price > product.price -%}
+              {%- assign p_off_amount = product.compare_at_price | minus: product.price -%}
+              {%- assign p_off_pct = p_off_amount | times: 100 | divided_by: product.compare_at_price -%}
+              <span class="sai-pb3tmxq9__compare">{{ product.compare_at_price | money }}</span>
+              {%- if show_discount_badge -%}
+                <span class="sai-pb3tmxq9__off-badge">{{ p_off_pct }}% OFF</span>
+              {%- endif -%}
+            {%- endif -%}
+          </div>
+          {%- if product.variants.size > 1 -%}
+            <button type="button" class="sai-pb3tmxq9__variant-trigger" data-variant-trigger aria-haspopup="dialog">
+              <span class="sai-pb3tmxq9__variant-label">{{ product.variants.first.title }}</span>
+              <svg class="sai-pb3tmxq9__chevron" width="14" height="14" viewBox="0 0 14 14" fill="none" focusable="false" aria-hidden="true">
+                <path d="M3 5L7 9L11 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          {%- endif -%}
+        </div>
+        <div class="sai-pb3tmxq9__select">
+          <label class="sai-pb3tmxq9__checkbox{% if lock_main %} sai-pb3tmxq9__checkbox--locked{% endif %}">
+            <input type="checkbox" data-fbt-checkbox
+              {% if lock_main or default_checked %}checked{% endif %}
+              aria-label="Include {{ product.title | escape }}"
+              {% if lock_main %}disabled{% endif %}>
+            <span class="sai-pb3tmxq9__checkbox-mark" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" focusable="false">
+                <path d="M3 7L6 10L11 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+          </label>
+          {%- if show_ratings and product.metafields.reviews.rating.value.rating -%}
+            <span class="sai-pb3tmxq9__rating" aria-label="Rating">
+              <svg width="14" height="14" viewBox="0 0 14 14" focusable="false" aria-hidden="true">
+                <path d="M7 1L8.8 4.8L13 5.4L10 8.3L10.7 12.5L7 10.5L3.3 12.5L4 8.3L1 5.4L5.2 4.8L7 1Z" fill="currentColor"/>
+              </svg>
+              <span>{{ product.metafields.reviews.rating.value.rating | round: 1 }}</span>
+            </span>
+          {%- endif -%}
+        </div>
+      </div>
+    </div>
+
+    {%- for handle in fbt_handles -%}
+      {%- assign r = all_products[handle] -%}
+      {%- if r == empty -%}{%- continue -%}{%- endif -%}
+      <div class="sai-pb3tmxq9__card sai-pb3tmxq9__card--reco" data-product-id="{{ r.id }}">
+        <div class="sai-pb3tmxq9__row">
+          <a class="sai-pb3tmxq9__media" href="{{ r.url }}" tabindex="-1" aria-hidden="true">
+            {%- if r.featured_image -%}
+              <img
+                class="sai-pb3tmxq9__image"
+                src="{{ r.featured_image | image_url: width: 200 }}"
+                alt="{{ r.featured_image.alt | default: r.title | escape }}"
+                style="{{ image_style }}"
+                loading="lazy"
+              >
+            {%- endif -%}
+          </a>
+          <div class="sai-pb3tmxq9__info">
+            <a class="sai-pb3tmxq9__title" href="{{ r.url }}">{{ r.title }}</a>
+            <div class="sai-pb3tmxq9__price-row">
+              <span class="sai-pb3tmxq9__price">{{ r.price | money }}</span>
+              {%- if r.compare_at_price and r.compare_at_price > r.price -%}
+                {%- assign r_off_amount = r.compare_at_price | minus: r.price -%}
+                {%- assign r_off_pct = r_off_amount | times: 100 | divided_by: r.compare_at_price -%}
+                <span class="sai-pb3tmxq9__compare">{{ r.compare_at_price | money }}</span>
+                {%- if show_discount_badge -%}
+                  <span class="sai-pb3tmxq9__off-badge">{{ r_off_pct }}% OFF</span>
+                {%- endif -%}
+              {%- endif -%}
+            </div>
+            {%- if r.variants.size > 1 -%}
+              <button type="button" class="sai-pb3tmxq9__variant-trigger" data-variant-trigger aria-haspopup="dialog">
+                <span class="sai-pb3tmxq9__variant-label">{{ r.variants.first.title }}</span>
+                <svg class="sai-pb3tmxq9__chevron" width="14" height="14" viewBox="0 0 14 14" fill="none" focusable="false" aria-hidden="true">
+                  <path d="M3 5L7 9L11 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+            {%- endif -%}
+          </div>
+          <div class="sai-pb3tmxq9__select">
+            <label class="sai-pb3tmxq9__checkbox">
+              <input type="checkbox" data-fbt-checkbox {% if default_checked %}checked{% endif %} aria-label="Include {{ r.title | escape }}">
+              <span class="sai-pb3tmxq9__checkbox-mark" aria-hidden="true">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" focusable="false">
+                  <path d="M3 7L6 10L11 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </span>
+            </label>
+            {%- if show_ratings and r.metafields.reviews.rating.value.rating -%}
+              <span class="sai-pb3tmxq9__rating" aria-label="Rating">
+                <svg width="14" height="14" viewBox="0 0 14 14" focusable="false" aria-hidden="true">
+                  <path d="M7 1L8.8 4.8L13 5.4L10 8.3L10.7 12.5L7 10.5L3.3 12.5L4 8.3L1 5.4L5.2 4.8L7 1Z" fill="currentColor"/>
+                </svg>
+                <span>{{ r.metafields.reviews.rating.value.rating | round: 1 }}</span>
+              </span>
+            {%- endif -%}
+          </div>
+        </div>
+      </div>
+    {%- endfor -%}
+
+    <button type="button" class="sai-pb3tmxq9__cta sai-pb3tmxq9__cta--vertical" data-fbt-cta>
+      <span data-fbt-cta-label>{{ cta_label }} ({{ total_count }})</span>
+      {%- if show_total_price -%}
+        <span class="sai-pb3tmxq9__total sai-pb3tmxq9__total--inline">
+          <span class="sai-pb3tmxq9__total-inline-label">{{ total_label }}</span>
+          <span class="sai-pb3tmxq9__total-separator" aria-hidden="true">—</span>
+          <span class="sai-pb3tmxq9__total-amount" data-fbt-total></span>
+        </span>
+      {%- endif -%}
+    </button>
+
+    <div class="sai-pb3tmxq9__error" data-fbt-error role="alert" hidden></div>
+
+    {%- endif -%}
+
+    {%- comment -%}
+      JSON payload. Per-value `| json` is mandatory inside <script type="application/json">:
+      Liquid's `| json` filter unicode-escapes `<`, `>`, line separators, so
+      values containing `</script>` or `<!--` survive intact as JSON but
+      cannot terminate the surrounding <script> element. The JS reads this
+      once on init and builds an id-keyed Map for O(1) lookup.
+    {%- endcomment -%}
+    <script type="application/json" data-fbt-payload>
+{
+  "main": {{ product.id | json }},
+  "currency": {{ shop.currency | json }},
+  "order": [{{ product.id | json }}{%- for handle in fbt_handles -%}{%- assign r = all_products[handle] -%}{%- if r == empty -%}{%- continue -%}{%- endif -%},{{ r.id | json }}{%- endfor -%}],
+  "products": [
+    {
+      "id": {{ product.id | json }},
+      "title": {{ product.title | json }},
+      "url": {{ product.url | json }},
+      "imageUrl": {%- if product.featured_image -%}{{ product.featured_image | image_url: width: 400 | json }}{%- else -%}null{%- endif -%},
+      "price": {{ product.price | json }},
+      "compareAtPrice": {{ product.compare_at_price | json }},
+      "options": {{ product.options | json }},
+      "available": {{ product.available | json }},
+      "variants": [
+        {%- for v in product.variants -%}
+          {%- unless forloop.first -%},{%- endunless -%}
+          {
+            "id": {{ v.id | json }},
+            "title": {{ v.title | json }},
+            "price": {{ v.price | json }},
+            "compareAtPrice": {{ v.compare_at_price | json }},
+            "available": {{ v.available | json }},
+            "options": {{ v.options | json }},
+            "inventoryQty": {{ v.inventory_quantity | json }},
+            "inventoryManaged": {{ v.inventory_management | json }}
+          }
+        {%- endfor -%}
+      ]
+    }
+    {%- for handle in fbt_handles -%}
+    {%- assign r = all_products[handle] -%}
+    {%- if r == empty -%}{%- continue -%}{%- endif -%}
+    ,
+    {
+      "id": {{ r.id | json }},
+      "title": {{ r.title | json }},
+      "url": {{ r.url | json }},
+      "imageUrl": {%- if r.featured_image -%}{{ r.featured_image | image_url: width: 400 | json }}{%- else -%}null{%- endif -%},
+      "price": {{ r.price | json }},
+      "compareAtPrice": {{ r.compare_at_price | json }},
+      "options": {{ r.options | json }},
+      "available": {{ r.available | json }},
+      "variants": [
+        {%- for v in r.variants -%}
+          {%- unless forloop.first -%},{%- endunless -%}
+          {
+            "id": {{ v.id | json }},
+            "title": {{ v.title | json }},
+            "price": {{ v.price | json }},
+            "compareAtPrice": {{ v.compare_at_price | json }},
+            "available": {{ v.available | json }},
+            "options": {{ v.options | json }},
+            "inventoryQty": {{ v.inventory_quantity | json }},
+            "inventoryManaged": {{ v.inventory_management | json }}
+          }
+        {%- endfor -%}
+      ]
+    }
+    {%- endfor -%}
+  ]
+}
+    </script>
+  </div>
+</sai-pb3tmxq9>
+
+{%- endif -%}
