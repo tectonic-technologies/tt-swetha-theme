@@ -455,6 +455,36 @@
           return true
         }
 
+        // 5. Sense-style themes: a <cart-icon> custom element wrapped in the
+        //    header's cart button. Clicking the button is what the theme's
+        //    own header click-handler expects — it re-fetches the cart and
+        //    opens its <dialog class="cart-drawer__dialog"> via showModal().
+        //    Tried after the standard patterns above because <cart-icon> is
+        //    theme-specific.
+        const cartIconEl = document.querySelector('cart-icon')
+        const cartIconButton =
+          cartIconEl?.closest('button, a') ||
+          document.querySelector('button:has(cart-icon), a:has(cart-icon)')
+        if (cartIconButton instanceof HTMLElement) {
+          cartIconButton.click()
+          return true
+        }
+
+        // 6. Native HTML5 <dialog> drawer — last-ditch direct open. Skips
+        //    theme JS, so the drawer may show stale cart content until the
+        //    theme re-fetches; only fire if every other pattern missed.
+        const cartDialog = document.querySelector(
+          'dialog.cart-drawer__dialog, dialog[class*="cart-drawer" i]',
+        )
+        if (cartDialog instanceof HTMLDialogElement && !cartDialog.open) {
+          try {
+            cartDialog.showModal()
+            return true
+          } catch (_) {
+            /* dialog not ready — fall through */
+          }
+        }
+
         return false
       }
 
