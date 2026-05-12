@@ -301,11 +301,20 @@
         this._track(`${FEATURE_SLUG}:add_to_cart_clicked`, { item_count: items.length })
 
         // Section IDs we ask Shopify to render server-side and return inline
-        // in the cart-add response. Dawn-derived themes use these three section
-        // names; other themes that follow the standard pattern usually do too.
-        // Sections the merchant theme doesn't define are simply omitted from
-        // the response — no error, no overhead.
-        const sectionsToRequest = ['cart-drawer', 'cart-notification', 'cart-icon-bubble']
+        // in the cart-add response. Two lists:
+        //   - Standard Dawn-style section names (cart-drawer, etc.) — match
+        //     by literal ID on themes that follow the convention.
+        //   - Runtime-detected section IDs that enclose the live drawer or
+        //     cart-icon — covers Sense / Sense-derivatives / Spotlight / any
+        //     theme where the drawer lives inside the header section with a
+        //     theme-generated id like `sections--29085379559584__header_section`.
+        // Shopify caps `sections` at 5 — detected wins on overlap.
+        const standardSections = ['cart-drawer', 'cart-notification', 'cart-icon-bubble']
+        const detectedSections = this._detectThemeCartSections()
+        const sectionsToRequest = [...new Set([...detectedSections, ...standardSections])].slice(
+          0,
+          5,
+        )
 
         let succeeded = false
         let cartResponse = null
@@ -344,6 +353,12 @@
           //      their own pub/sub catch the change even if their drawer
           //      isn't section-rendered.
           this._applyCartSections(cartResponse?.sections)
+          // For themes whose drawer/cart-icon live inside a section whose
+          // theme-generated id we can't reliably name in the POST body
+          // (Sense / Shopify 2.0 themes), do a follow-up GET to the
+          // section-render endpoint. Two requests total; the second only
+          // fires when we detected at least one section to refresh.
+          await this._refreshDetectedSections()
           this._openCartDrawer()
           const cartRefreshEvents = [
             'cart:refresh',
@@ -383,6 +398,49 @@
             cta.toggleAttribute('aria-disabled', empty)
           }
         }
+      }
+
+      // Fetch fresh rendered HTML for the cart-related sections we detected
+      // in the live DOM, then swap them in. Uses Shopify's GET
+      // `/?sections=…` endpoint, which returns
+      // `{ "<id>": "<rendered html>", … }`. Network failure is swallowed —
+      // the drawer will still open via _openCartDrawer, just with the
+      // post-add but pre-refresh state.
+      async _refreshDetectedSections() {
+        const detected = this._detectThemeCartSections()
+        if (detected.length === 0) return
+        try {
+          const res = await fetch(
+            `/?sections=${encodeURIComponent(detected.slice(0, 5).join(','))}`,
+            { credentials: 'same-origin' },
+          )
+          if (!res.ok) return
+          const sections = await res.json().catch(() => null)
+          this._applyCartSections(sections)
+        } catch (_) {
+          /* network blip — leave the DOM untouched */
+        }
+      }
+
+      // Inspect the live DOM and return the section IDs (`<id-without-prefix>`
+      // from `shopify-section-{id}`) that contain the cart drawer or the
+      // cart-icon. Used to ask Shopify's section-render API for the right
+      // chunks of HTML when the theme uses non-standard section names —
+      // common on Shopify 2.0 themes where section IDs encode their schema
+      // location (e.g. `sections--12345__header_section`).
+      _detectThemeCartSections() {
+        const ids = new Set()
+        const addEnclosingSection = (el) => {
+          const section = el?.closest?.('[id^="shopify-section-"]')
+          if (section?.id) ids.add(section.id.replace('shopify-section-', ''))
+        }
+        addEnclosingSection(
+          document.querySelector(
+            'cart-drawer, dialog.cart-drawer__dialog, dialog[class*="cart-drawer" i], [class*="cart-drawer__inner" i]',
+          ),
+        )
+        addEnclosingSection(document.querySelector('cart-icon, [class*="cart-icon" i]'))
+        return [...ids]
       }
 
       // Replace the inner HTML of every section the merchant theme has
