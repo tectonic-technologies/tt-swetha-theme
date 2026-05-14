@@ -35,11 +35,22 @@
   const SUCCESS_FEEDBACK_MS = 1500
 
   function noopTrack() {}
+  function noopEmit() {}
 
   function safeTrack(track) {
     return (name, payload) => {
       try {
         track(name, payload)
+      } catch (_) {
+        /* analytics is best-effort */
+      }
+    }
+  }
+
+  function safeEmit(emit) {
+    return (name, payload) => {
+      try {
+        emit(name, payload)
       } catch (_) {
         /* analytics is best-effort */
       }
@@ -127,17 +138,25 @@
         this._initialized = true
 
         this._track = noopTrack
+        this._emit = noopEmit
         this._data = this._readPayload()
         this._productsById = new Map()
         this._rows = new Map()
         this._modal = null
         this._modalCandidate = null
         this._ctaBaseLabel = ''
+        this._successTimer = null
         // Save body scroll state across modal open/close. Initialized lazily
         // in _openModal so we don't perturb the page on init.
         this._scrollLock = null
 
         if (!this._data) return
+
+        // Resolved once at init from the server-validated payload (Liquid
+        // allowlist-guards the value before serializing); used by
+        // `_enterSuccessState` to decide what to do after the success-state
+        // timeout. Defaults to 'stay' if the payload omits the key.
+        this._afterAddAction = this._data.afterAddAction || 'stay'
 
         for (const p of this._data.products) {
           this._productsById.set(String(p.id), p)
@@ -151,8 +170,26 @@
         this._updateTotal()
       }
 
-      setAnalytics(track) {
+      disconnectedCallback() {
+        // Clear the post-add success-state timer. If we don't, a user who
+        // navigates away during the 1.5s window can have their next page
+        // hijacked by a stale window.location.href call from `redirect-to-cart`
+        // / `redirect-to-checkout`.
+        if (this._successTimer) {
+          clearTimeout(this._successTimer)
+          this._successTimer = null
+        }
+        // Tear down an open modal — `_closeModal` removes the
+        // document-level keydown listener that would otherwise leak (along
+        // with its closure over this element + payload + maps).
+        if (this._modal) {
+          this._closeModal()
+        }
+      }
+
+      setAnalytics(track, emit) {
         this._track = typeof track === 'function' ? safeTrack(track) : noopTrack
+        this._emit = typeof emit === 'function' ? safeEmit(emit) : noopEmit
       }
 
       _readPayload() {
@@ -259,6 +296,26 @@
         return variants
       }
 
+      // Per-item shape for the analytics payload — mirrors the
+      // shoppable_videos `{ product_id, variant_id, quantity }` shape so
+      // dashboards can union event streams across snippets. `product_id`
+      // and `variant_id` stay as strings to match how the rest of the
+      // FBT events serialize them (DOM `data-product-id` is always a
+      // string; `_rows` keeps the variant id stringified for the same
+      // reason).
+      _selectedRowsForPayload() {
+        const out = []
+        for (const row of this._rows.values()) {
+          if (!row.checked || !row.variantId) continue
+          out.push({
+            product_id: row.productId,
+            variant_id: row.variantId,
+            quantity: 1,
+          })
+        }
+        return out
+      }
+
       _updateCta() {
         const cta = this.querySelector('[data-fbt-cta]')
         const labelEl = this.querySelector('[data-fbt-cta-label]')
@@ -266,7 +323,9 @@
         const count = this._selectedItems().length
         labelEl.textContent = `${this._ctaBaseLabel} (${count})`
         cta.disabled = count === 0
-        cta.toggleAttribute('aria-disabled', count === 0)
+        // WAI-ARIA expects an explicit "true" / "false" value — `toggleAttribute`
+        // sets it to empty string which some assistive tech treats inconsistently.
+        cta.setAttribute('aria-disabled', String(count === 0))
       }
 
       _updateTotal() {
@@ -298,7 +357,18 @@
         this._setError('')
         this._setLoading(true)
 
-        this._track(`${FEATURE_SLUG}:add_to_cart_clicked`, { item_count: items.length })
+        // Build payload up front so the intent (`add_to_cart`) and
+        // confirmation (`added_to_cart`) events carry an identical shape —
+        // the funnel assumes a 1:1 pairing keyed off the envelope, and an
+        // `add_to_cart` without a matching `added_to_cart` reveals failures
+        // (we deliberately do NOT emit a `:add_to_cart_failed` event).
+        // Mirrors the shoppable_videos convention.
+        const atcPayload = {
+          bundle_size: items.length,
+          items: this._selectedRowsForPayload(),
+        }
+        this._track(`${FEATURE_SLUG}:add_to_cart`, atcPayload)
+        this._emit(`${FEATURE_SLUG}:add_to_cart`, atcPayload)
 
         // Section IDs we ask Shopify to render server-side and return inline
         // in the cart-add response. Two lists:
@@ -340,7 +410,11 @@
           }
 
           succeeded = true
-          this._track(`${FEATURE_SLUG}:added_to_cart`, { item_count: items.length })
+          // Confirmation — identical payload to the intent event so PostHog
+          // can pair them off the envelope (snippet_instance_id + session)
+          // without any field-level matching.
+          this._track(`${FEATURE_SLUG}:added_to_cart`, atcPayload)
+          this._emit(`${FEATURE_SLUG}:added_to_cart`, atcPayload)
 
           // Theme integration. Three-pronged because no single mechanism
           // works across the long tail of Shopify themes:
@@ -371,17 +445,16 @@
             document.dispatchEvent(new CustomEvent(name, { detail: { items } }))
           }
 
-          // Merchant-controlled post-add navigation. On themes without a
-          // cart drawer (no <cart-drawer>, no cart-* sections), there's
-          // nothing to open — leaving the user on the PDP without
-          // navigation feels stuck. The merchant opts into 'redirect-to-cart'
-          // or 'redirect-to-checkout' from the Studio prop panel.
-          this._afterAddAction = this._data.afterAddAction || 'stay'
+          // `_afterAddAction` was resolved at init from `_data.afterAddAction`
+          // — `_enterSuccessState` reads it in the `finally` block below to
+          // decide whether to stay on page, navigate to /cart, or
+          // navigate to /checkout once the brief confirmation expires.
         } catch (err) {
+          // No `:add_to_cart_failed` event — by convention, an
+          // `:add_to_cart` intent without a matching `:added_to_cart`
+          // confirmation surfaces the failure in the funnel. The error UI
+          // still renders below the CTA so the shopper sees what happened.
           this._setError(err?.message || 'Could not add to cart')
-          this._track(`${FEATURE_SLUG}:add_to_cart_failed`, {
-            error_message: err?.message || String(err),
-          })
         } finally {
           this._setLoading(false)
           if (succeeded) {
@@ -409,9 +482,14 @@
       async _refreshDetectedSections() {
         const detected = this._detectThemeCartSections()
         if (detected.length === 0) return
+        // Hit the current URL with `?sections=…` rather than `/?sections=…`.
+        // `?sections=` works on any URL and returns the same body, but the
+        // PDP template is cheaper to render than the homepage on most
+        // themes.
+        const path = window.location.pathname || '/'
         try {
           const res = await fetch(
-            `/?sections=${encodeURIComponent(detected.slice(0, 5).join(','))}`,
+            `${path}?sections=${encodeURIComponent(detected.slice(0, 5).join(','))}`,
             { credentials: 'same-origin' },
           )
           if (!res.ok) return
@@ -449,6 +527,12 @@
       // wrapper; we extract just the inner content so we don't double-wrap
       // and we preserve the wrapper element's existing custom-element
       // upgrade / event bindings.
+      //
+      // Trust boundary: the HTML comes from the same-origin Shopify
+      // section-render endpoint, where merchant- and shopper-controlled
+      // fields are server-side `| escape`'d by the theme. This is the
+      // canonical cart-drawer swap pattern (Dawn, Symmetry, etc. all do
+      // this) so the surface here matches the rest of the ecosystem.
       _applyCartSections(sections) {
         if (!sections || typeof sections !== 'object') return
         for (const [sectionId, html] of Object.entries(sections)) {
@@ -911,11 +995,14 @@
       const handles = api.bind(node, () => {
         // No variant-driven re-render — content is server-baked from the
         // product metafield. Keeping the bind so the analytics envelope is
-        // wired correctly for our `track` calls.
+        // wired correctly for our `track` / `emit` calls.
       })
       const root = node.querySelector(TAG)
-      if (root && handles?.track && typeof root.setAnalytics === 'function') {
-        root.setAnalytics(handles.track)
+      if (root && handles && typeof root.setAnalytics === 'function') {
+        // Pass both track + emit. `emit` dispatches a paired DOM event so
+        // theme code (Klaviyo bridges, custom adapters) can subscribe to
+        // `add_to_cart` / `added_to_cart` without going through PostHog.
+        root.setAnalytics(handles.track, handles.emit)
       }
     }
   }

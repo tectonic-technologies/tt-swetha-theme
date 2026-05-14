@@ -1,0 +1,341 @@
+{%- comment -%}
+  Product Gallery — responsive media gallery for PDP pages.
+
+  Reads media data from product metafields (spectrum.media_assets +
+  spectrum.media_slots) per the Media Liquid Metafields contract.
+
+  Desktop: vertical image stack, sticky in PDP left column.
+  Mobile: horizontal scroll-snap swipe with progress bar.
+  Both: zoom → lightbox, filter panel from filterTags.
+{%- endcomment -%}
+
+{%- assign asset_list = product.metafields.spectrum.media_assets.value -%}
+
+{%- assign selected_variant = product.selected_or_first_available_variant -%}
+{%- assign variant_slots = selected_variant.metafields.spectrum.media_slots.value -%}
+{%- assign product_slots = product.metafields.spectrum.media_slots.value -%}
+{%- assign slot = nil -%}
+{%- if variant_slots != blank and variant_slots['gallery'] != blank -%}
+  {%- assign slot = variant_slots['gallery'] -%}
+{%- elsif product_slots != blank and product_slots['gallery'] != blank -%}
+  {%- assign slot = product_slots['gallery'] -%}
+{%- endif -%}
+
+{%- assign slot_variant = nil -%}
+{%- if slot != blank -%}
+  {%- for candidate in slot.variants -%}
+    {%- if candidate.targeting == blank -%}
+      {%- assign slot_variant = candidate -%}
+      {%- break -%}
+    {%- endif -%}
+  {%- endfor -%}
+{%- endif -%}
+
+{%- assign asset_handles = slot_variant.assets -%}
+{%- assign asset_count = 0 -%}
+{%- if asset_handles != blank -%}
+  {%- assign asset_count = asset_handles.size -%}
+{%- endif -%}
+
+{%- comment -%} ── Resolve props from variant.content with defaults ── {%- endcomment -%}
+{%- assign _c = variant.content -%}
+{%- if _c.autoplay == nil -%}{%- assign autoplay = false -%}{%- else -%}{%- assign autoplay = _c.autoplay -%}{%- endif -%}
+{%- if _c.autoplay_interval == nil -%}{%- assign autoplay_interval = 5 -%}{%- else -%}{%- assign autoplay_interval = _c.autoplay_interval -%}{%- endif -%}
+{%- if _c.swipe_enabled == nil -%}{%- assign swipe_enabled = true -%}{%- else -%}{%- assign swipe_enabled = _c.swipe_enabled -%}{%- endif -%}
+{%- if _c.pinch_to_zoom == nil -%}{%- assign pinch_to_zoom = true -%}{%- else -%}{%- assign pinch_to_zoom = _c.pinch_to_zoom -%}{%- endif -%}
+{%- if _c.show_zoom_controls == nil -%}{%- assign show_zoom_controls = true -%}{%- else -%}{%- assign show_zoom_controls = _c.show_zoom_controls -%}{%- endif -%}
+{%- if _c.image_object_fit == nil or _c.image_object_fit == blank -%}{%- assign image_object_fit = 'cover' -%}{%- else -%}{%- assign image_object_fit = _c.image_object_fit -%}{%- endif -%}
+{%- if _c.autoplay_video == nil -%}{%- assign autoplay_video = true -%}{%- else -%}{%- assign autoplay_video = _c.autoplay_video -%}{%- endif -%}
+{%- if _c.mute_on_launch == nil -%}{%- assign mute_on_launch = true -%}{%- else -%}{%- assign mute_on_launch = _c.mute_on_launch -%}{%- endif -%}
+{%- if _c.show_play_pause == nil -%}{%- assign show_play_pause = true -%}{%- else -%}{%- assign show_play_pause = _c.show_play_pause -%}{%- endif -%}
+
+{%- if asset_count > 0 -%}
+<script src="{{ 'sai-snippet-hn2hxz5f.js' | asset_url }}" async></script>
+<sai-hn2hxz5f
+  class="sai-hn2hxz5f"
+  data-product-id="{{ product.id }}"
+  data-variant-id="{{ selected_variant.id }}"
+  data-asset-count="{{ asset_count }}"
+  data-autoplay="{{ autoplay }}"
+  data-autoplay-interval="{{ autoplay_interval }}"
+  data-swipe-enabled="{{ swipe_enabled }}"
+  data-pinch-to-zoom="{{ pinch_to_zoom }}"
+  data-show-zoom-controls="{{ show_zoom_controls }}"
+  data-autoplay-video="{{ autoplay_video }}"
+  data-mute-on-launch="{{ mute_on_launch }}"
+  data-show-play-pause="{{ show_play_pause }}"
+>
+  <style>
+    sai-hn2hxz5f {
+      --sai-hn2hxz5f-img-fit: {{ image_object_fit }};
+    }
+  </style>
+  {%- comment -%} ── Filter trigger ── {%- endcomment -%}
+  <button class="sai-hn2hxz5f__filter-btn" type="button" aria-label="Filter images" data-action="toggle-filters" style="display:none">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+      <path d="M3 6h18M7 12h10M10 18h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </svg>
+  </button>
+
+  {%- comment -%} ── Filter dialog (bottom sheet on mobile, centered on desktop) ── {%- endcomment -%}
+  <dialog class="sai-hn2hxz5f__filter-dialog" aria-label="Filter images">
+    <div class="sai-hn2hxz5f__filter-panel">
+      <div class="sai-hn2hxz5f__filter-panel-header">
+        <span class="sai-hn2hxz5f__filter-panel-title">Filters</span>
+        <button class="sai-hn2hxz5f__filter-panel-clear" type="button" data-action="clear-filters" style="display:none">Clear all</button>
+      </div>
+      <div class="sai-hn2hxz5f__filters"></div>
+      <div class="sai-hn2hxz5f__filter-panel-footer">
+        <button class="sai-hn2hxz5f__filter-panel-cancel" type="button" data-action="close-filters">Cancel</button>
+        <button class="sai-hn2hxz5f__filter-panel-apply" type="button" data-action="apply-filters">Apply</button>
+      </div>
+    </div>
+  </dialog>
+
+  {%- comment -%} ── Empty state ── {%- endcomment -%}
+  <div class="sai-hn2hxz5f__empty" style="display:none">
+    <p>No images match the selected filters.</p>
+  </div>
+
+  {%- comment -%} ── Desktop: vertical stack of images ── {%- endcomment -%}
+  <div class="sai-hn2hxz5f__desktop">
+    {%- for handle in asset_handles -%}
+      {%- assign img_asset = nil -%}
+      {%- for asset_ref in asset_list -%}
+        {%- if asset_ref.system.handle == handle -%}
+          {%- assign img_asset = asset_ref -%}
+          {%- break -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {%- if img_asset != blank -%}
+        <div class="sai-hn2hxz5f__image-block{% if forloop.first %} sai-hn2hxz5f__image-block--first{% endif %}{% if img_asset.asset_type == 'video' %} sai-hn2hxz5f__image-block--video{% endif %}" data-index="{{ forloop.index0 }}" data-handle="{{ handle }}">
+          {%- if img_asset.asset_type == 'video' -%}
+            {%- assign vid_file = img_asset.file.value | default: img_asset.file -%}
+            {%- assign vid_url = '' -%}
+            {%- if vid_file.sources != blank -%}
+              {%- for source in vid_file.sources -%}
+                {%- if source.format == 'mp4' and vid_url == '' -%}
+                  {%- assign vid_url = source.url -%}
+                {%- endif -%}
+              {%- endfor -%}
+              {%- if vid_url == '' -%}
+                {%- assign vid_url = vid_file.sources.first.url -%}
+              {%- endif -%}
+            {%- elsif vid_file.url != blank -%}
+              {%- assign vid_url = vid_file.url -%}
+            {%- endif -%}
+            <video
+              class="sai-hn2hxz5f__media"
+              src="{{ vid_url }}"
+              {%- if autoplay_video == true %} autoplay{% endif %}
+              {%- if mute_on_launch == true %} muted{% endif %}
+              loop playsinline
+              {%- if show_play_pause == true %} controls{% endif %}
+              {%- if vid_file.preview_image != blank %} poster="{{ vid_file.preview_image | image_url: width: 1200 }}"{% endif %}
+            ></video>
+          {%- else -%}
+            <img
+              class="sai-hn2hxz5f__media"
+              src="{{ img_asset.file | image_url: width: 1200 }}"
+              alt="{{ img_asset.alt | escape }}"
+              width="{{ img_asset.file.width }}"
+              height="{{ img_asset.file.height }}"
+              {% if forloop.first %}loading="eager" fetchpriority="high"{% else %}loading="lazy"{% endif %}
+            />
+          {%- endif -%}
+          {%- if forloop.first -%}
+            <button class="sai-hn2hxz5f__zoom" type="button" aria-label="Zoom image" data-action="open-lightbox">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+                <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
+                <path d="M21 21l-4.35-4.35" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <path d="M8 11h6M11 8v6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+            </button>
+          {%- endif -%}
+        </div>
+      {%- else -%}
+        <!-- spectrum:debug handle={{ handle }} missing from asset library -->
+      {%- endif -%}
+    {%- endfor -%}
+  </div>
+
+  {%- comment -%} ── Mobile: horizontal swipe ── {%- endcomment -%}
+  <div class="sai-hn2hxz5f__mobile">
+    <div class="sai-hn2hxz5f__track">
+      {%- for handle in asset_handles -%}
+        {%- assign slide_asset = nil -%}
+        {%- for asset_ref in asset_list -%}
+          {%- if asset_ref.system.handle == handle -%}
+            {%- assign slide_asset = asset_ref -%}
+            {%- break -%}
+          {%- endif -%}
+        {%- endfor -%}
+        {%- if slide_asset != blank -%}
+          <div class="sai-hn2hxz5f__slide" data-index="{{ forloop.index0 }}" data-handle="{{ handle }}">
+            {%- if slide_asset.asset_type == 'video' -%}
+              {%- assign s_vid_file = slide_asset.file.value | default: slide_asset.file -%}
+              {%- assign s_vid_url = '' -%}
+              {%- if s_vid_file.sources != blank -%}
+                {%- for source in s_vid_file.sources -%}
+                  {%- if source.format == 'mp4' and s_vid_url == '' -%}
+                    {%- assign s_vid_url = source.url -%}
+                  {%- endif -%}
+                {%- endfor -%}
+                {%- if s_vid_url == '' -%}
+                  {%- assign s_vid_url = s_vid_file.sources.first.url -%}
+                {%- endif -%}
+              {%- elsif s_vid_file.url != blank -%}
+                {%- assign s_vid_url = s_vid_file.url -%}
+              {%- endif -%}
+              <video
+                class="sai-hn2hxz5f__slide-media"
+                src="{{ s_vid_url }}"
+                {%- if autoplay_video == true %} autoplay{% endif %}
+              {%- if mute_on_launch == true %} muted{% endif %}
+              loop playsinline
+              {%- if show_play_pause == true %} controls{% endif %}
+                {%- if s_vid_file.preview_image != blank %} poster="{{ s_vid_file.preview_image | image_url: width: 800 }}"{% endif %}
+              ></video>
+            {%- else -%}
+              <img
+                class="sai-hn2hxz5f__slide-media"
+                src="{{ slide_asset.file | image_url: width: 800 }}"
+                alt="{{ slide_asset.alt | escape }}"
+                {% if forloop.first %}loading="eager" fetchpriority="high"{% else %}loading="lazy"{% endif %}
+              />
+            {%- endif -%}
+          </div>
+        {%- endif -%}
+      {%- endfor -%}
+    </div>
+
+    {%- if asset_count > 1 -%}
+      <div class="sai-hn2hxz5f__progress">
+        <div class="sai-hn2hxz5f__progress-bar" style="width: 0%">&#8203;</div>
+      </div>
+    {%- endif -%}
+
+    <button class="sai-hn2hxz5f__zoom sai-hn2hxz5f__zoom--mobile" type="button" aria-label="Zoom image" data-action="open-lightbox">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+        <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
+        <path d="M21 21l-4.35-4.35" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <path d="M8 11h6M11 8v6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+    </button>
+  </div>
+
+  {%- comment -%} ── Lightbox ── {%- endcomment -%}
+  <dialog class="sai-hn2hxz5f__lightbox" aria-modal="true" aria-label="Product gallery">
+    <button class="sai-hn2hxz5f__lightbox-close" type="button" data-action="close-lightbox" aria-label="Close gallery">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true" focusable="false">
+        <path d="M1.5 1.5L12.5 12.5M12.5 1.5L1.5 12.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </button>
+    <div class="sai-hn2hxz5f__lightbox-scroll"></div>
+  </dialog>
+</sai-hn2hxz5f>
+
+{%- comment -%}
+  Bespoke pool — pre-loads all assets + variant slots.
+  O(n) handle lookup: JS builds a Map from this, no nested iteration.
+{%- endcomment -%}
+<script type="application/json" data-spectrum-snippet-pool>
+{
+  "assets": {
+    {%- assign first_asset_emitted = false -%}
+    {%- for asset_ref in asset_list -%}
+      {%- assign a_handle = asset_ref.system.handle -%}
+      {%- assign a_type = asset_ref.asset_type | default: 'image' -%}
+      {%- assign a_url = '' -%}
+      {%- assign a_width = 0 -%}
+      {%- assign a_height = 0 -%}
+
+      {%- assign a_thumb = '' -%}
+      {%- if a_type == 'video' -%}
+        {%- assign a_file = asset_ref.file.value | default: asset_ref.file -%}
+        {%- if a_file.sources != blank -%}
+          {%- for source in a_file.sources -%}
+            {%- if source.format == 'mp4' and a_url == '' -%}
+              {%- assign a_url = source.url -%}
+            {%- endif -%}
+          {%- endfor -%}
+          {%- if a_url == '' -%}
+            {%- assign a_url = a_file.sources.first.url -%}
+          {%- endif -%}
+        {%- elsif a_file.url != blank -%}
+          {%- assign a_url = a_file.url -%}
+        {%- endif -%}
+        {%- if a_file.preview_image != blank -%}
+          {%- assign a_thumb = a_file.preview_image | image_url: width: 120 -%}
+        {%- endif -%}
+      {%- else -%}
+        {%- assign a_url = asset_ref.file | image_url: width: 1200 -%}
+        {%- assign a_thumb = asset_ref.file | image_url: width: 120 -%}
+        {%- assign a_width = asset_ref.file.width -%}
+        {%- assign a_height = asset_ref.file.height -%}
+      {%- endif -%}
+
+      {%- unless first_asset_emitted -%}{%- assign first_asset_emitted = true -%}{%- else -%},{%- endunless -%}
+      {{ a_handle | json }}: {
+        "id": {{ asset_ref.asset_id | json }},
+        "type": {{ a_type | json }},
+        "url": {{ a_url | json }},
+        "thumb": {{ a_thumb | json }},
+        "alt": {{ asset_ref.alt | default: '' | json }},
+        "tags": {
+          {%- assign a_tags = asset_ref.tags.value -%}
+          {%- if a_tags != blank -%}
+            {%- for pair in a_tags -%}
+              {%- unless forloop.first -%},{%- endunless -%}
+              {{ pair[0] | json }}: {{ pair[1] | json }}
+            {%- endfor -%}
+          {%- endif -%}
+        },
+        "width": {{ a_width | json }},
+        "height": {{ a_height | json }}
+      }
+    {%- endfor -%}
+  },
+  "productSlots": {
+    {%- if product_slots != blank -%}
+      {%- for pair in product_slots -%}
+        {%- unless forloop.first -%},{%- endunless -%}
+        {{ pair[0] | json }}: {
+          "filterTags": {
+            {%- for ft in pair[1].filterTags -%}
+              {%- unless forloop.first -%},{%- endunless -%}
+              {{ ft[0] | json }}: {{ ft[1] | json }}
+            {%- endfor -%}
+          },
+          "variants": {{ pair[1].variants | json }}
+        }
+      {%- endfor -%}
+    {%- endif -%}
+  },
+  "variantSlots": {
+    {%- assign first_vs = true -%}
+    {%- for v in product.variants -%}
+      {%- assign v_slots = v.metafields.spectrum.media_slots.value -%}
+      {%- if v_slots != blank -%}
+        {%- unless first_vs -%},{%- endunless -%}
+        {%- assign first_vs = false -%}
+        {{ v.id | append: '' | json }}: {
+          {%- for vpair in v_slots -%}
+            {%- unless forloop.first -%},{%- endunless -%}
+            {{ vpair[0] | json }}: {
+              "filterTags": {
+                {%- for vft in vpair[1].filterTags -%}
+                  {%- unless forloop.first -%},{%- endunless -%}
+                  {{ vft[0] | json }}: {{ vft[1] | json }}
+                {%- endfor -%}
+              },
+              "variants": {{ vpair[1].variants | json }}
+            }
+          {%- endfor -%}
+        }
+      {%- endif -%}
+    {%- endfor -%}
+  }
+}
+</script>
+{%- endif -%}

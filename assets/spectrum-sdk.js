@@ -63,7 +63,8 @@
  *
  * ── Reviews (app proxy) ─────────────────────────────────────────────
  *   All return { ok, data } or { ok, error: { message, code } }.
- *   Spectrum.reviews.getReviews(handle, opts?)    → paginated reviews
+ *   Spectrum.reviews.getReviews(handle, opts?)    → paginated reviews for a product
+ *   Spectrum.reviews.getAllReviews(opts?)          → paginated reviews across all products
  *   Spectrum.reviews.getStats(handle)             → rating summary
  *   Spectrum.reviews.submitReview(data)           → create review
  *   Spectrum.reviews.voteOnReview(reviewId, type, opts?) → upvote/downvote
@@ -829,6 +830,12 @@ const reviews = {
     const base = _proxyBase();
     if (!base) return _normalizeError('Proxy not configured', 'NO_PROXY');
     return _getJSON(_buildUrl(`${base}/reviews`, `/${encodeURIComponent(productHandle)}`, _pickDefined(opts)));
+  },
+
+  async getAllReviews(opts) {
+    const base = _proxyBase();
+    if (!base) return _normalizeError('Proxy not configured', 'NO_PROXY');
+    return _getJSON(_buildUrl(`${base}/reviews`, '/all', _pickDefined(opts)));
   },
 
   async submitReview(data) {
