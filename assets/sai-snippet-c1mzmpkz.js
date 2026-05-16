@@ -382,11 +382,8 @@
     return wrap
   }
 
-  function buildSectionList(title, discounts, ctx, kind) {
+  function buildSectionList(_title, discounts, ctx, kind) {
     const group = el('section', `sai-c1mzmpkz__group sai-c1mzmpkz__group--${kind}`)
-    if (ctx.config.showSectionTitles && title) {
-      group.appendChild(el('h3', 'sai-c1mzmpkz__group-title', { text: title }))
-    }
     const list = el('div', 'sai-c1mzmpkz__list')
     for (const d of discounts) list.appendChild(buildCard(d, ctx))
     group.appendChild(list)
@@ -673,24 +670,11 @@
         }
       }
 
-      if (config.showSectionTitles) {
-        // Grouped mode: separate Applicable / Potential sections with sub-headings.
-        appendPromoBlocksAt('before_applicable')
-        if (applicable.length > 0) {
-          body.appendChild(buildSectionList(labels.applicableSectionTitle, applicable, ctx, 'applicable'))
-        }
-        appendPromoBlocksAt('between_sections')
-        if (potential.length > 0) {
-          body.appendChild(buildSectionList(labels.potentialSectionTitle, potential, ctx, 'potential'))
-        }
-        appendPromoBlocksAt('after_potential')
-      } else {
-        // Combined mode: single list, applicable first then potential.
-        appendPromoBlocksAt('before_applicable')
-        const combined = applicable.concat(potential)
-        body.appendChild(buildSectionList(null, combined, ctx, 'combined'))
-        appendPromoBlocksAt('after_potential')
-      }
+      // Single combined list — applicable first, then potential.
+      appendPromoBlocksAt('before_applicable')
+      const combined = applicable.concat(potential)
+      body.appendChild(buildSectionList(null, combined, ctx, 'combined'))
+      appendPromoBlocksAt('after_potential')
 
       applyOverflow(body, ctx)
       setDropdownCount(host, totalCount, labels.dropdownTriggerLabel)

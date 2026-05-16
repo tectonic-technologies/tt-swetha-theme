@@ -13,9 +13,6 @@
 
   variant.content fields (see meta.json for full list):
     - heading {string}
-    - applicable_section_title {string}
-    - potential_section_title {string}
-    - show_section_titles {boolean}
     - list_layout {string} carousel | grid | list | dropdown
     - cards_per_row {object} { mobile, tablet, desktop }
     - savings_display_mode {string} absolute | percentage | both
@@ -51,14 +48,6 @@
   assign content = variant.content
   assign heading = content.heading | default: 'All Available Offers'
 
-  if content.show_section_titles == nil
-    assign show_section_titles = false
-  else
-    assign show_section_titles = content.show_section_titles
-  endif
-
-  assign applicable_section_title = content.applicable_section_title | default: 'Available now'
-  assign potential_section_title = content.potential_section_title | default: 'Almost there'
   assign list_layout = content.list_layout | default: 'carousel'
 
   if content.show_savings_callout == nil
@@ -699,7 +688,6 @@
     "mutationHandle": {{ mutation_handle | json }},
     "experienceHandle": {{ experience_handle | json }},
     "listLayout": {{ list_layout | json }},
-    "showSectionTitles": {{ show_section_titles | json }},
     "showSavingsCallout": {{ show_savings_callout | json }},
     "savingsDisplayMode": {{ savings_display_mode | json }},
     "showMinOrderThreshold": {{ show_min_order_threshold | json }},
@@ -715,8 +703,6 @@
     "debugHasMetafieldValue": {%- if raw_discounts_value != blank -%}true{%- else -%}false{%- endif -%}
   },
   "labels": {
-    "applicableSectionTitle": {{ applicable_section_title | json }},
-    "potentialSectionTitle": {{ potential_section_title | json }},
     "termsLabel": {{ terms_label | json }},
     "copyCtaLabel": {{ copy_cta_label | json }},
     "copySuccessLabel": {{ copy_success_label | json }},
