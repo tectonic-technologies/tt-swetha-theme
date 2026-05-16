@@ -20,7 +20,7 @@
   element: block:unknown
 {%- endcomment -%}
 {%- unless request.design_mode -%}
-{%- if _sai_preview and _sai_url contains '_spectrum_ai_preview=_system-196419092640' -%}
+{%- if _sai_preview and _sai_url contains '_spectrum_ai_preview=_system-196419092640' or _sai_url contains '|_system-196419092640|' -%}
   {% render '_sai-k0kqgd39ouicopw66x4mt441', sai_state: 'draft' %}
 {%- else -%}
   {% render '_sai-k0kqgd39ouicopw66x4mt441', sai_state: 'live' %}
