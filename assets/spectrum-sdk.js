@@ -105,11 +105,28 @@
  *   App proxy URL and customer are read from window.__spectrumAi.
  *
  * ── Events ───────────────────────────────────────────────────────────
- *   Spectrum.events.emit(name, detail)           → dispatch custom event
- *   Spectrum.events.on(name, callback)            → listen for custom event
+ *   Spectrum.events.emit(name, detail)            → dispatch custom event
+ *   Spectrum.events.on(name, callback) → unsub    → listen; returns unsubscribe
  *   Spectrum.events.off(name, callback)           → remove listener
  *   Events use the app embed's event bus ($spectrum: prefix, on document).
  *   Naming: 'domain:action' kebab-case (e.g. 'wishlist:added').
+ *
+ *   Event catalog — events spectrum-sdk.js dispatches on `document`.
+ *   Subscribe with `Spectrum.events.on(name, cb)` (omit the $spectrum: prefix).
+ *
+ *   @event $spectrum:wishlist:added         detail = { shopifyProductGid, shopifyVariantGid?, title?, image? }
+ *   @event $spectrum:wishlist:removed       detail = { wishlistId, itemId } | { shopifyProductGid }
+ *   @event $spectrum:wishlist:cleared       detail = { wishlistId }
+ *   @event $spectrum:wishlist:item:updated  detail = { wishlistId, itemId, changes }
+ *   @event $spectrum:wishlist:merged        detail = {}
+ *   @event $spectrum:review:submitted       detail = <raw caller review payload>
+ *   @event $spectrum:review:voted           detail = { reviewId, voteType, __spectrumVariant? }
+ *
+ *   Also dispatched (non-$spectrum prefixed):
+ *   @event pa:reinit                        on `document`. Manual trigger to re-evaluate
+ *                                           personalisation actions after a coupon apply.
+ *   @event spectrum-video:{name}            on the <spectrum-video> element (bubbles).
+ *                                           Lifecycle: loaded, error, play, pause, mute, unmute, unloaded.
  *
  * ── Native (Mobile WebView) ──────────────────────────────────────────
  *   Spectrum.native.getCheckoutUrl({ cartType, slug })
@@ -917,7 +934,11 @@ const wishlist = {
   async deleteWishlist(id) {
     const base = _proxyBase();
     if (!base) return _normalizeError('Proxy not configured', 'NO_PROXY');
-    return _postJSON(_buildUrl(`${base}/wishlist`, `/${encodeURIComponent(id)}/delete`), {});
+    const result = await _postJSON(_buildUrl(`${base}/wishlist`, `/${encodeURIComponent(id)}/delete`), {});
+    if (result.ok) {
+      _emit('wishlist:cleared', { wishlistId: id });
+    }
+    return result;
   },
 
   async addItem(wishlistId, data) {
@@ -963,10 +984,14 @@ const wishlist = {
   async updateItem(wishlistId, itemId, data) {
     const base = _proxyBase();
     if (!base) return _normalizeError('Proxy not configured', 'NO_PROXY');
-    return _postJSON(
+    const result = await _postJSON(
       _buildUrl(`${base}/wishlist`, `/${encodeURIComponent(wishlistId)}/items/${encodeURIComponent(itemId)}/update`),
       data,
     );
+    if (result.ok) {
+      _emit('wishlist:item:updated', { wishlistId, itemId, changes: data });
+    }
+    return result;
   },
 
   async removeByProduct(productGid, metadata) {
@@ -1296,9 +1321,14 @@ const events = {
    * Listen for a Spectrum custom event.
    * @param {string}   name     Event name without $spectrum: prefix
    * @param {Function} callback Event handler receiving the CustomEvent
+   * @returns {Function} Unsubscribe — removes the listener when called.
+   *                     Authors who don't need cleanup can ignore the return;
+   *                     the existing on/off pair stays available for back-compat.
    */
   on(name, callback) {
-    document.addEventListener(`$spectrum:${name}`, callback);
+    const evt = `$spectrum:${name}`;
+    document.addEventListener(evt, callback);
+    return () => document.removeEventListener(evt, callback);
   },
 
   /**
