@@ -208,6 +208,79 @@
     }
   }
 
+  // Live cart subscription. Themes vary widely in how they signal cart changes —
+  // some emit custom events (cart:updated, cart:refresh, etc), most don't.
+  // The portable approach is to hook fetch + XHR and detect any request to the
+  // Shopify cart-mutation endpoints (add/change/update/clear). Triggers a single
+  // debounced callback after each mutation completes.
+  function subscribeToCartChanges(callback) {
+    const MUTATION_PATHS = [
+      '/cart/add',
+      '/cart/add.js',
+      '/cart/change',
+      '/cart/change.js',
+      '/cart/update',
+      '/cart/update.js',
+      '/cart/clear',
+      '/cart/clear.js',
+    ]
+
+    function isCartMutation(url) {
+      if (typeof url !== 'string') return false
+      try {
+        const u = new URL(url, window.location.origin)
+        return MUTATION_PATHS.some((p) => u.pathname === p)
+      } catch (_) {
+        return MUTATION_PATHS.some((p) => url.indexOf(p) !== -1)
+      }
+    }
+
+    let pending
+    function debouncedFire() {
+      if (pending) clearTimeout(pending)
+      pending = setTimeout(() => {
+        pending = null
+        try { callback() } catch (_) {}
+      }, 120)
+    }
+
+    // Hook fetch
+    const origFetch = window.fetch
+    if (origFetch && !window.__saiC1Patched) {
+      window.__saiC1Patched = true
+      window.fetch = function patchedFetch(input, init) {
+        const url = typeof input === 'string' ? input : (input && input.url)
+        const result = origFetch.apply(this, arguments)
+        if (isCartMutation(url)) {
+          result.then(debouncedFire, debouncedFire)
+        }
+        return result
+      }
+    }
+
+    // Hook XHR
+    const OrigXHR = window.XMLHttpRequest
+    if (OrigXHR && !window.__saiC1XHRPatched) {
+      window.__saiC1XHRPatched = true
+      const origOpen = OrigXHR.prototype.open
+      const origSend = OrigXHR.prototype.send
+      OrigXHR.prototype.open = function (method, url) {
+        this.__saiC1Url = url
+        return origOpen.apply(this, arguments)
+      }
+      OrigXHR.prototype.send = function () {
+        if (isCartMutation(this.__saiC1Url)) {
+          this.addEventListener('loadend', debouncedFire)
+        }
+        return origSend.apply(this, arguments)
+      }
+    }
+
+    // Listen for common theme-emitted events as a belt-and-braces backup.
+    const evtNames = ['cart:updated', 'cart:refresh', 'cart:change', 'cart:added', 'cart:removed', 'shopify:cart:update']
+    evtNames.forEach((name) => document.addEventListener(name, debouncedFire))
+  }
+
   function buildCard(d, ctx) {
     const { config, labels } = ctx
     const isAutomatic = d.applicationType === 'automatic'
@@ -591,15 +664,24 @@
         }
       }
 
-      appendPromoBlocksAt('before_applicable')
-      if (applicable.length > 0) {
-        body.appendChild(buildSectionList(labels.applicableSectionTitle, applicable, ctx, 'applicable'))
+      if (config.showSectionTitles) {
+        // Grouped mode: separate Applicable / Potential sections with sub-headings.
+        appendPromoBlocksAt('before_applicable')
+        if (applicable.length > 0) {
+          body.appendChild(buildSectionList(labels.applicableSectionTitle, applicable, ctx, 'applicable'))
+        }
+        appendPromoBlocksAt('between_sections')
+        if (potential.length > 0) {
+          body.appendChild(buildSectionList(labels.potentialSectionTitle, potential, ctx, 'potential'))
+        }
+        appendPromoBlocksAt('after_potential')
+      } else {
+        // Combined mode: single list, applicable first then potential.
+        appendPromoBlocksAt('before_applicable')
+        const combined = applicable.concat(potential)
+        body.appendChild(buildSectionList(null, combined, ctx, 'combined'))
+        appendPromoBlocksAt('after_potential')
       }
-      appendPromoBlocksAt('between_sections')
-      if (potential.length > 0) {
-        body.appendChild(buildSectionList(labels.potentialSectionTitle, potential, ctx, 'potential'))
-      }
-      appendPromoBlocksAt('after_potential')
 
       applyOverflow(body, ctx)
       setDropdownCount(host, totalCount, labels.dropdownTriggerLabel)
@@ -616,23 +698,31 @@
     attachCopy(host, labels)
     attachDropdown(host)
 
-    // Cart-aware re-render: fetch the live cart subtotal, recompute qualifications,
-    // re-render if anything changed. PDP load with no cart returns null → no-op.
-    fetchCartSubtotal().then((cartSubtotal) => {
-      if (cartSubtotal == null && config.variantPrice == null) return
-      const updated = recomputeForCart(baseDiscounts, cartSubtotal, config.variantPrice)
-      // Cheap shallow compare — if no qualification flipped, skip the DOM churn.
-      const changed = updated.some((d, i) => {
-        const before = baseDiscounts[i] && baseDiscounts[i].qualification
-        const after = d && d.qualification
-        if (!before || !after) return false
-        return before.isSatisfied !== after.isSatisfied
-          || before.applicability !== after.applicability
-          || before.progressPercent !== after.progressPercent
+    // Cart-aware re-render — runs on initial load AND whenever the cart mutates.
+    let lastRendered = baseDiscounts
+    function syncFromCart() {
+      fetchCartSubtotal().then((cartSubtotal) => {
+        const updated = recomputeForCart(baseDiscounts, cartSubtotal, config.variantPrice)
+        // Cheap shallow compare against last rendered set — skip DOM churn if nothing flipped.
+        const changed = updated.some((d, i) => {
+          const before = lastRendered[i] && lastRendered[i].qualification
+          const after = d && d.qualification
+          if (!before || !after) return true
+          return before.isSatisfied !== after.isSatisfied
+            || before.applicability !== after.applicability
+            || before.progressPercent !== after.progressPercent
+        })
+        if (!changed) return
+        lastRendered = updated
+        render(updated)
       })
-      if (!changed) return
-      render(updated)
-    })
+    }
+
+    // Initial cart-aware pass (no-op if cart endpoint unreachable or empty).
+    syncFromCart()
+
+    // Live subscription: re-sync whenever any cart-mutation request completes.
+    subscribeToCartChanges(syncFromCart)
   }
 
   function waitForVis(host) {

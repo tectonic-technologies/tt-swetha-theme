@@ -52,7 +52,7 @@
   assign heading = content.heading | default: 'All Available Offers'
 
   if content.show_section_titles == nil
-    assign show_section_titles = true
+    assign show_section_titles = false
   else
     assign show_section_titles = content.show_section_titles
   endif
