@@ -472,13 +472,35 @@
   color: var(--sai-bkodjs1e-success-fg);
 }
 
-.sai-bkodjs1e__alt-group-label {
+.sai-bkodjs1e__alt-group-label,
+.sai-bkodjs1e__alt-heading {
   font-size: 0.6875rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--sai-bkodjs1e-muted-fg);
   padding: 0.5rem 0.5rem 0.25rem;
+}
+
+.sai-bkodjs1e__alt-heading {
+  margin-block-start: 0.5rem;
+  border-block-start: 1px solid var(--sai-bkodjs1e-card-border);
+}
+
+.sai-bkodjs1e__alt-name {
+  font-weight: 600;
+}
+
+.sai-bkodjs1e__alt-value {
+  color: var(--sai-bkodjs1e-muted-fg);
+  font-size: 0.8125rem;
+  text-align: end;
+  white-space: nowrap;
+}
+
+.sai-bkodjs1e__alt-item--current .sai-bkodjs1e__alt-value {
+  color: var(--sai-bkodjs1e-success-fg);
+  font-weight: 600;
 }
 
 /* ── Sticky mobile bar (additive) ─────────────────────────────────────────── */
