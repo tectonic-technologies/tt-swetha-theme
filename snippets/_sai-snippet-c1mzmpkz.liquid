@@ -106,7 +106,14 @@
 
   assign currency_code = shop.currency | default: 'USD'
 
-  assign raw_discounts_value = product.selected_variant.metafields.spectrum.discounts.value
+  assign sai_active_variant = product.selected_or_first_available_variant
+  if sai_active_variant == nil
+    assign sai_active_variant = product.selected_variant
+  endif
+  if sai_active_variant == nil
+    assign sai_active_variant = product.variants.first
+  endif
+  assign raw_discounts_value = sai_active_variant.metafields.spectrum.discounts.value
 -%}
 
 {% stylesheet %}
@@ -694,7 +701,9 @@
     "descriptionMaxLines": {{ description_max_lines | json }},
     "overflowBehavior": {{ overflow_behavior | json }},
     "overflowThreshold": {{ overflow_threshold | json }},
-    "currencyCode": {{ currency_code | json }}
+    "currencyCode": {{ currency_code | json }},
+    "debugVariantId": {{ sai_active_variant.id | json }},
+    "debugHasMetafieldValue": {%- if raw_discounts_value != blank -%}true{%- else -%}false{%- endif -%}
   },
   "labels": {
     "applicableSectionTitle": {{ applicable_section_title | json }},
