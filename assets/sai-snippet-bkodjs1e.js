@@ -820,18 +820,28 @@
 
         const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null
 
+        // Mobile = bottom-anchored drawer, desktop = centered modal.
+        // matchMedia evaluated per-open so a resized window picks the right
+        // surface every time.
+        const isMobile = !window.matchMedia('(min-width: 768px)').matches
+
         const root = document.createElement('div')
         root.className = 'sai-bkodjs1e-popup'
         root.setAttribute('role', 'dialog')
         root.setAttribute('aria-modal', 'true')
         root.setAttribute('aria-labelledby', 'sai-bkodjs1e-popup-title')
         root.setAttribute('data-state', 'closed')
+        root.setAttribute('data-surface', isMobile ? 'drawer' : 'modal')
 
         const TAG_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m15 9-6 6"/><circle cx="9.5" cy="9.5" r=".75" fill="currentColor"/><circle cx="14.5" cy="14.5" r=".75" fill="currentColor"/></svg>'
 
+        const panelClass = `sai-bkodjs1e-popup__panel sai-bkodjs1e-popup__panel--${isMobile ? 'drawer' : 'modal'}`
+        const handleHtml = isMobile ? '<div class="sai-bkodjs1e-popup__handle" aria-hidden="true"></div>' : ''
+
         root.innerHTML = `
           <div class="sai-bkodjs1e-popup__backdrop" data-sai-popup-dismiss></div>
-          <div class="sai-bkodjs1e-popup__panel" data-sai-popup-panel>
+          <div class="${panelClass}" data-sai-popup-panel>
+            ${handleHtml}
             <div class="sai-bkodjs1e-popup__header">
               <span class="sai-bkodjs1e-popup__title" id="sai-bkodjs1e-popup-title">${escapeHtml(labels.heading || 'Best offers').toUpperCase()}</span>
               <button type="button" class="sai-bkodjs1e-popup__close" aria-label="Close" data-sai-popup-dismiss>&times;</button>

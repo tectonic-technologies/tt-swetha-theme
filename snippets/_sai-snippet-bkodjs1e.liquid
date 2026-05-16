@@ -517,28 +517,59 @@
 .sai-bkodjs1e-popup__panel {
   position: relative;
   z-index: 1;
-  margin: auto;
   background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Desktop (≥768px): centered modal with scale/fade-in. */
+.sai-bkodjs1e-popup__panel--modal {
+  margin: auto;
   width: min(30rem, calc(100% - 2rem));
   max-height: 88vh;
   border-radius: 14px;
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.28);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
   transform: translateY(12px) scale(0.97);
   opacity: 0;
   transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1), opacity 220ms ease;
 }
 
-.sai-bkodjs1e-popup[data-state='open'] .sai-bkodjs1e-popup__panel {
+.sai-bkodjs1e-popup[data-state='open'] .sai-bkodjs1e-popup__panel--modal {
   transform: translateY(0) scale(1);
   opacity: 1;
 }
 
+/* Mobile (<768px): bottom-anchored drawer sliding up. */
+.sai-bkodjs1e-popup__panel--drawer {
+  margin-top: auto;
+  width: 100%;
+  max-height: 88vh;
+  border-top-left-radius: 16px;
+  border-top-right-radius: 16px;
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.18);
+  transform: translateY(100%);
+  transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.sai-bkodjs1e-popup[data-state='open'] .sai-bkodjs1e-popup__panel--drawer {
+  transform: translateY(0);
+}
+
+.sai-bkodjs1e-popup__handle {
+  width: 2.5rem;
+  height: 0.25rem;
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 999px;
+  margin: 0.5rem auto 0;
+  flex-shrink: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .sai-bkodjs1e-popup__backdrop,
-  .sai-bkodjs1e-popup__panel {
+  .sai-bkodjs1e-popup__panel--modal,
+  .sai-bkodjs1e-popup__panel--drawer {
     transition: none;
   }
 }
@@ -647,13 +678,18 @@
   align-self: flex-start;
 }
 
-/* Alt-section code box uses muted grey, primary stays strong black. */
+/* Alt-section code box uses muted grey — primary stays strong black. */
 .sai-bkodjs1e-popup__section:not(.sai-bkodjs1e-popup__section--primary) .sai-bkodjs1e-popup__code-row {
-  border-color: rgba(0, 0, 0, 0.35);
+  border-color: rgba(0, 0, 0, 0.22);
+  background: rgba(0, 0, 0, 0.02);
 }
 
 .sai-bkodjs1e-popup__section:not(.sai-bkodjs1e-popup__section--primary) .sai-bkodjs1e-popup__code {
-  color: rgba(0, 0, 0, 0.7);
+  color: rgba(0, 0, 0, 0.5);
+}
+
+.sai-bkodjs1e-popup__section:not(.sai-bkodjs1e-popup__section--primary) .sai-bkodjs1e-popup__copy {
+  color: rgba(0, 0, 0, 0.4);
 }
 
 .sai-bkodjs1e-popup__code {
