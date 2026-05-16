@@ -156,9 +156,18 @@
   display: block;
   box-sizing: border-box;
   width: 100%;
+  max-width: 1200px;
+  margin-inline: auto;
   margin-block: var(--sai-size-6, 1.5rem);
+  padding-inline: 1rem;
   font-family: var(--sai-font-body, inherit);
   color: var(--sai-c1mzmpkz-fg);
+}
+
+@media (min-width: 768px) {
+  .sai-c1mzmpkz {
+    padding-inline: 1.5rem;
+  }
 }
 
 .sai-c1mzmpkz *,
