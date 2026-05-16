@@ -204,6 +204,14 @@
   box-sizing: border-box;
 }
 
+/* HTML `hidden` attribute on descendants must win over any author-set
+ * `display` value. Author rules below give buttons / lists explicit display
+ * values (flex / inline-flex / grid), which the UA `[hidden] { display:none }`
+ * rule cannot override without help. */
+.sai-bkodjs1e [hidden] {
+  display: none !important;
+}
+
 .sai-bkodjs1e[hidden],
 .sai-bkodjs1e--hidden {
   display: none !important;
@@ -778,3 +786,5 @@
 }
   </script>
 </sai-bkodjs1e>
+
+<script src="{{ 'sai-snippet-bkodjs1e.js' | asset_url }}" defer></script>
