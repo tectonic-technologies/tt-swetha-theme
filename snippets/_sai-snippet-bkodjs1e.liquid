@@ -198,11 +198,20 @@
   display: block;
   box-sizing: border-box;
   inline-size: 100%;
+  max-width: 1200px;
+  margin-inline: auto;
+  padding-inline: 1rem;
   font-family: var(--sai-font-body);
   font-size: 0.9375rem;
   line-height: 1.4;
   color: var(--sai-bkodjs1e-fg);
   margin-block: var(--sai-size-3, 0.75rem);
+}
+
+@media (min-width: 768px) {
+  .sai-bkodjs1e {
+    padding-inline: 1.5rem;
+  }
 }
 
 .sai-bkodjs1e *,
@@ -425,6 +434,7 @@
 .sai-bkodjs1e__trigger-stack {
   display: flex;
   flex-direction: column;
+  width: 100%;
   border: 1px solid var(--sai-bkodjs1e-card-border);
   border-radius: var(--sai-bkodjs1e-card-radius);
   overflow: hidden;
@@ -578,16 +588,26 @@
 }
 
 .sai-bkodjs1e-popup__divider {
+  /* Span the body's horizontal padding so the strip is full-width.
+   * Body padding is 1.25rem inline; pull divider out by -1.25rem each side. */
+  margin-inline: -1.25rem;
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.875rem 1.25rem;
-  background: rgba(0, 0, 0, 0.025);
-  border-block-start: 1px solid rgba(0, 0, 0, 0.06);
-  border-block-end: 1px solid rgba(0, 0, 0, 0.06);
+  padding: 0.75rem 1.25rem;
+  background: rgba(0, 0, 0, 0.04);
+  border-block-start: 1px solid rgba(0, 0, 0, 0.08);
+  border-block-end: 1px solid rgba(0, 0, 0, 0.08);
   font-size: 0.8125rem;
   font-weight: 700;
-  color: var(--sai-bkodjs1e-muted-fg);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--sai-bkodjs1e-fg);
+  margin-block-start: 0.5rem;
+}
+
+.sai-bkodjs1e-popup__divider .sai-bkodjs1e-popup__divider-icon {
+  color: var(--sai-bkodjs1e-success-fg, #14803a);
 }
 
 .sai-bkodjs1e-popup__divider-icon {
@@ -924,9 +944,11 @@
     {%- endcomment -%}
     <div class="sai-bkodjs1e__trigger-stack" data-sai-dropdown-trigger hidden>
       <div class="sai-bkodjs1e__callout" data-sai-callout>
-        <svg class="sai-bkodjs1e__callout-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-          <path d="M8 1.5l1.7 1.4 2.2-.2.5 2.1 1.7 1.4-1.1 1.9.6 2.1-2.1.7-1 2-2-.8-2 .8-1-2-2.1-.7.6-2.1L1 6.2l1.7-1.4.5-2.1 2.2.2L8 1.5z" fill="none" stroke="currentColor" stroke-width="1.4"/>
-          <path d="M5.5 8.5 7 10l4-4.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+        <svg class="sai-bkodjs1e__callout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+          <path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/>
+          <path d="m15 9-6 6"/>
+          <circle cx="9.5" cy="9.5" r=".75" fill="currentColor"/>
+          <circle cx="14.5" cy="14.5" r=".75" fill="currentColor"/>
         </svg>
         <span data-sai-callout-label></span>
       </div>
