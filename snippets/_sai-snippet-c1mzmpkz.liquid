@@ -678,14 +678,13 @@
 
   {%- comment -%}
     JSON payload — the runtime JS reads this once and renders every card.
-    Pasting the raw metafield value (which is already a JSON object literal)
-    requires `| replace` to neutralise any literal `</script>` substring,
-    rather than `| json` (which would re-encode the string as a quoted
-    scalar). See generated-liquid rule #5.
+    Shopify deserializes json-typed metafields into a Ruby Hash; piping the
+    parsed value back through `| json` re-serializes it as valid JSON and
+    handles the `</script>` escape per generated-liquid rule #5.
   {%- endcomment -%}
   <script type="application/json" data-sai-payload>
 {
-  "discounts": {%- if raw_discounts_value != blank -%}{{ raw_discounts_value | replace: '</script>', '<\/script>' }}{%- else -%}{"discounts":[]}{%- endif -%},
+  "discounts": {%- if raw_discounts_value != blank -%}{{ raw_discounts_value | json }}{%- else -%}{"discounts":[]}{%- endif -%},
   "config": {
     "snippetId": {{ 'c1mzmpkz' | json }},
     "mutationHandle": {{ mutation_handle | json }},
