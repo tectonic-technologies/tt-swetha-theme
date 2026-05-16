@@ -299,6 +299,18 @@
       'data-applicability': (d.qualification && d.qualification.applicability) || '',
     })
 
+    // Status badge — Available now / Almost there
+    if (config.showStatusBadge) {
+      const isCurrent = isApplicable(d)
+      const badgeLabel = isCurrent
+        ? (labels.applicableStatusLabel || 'Available now')
+        : (labels.potentialStatusLabel || 'Almost there')
+      const badge = el('span', `sai-c1mzmpkz__status-badge sai-c1mzmpkz__status-badge--${isCurrent ? 'current' : 'potential'}`, {
+        text: badgeLabel,
+      })
+      card.appendChild(badge)
+    }
+
     // Zone 3 — Discount Type Label
     card.appendChild(el('h3', 'sai-c1mzmpkz__type-label', { text: formatTypeLabel(d, config.currencyCode) }))
 

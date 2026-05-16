@@ -76,6 +76,15 @@
     assign show_terms = content.show_terms
   endif
 
+  if content.show_status_badge == nil
+    assign show_status_badge = true
+  else
+    assign show_status_badge = content.show_status_badge
+  endif
+
+  assign applicable_status_label = content.applicable_status_label | default: 'Available now'
+  assign potential_status_label = content.potential_status_label | default: 'Almost there'
+
   assign terms_label = content.terms_label | default: 'Terms & Conditions'
   assign terms_template = content.terms_template | default: '{{summary}}. Minimum order {{min_order}}. {{stacking_note}}. Use code {{code}} at checkout.'
   assign description_max_lines = content.description_max_lines | default: 2
@@ -399,6 +408,37 @@
   letter-spacing: 0.02em;
 }
 
+.sai-c1mzmpkz__status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  align-self: flex-start;
+  padding: 0.125rem 0.5rem 0.125rem 0.4375rem;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.sai-c1mzmpkz__status-badge::before {
+  content: '';
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.sai-c1mzmpkz__status-badge--current {
+  background: rgba(22, 163, 74, 0.12);
+  color: #14803a;
+}
+
+.sai-c1mzmpkz__status-badge--potential {
+  background: rgba(0, 0, 0, 0.06);
+  color: rgba(0, 0, 0, 0.7);
+}
+
 .sai-c1mzmpkz__min-order {
   margin: 0;
   font-size: 0.75rem;
@@ -693,6 +733,7 @@
     "showMinOrderThreshold": {{ show_min_order_threshold | json }},
     "showRemainingProgress": {{ show_remaining_progress | json }},
     "showTerms": {{ show_terms | json }},
+    "showStatusBadge": {{ show_status_badge | json }},
     "termsTemplate": {{ terms_template | json }},
     "descriptionMaxLines": {{ description_max_lines | json }},
     "overflowBehavior": {{ overflow_behavior | json }},
@@ -703,6 +744,8 @@
     "debugHasMetafieldValue": {%- if raw_discounts_value != blank -%}true{%- else -%}false{%- endif -%}
   },
   "labels": {
+    "applicableStatusLabel": {{ applicable_status_label | json }},
+    "potentialStatusLabel": {{ potential_status_label | json }},
     "termsLabel": {{ terms_label | json }},
     "copyCtaLabel": {{ copy_cta_label | json }},
     "copySuccessLabel": {{ copy_success_label | json }},
