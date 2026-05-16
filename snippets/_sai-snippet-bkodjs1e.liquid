@@ -37,6 +37,13 @@
 {%- endcomment -%}
 
 {%- liquid
+  # The prod wrapper passes `variant` (the resolved spectrum_snippet_instance
+  # variant) — not a flat `content` arg. Alias `content = variant.content` so
+  # every `content.<prop>` read below resolves to the merchant-authored value
+  # instead of nil. Without this alias, every prop falls back to its default,
+  # which means changes saved in Studio never reach the template.
+  assign content = variant.content
+
   # ── Boolean defaults: == nil check, NEVER | default: (Liquid replaces
   # `false` with the default, so `| default: true` silently restores defaults
   # on every merchant-explicit `false`).
