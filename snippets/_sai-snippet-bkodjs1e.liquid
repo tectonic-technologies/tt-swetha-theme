@@ -420,6 +420,233 @@
   background: var(--sai-bkodjs1e-success-bg);
 }
 
+/* ── Dropdown mode trigger stack + popup modal ────────────────────────────── */
+
+.sai-bkodjs1e__trigger-stack {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--sai-bkodjs1e-card-border);
+  border-radius: var(--sai-bkodjs1e-card-radius);
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.sai-bkodjs1e__callout {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: var(--sai-bkodjs1e-success-bg, #e8f5ee);
+  color: var(--sai-bkodjs1e-success-fg, #14803a);
+  font-weight: 700;
+  font-size: 0.9375rem;
+}
+
+.sai-bkodjs1e__callout-icon {
+  inline-size: 1.125rem;
+  block-size: 1.125rem;
+  flex-shrink: 0;
+}
+
+.sai-bkodjs1e__callout-price {
+  color: var(--sai-bkodjs1e-success-fg, #14803a);
+  font-weight: 800;
+}
+
+.sai-bkodjs1e__view-details {
+  appearance: none;
+  background: #ffffff;
+  border: 0;
+  border-block-start: 1px solid var(--sai-bkodjs1e-card-border);
+  font: inherit;
+  font-weight: 700;
+  color: var(--sai-bkodjs1e-fg);
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  inline-size: 100%;
+}
+
+.sai-bkodjs1e__view-details:hover {
+  background: rgba(0, 0, 0, 0.025);
+}
+
+/* Popup modal mounted to <body> */
+.sai-bkodjs1e-popup {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+}
+
+.sai-bkodjs1e-popup[hidden] {
+  display: none;
+}
+
+.sai-bkodjs1e-popup__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  transition: opacity 220ms ease;
+}
+
+.sai-bkodjs1e-popup[data-state='open'] .sai-bkodjs1e-popup__backdrop {
+  opacity: 1;
+}
+
+.sai-bkodjs1e-popup__panel {
+  position: relative;
+  z-index: 1;
+  margin: auto;
+  background: #ffffff;
+  width: min(30rem, calc(100% - 2rem));
+  max-height: 88vh;
+  border-radius: 14px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.28);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transform: translateY(12px) scale(0.97);
+  opacity: 0;
+  transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1), opacity 220ms ease;
+}
+
+.sai-bkodjs1e-popup[data-state='open'] .sai-bkodjs1e-popup__panel {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sai-bkodjs1e-popup__backdrop,
+  .sai-bkodjs1e-popup__panel {
+    transition: none;
+  }
+}
+
+.sai-bkodjs1e-popup__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-block-end: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.sai-bkodjs1e-popup__title {
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sai-bkodjs1e-popup__close {
+  appearance: none;
+  background: none;
+  border: 0;
+  font: inherit;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  color: inherit;
+}
+
+.sai-bkodjs1e-popup__highlight {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.875rem 1.25rem;
+  background: var(--sai-bkodjs1e-success-bg, #e8f5ee);
+  color: var(--sai-bkodjs1e-success-fg, #14803a);
+  font-weight: 700;
+}
+
+.sai-bkodjs1e-popup__body {
+  padding: 1rem 1.25rem;
+  overflow-y: auto;
+}
+
+.sai-bkodjs1e-popup__section {
+  padding-block: 0.75rem;
+}
+
+.sai-bkodjs1e-popup__section + .sai-bkodjs1e-popup__section {
+  border-block-start: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.sai-bkodjs1e-popup__divider {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.875rem 1.25rem;
+  background: rgba(0, 0, 0, 0.025);
+  border-block-start: 1px solid rgba(0, 0, 0, 0.06);
+  border-block-end: 1px solid rgba(0, 0, 0, 0.06);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--sai-bkodjs1e-muted-fg);
+}
+
+.sai-bkodjs1e-popup__divider-icon {
+  inline-size: 1.125rem;
+  block-size: 1.125rem;
+  color: var(--sai-bkodjs1e-success-fg, #14803a);
+}
+
+.sai-bkodjs1e-popup__desc {
+  margin: 0 0 0.25rem;
+  color: var(--sai-bkodjs1e-bullet-fg);
+  font-size: 0.875rem;
+}
+
+.sai-bkodjs1e-popup__saving {
+  margin: 0 0 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.sai-bkodjs1e-popup__saving-amount {
+  color: var(--sai-bkodjs1e-success-fg, #14803a);
+}
+
+.sai-bkodjs1e-popup__code-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--sai-bkodjs1e-card-border);
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.sai-bkodjs1e-popup__code {
+  font-family: var(--sai-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.sai-bkodjs1e-popup__copy {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0.25rem;
+  cursor: pointer;
+  color: var(--sai-bkodjs1e-muted-fg);
+  display: inline-flex;
+}
+
+.sai-bkodjs1e-popup__copy[aria-pressed='true'] {
+  color: var(--sai-bkodjs1e-success-fg, #14803a);
+}
+
+.sai-bkodjs1e-popup__copy-icon {
+  inline-size: 1rem;
+  block-size: 1rem;
+}
+
 .sai-bkodjs1e__dropdown-trigger {
   appearance: none;
   background: transparent;
@@ -690,14 +917,32 @@
       <div class="sai-bkodjs1e__expand-body-inner" data-sai-expand-body-inner></div>
     </div>
 
-    <button type="button" class="sai-bkodjs1e__dropdown-trigger" data-sai-dropdown-trigger hidden aria-expanded="false">
-      <span data-sai-dropdown-label>{{ dropdown_trigger_text | escape }}</span>
-      <svg class="sai-bkodjs1e__chevron" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-        <path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-    </button>
+    {%- comment -%}
+      Dropdown mode trigger area — replaces the old inline pill + panel.
+      JS populates the callout text from the resolved best discount and
+      opens a centered modal popup (mounted to <body>) on View Details click.
+    {%- endcomment -%}
+    <div class="sai-bkodjs1e__trigger-stack" data-sai-dropdown-trigger hidden>
+      <div class="sai-bkodjs1e__callout" data-sai-callout>
+        <svg class="sai-bkodjs1e__callout-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+          <path d="M8 1.5l1.7 1.4 2.2-.2.5 2.1 1.7 1.4-1.1 1.9.6 2.1-2.1.7-1 2-2-.8-2 .8-1-2-2.1-.7.6-2.1L1 6.2l1.7-1.4.5-2.1 2.2.2L8 1.5z" fill="none" stroke="currentColor" stroke-width="1.4"/>
+          <path d="M5.5 8.5 7 10l4-4.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span data-sai-callout-label></span>
+      </div>
+      <button type="button" class="sai-bkodjs1e__view-details" data-sai-popup-trigger aria-haspopup="dialog">
+        <span data-sai-dropdown-label>{{ dropdown_trigger_text | escape }}</span>
+        <svg class="sai-bkodjs1e__chevron" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+          <path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+    </div>
 
-    <div class="sai-bkodjs1e__dropdown-panel" data-sai-dropdown-panel></div>
+    {%- comment -%}
+      Legacy empty container retained so JS that still references
+      [data-sai-dropdown-panel] doesn't error. Always hidden.
+    {%- endcomment -%}
+    <div class="sai-bkodjs1e__dropdown-panel" data-sai-dropdown-panel hidden></div>
   </div>
 
   {%- comment -%}

@@ -32,6 +32,16 @@
 
   // ── Analytics helpers ────────────────────────────────────────────────────
   function noop() {}
+
+  function escapeHtml(str) {
+    if (str == null) return ''
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+  }
   function safe(fn) {
     return (name, payload) => {
       try {
@@ -759,34 +769,184 @@
 
       _renderDropdown(evaluated) {
         const trigger = this.querySelector('[data-sai-dropdown-trigger]')
-        const panel = this.querySelector('[data-sai-dropdown-panel]')
         const triggerLabel = this.querySelector('[data-sai-dropdown-label]')
+        const calloutLabel = this.querySelector('[data-sai-callout-label]')
 
+        // Dropdown mode hides every other inline region — the modal owns
+        // all detail content.
         this._setHidden('[data-sai-expand-trigger]', true)
         this._setHidden('[data-sai-bullets]', true)
         this._setHidden('[data-sai-unlock]', true)
         this._setHidden('[data-sai-alt-list]', true)
+        this._setHidden('[data-sai-price-row]', true)
+        this._setHidden('[data-sai-badge]', true)
+        this._setHidden('[data-sai-heading]', true)
+        this._setHidden('[data-sai-dropdown-panel]', true)
 
-        if (!trigger || !panel) return
+        if (!trigger) return
         trigger.hidden = false
         if (triggerLabel) {
-          triggerLabel.textContent = this._state.labels.dropdownTriggerText || 'View details'
+          triggerLabel.textContent = this._state.labels.dropdownTriggerText || 'View Details'
+        }
+        if (calloutLabel) {
+          calloutLabel.textContent = this._buildCalloutText(evaluated)
         }
 
-        // Panel contents: unlock message, optional bullets, alternatives.
-        panel.innerHTML = ''
-        const unlock = this._buildUnlock(evaluated)
-        if (unlock) panel.appendChild(unlock)
+        this._wireDropdownPopup(evaluated)
+      }
 
-        const bullets = this._buildBullets(evaluated)
-        if (bullets) panel.appendChild(bullets)
+      _buildCalloutText(evaluated) {
+        if (!evaluated.best) return this._state.labels.bestPricePrefix || 'Best offer'
+        const money = this._moneyFn()
+        const productPrice = centsToDecimal(this._state.product.price)
+        const finalPrice = discountedPrice(evaluated.best.d, productPrice)
+        return `Get it at ${money(finalPrice)}`
+      }
 
-        if (this._state.config.showAlternatives) {
-          const list = document.createElement('ul')
-          list.className = 'sai-bkodjs1e__alt-list'
-          this._renderAlternatives(evaluated, list, true)
-          panel.appendChild(list)
+      _wireDropdownPopup(evaluated) {
+        const triggerBtn = this.querySelector('[data-sai-popup-trigger]')
+        if (!triggerBtn) return
+        // Idempotent — replace any prior handler bound to a stale evaluator.
+        if (this._popupClickHandler) triggerBtn.removeEventListener('click', this._popupClickHandler)
+        this._popupClickHandler = () => this._openDropdownPopup(this._lastEvaluated || evaluated)
+        triggerBtn.addEventListener('click', this._popupClickHandler)
+      }
+
+      _openDropdownPopup(evaluated) {
+        if (!evaluated || !evaluated.best) return
+        const money = this._moneyFn()
+        const productPrice = centsToDecimal(this._state.product.price)
+        const labels = this._state.labels
+
+        const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null
+
+        const root = document.createElement('div')
+        root.className = 'sai-bkodjs1e-popup'
+        root.setAttribute('role', 'dialog')
+        root.setAttribute('aria-modal', 'true')
+        root.setAttribute('aria-labelledby', 'sai-bkodjs1e-popup-title')
+        root.setAttribute('data-state', 'closed')
+
+        root.innerHTML = `
+          <div class="sai-bkodjs1e-popup__backdrop" data-sai-popup-dismiss></div>
+          <div class="sai-bkodjs1e-popup__panel" data-sai-popup-panel>
+            <div class="sai-bkodjs1e-popup__header">
+              <span class="sai-bkodjs1e-popup__title" id="sai-bkodjs1e-popup-title">${escapeHtml(labels.heading || 'Best offers').toUpperCase()}</span>
+              <button type="button" class="sai-bkodjs1e-popup__close" aria-label="Close" data-sai-popup-dismiss>&times;</button>
+            </div>
+            <div class="sai-bkodjs1e-popup__highlight">
+              <svg class="sai-bkodjs1e__callout-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                <path d="M8 1.5l1.7 1.4 2.2-.2.5 2.1 1.7 1.4-1.1 1.9.6 2.1-2.1.7-1 2-2-.8-2 .8-1-2-2.1-.7.6-2.1L1 6.2l1.7-1.4.5-2.1 2.2.2L8 1.5z" fill="none" stroke="currentColor" stroke-width="1.4"/>
+                <path d="M5.5 8.5 7 10l4-4.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <span>${escapeHtml(this._buildCalloutText(evaluated))}</span>
+            </div>
+            <div class="sai-bkodjs1e-popup__body" data-sai-popup-body></div>
+          </div>
+        `
+
+        const body = root.querySelector('[data-sai-popup-body]')
+        body.appendChild(this._buildPopupSection(evaluated.best.d, productPrice, money, /* primary */ true))
+
+        if (this._state.config.showAlternatives && evaluated.alternatives.length > 0) {
+          const divider = document.createElement('div')
+          divider.className = 'sai-bkodjs1e-popup__divider'
+          divider.innerHTML = `
+            <svg class="sai-bkodjs1e-popup__divider-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+              <path d="M8 1.5l1.7 1.4 2.2-.2.5 2.1 1.7 1.4-1.1 1.9.6 2.1-2.1.7-1 2-2-.8-2 .8-1-2-2.1-.7.6-2.1L1 6.2l1.7-1.4.5-2.1 2.2.2L8 1.5z" fill="none" stroke="currentColor" stroke-width="1.4"/>
+            </svg>
+            <span>Other Offers</span>
+          `
+          // divider sits OUTSIDE the body padding for full-width look.
+          body.parentNode.insertBefore(divider, body.nextSibling)
+          for (const item of evaluated.alternatives.slice(0, this._state.config.dropdownMaxItems || 5)) {
+            const sect = this._buildPopupSection(item.d, productPrice, money, false)
+            body.parentNode.appendChild(sect)
+          }
         }
+
+        document.body.appendChild(root)
+        const prevOverflow = document.body.style.overflow
+        document.body.style.overflow = 'hidden'
+
+        const close = () => {
+          root.setAttribute('data-state', 'closed')
+          const cleanup = () => {
+            document.removeEventListener('keydown', onKey, true)
+            if (root.parentNode) root.parentNode.removeChild(root)
+            document.body.style.overflow = prevOverflow
+            if (previouslyFocused) previouslyFocused.focus()
+          }
+          const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+          if (reduced) cleanup()
+          else setTimeout(cleanup, 240)
+        }
+        const onKey = (e) => { if (e.key === 'Escape') close() }
+        root.addEventListener('click', (e) => {
+          const t = e.target
+          if (t instanceof Element && t.closest('[data-sai-popup-dismiss]')) { e.preventDefault(); close() }
+        })
+        document.addEventListener('keydown', onKey, true)
+
+        // Wire copy buttons inside the popup.
+        root.addEventListener('click', async (e) => {
+          const t = e.target
+          if (!(t instanceof Element)) return
+          const btn = t.closest('[data-sai-popup-copy]')
+          if (!btn) return
+          const code = btn.getAttribute('data-sai-popup-copy') || ''
+          try { await navigator.clipboard.writeText(code) } catch (_) {}
+          btn.setAttribute('aria-pressed', 'true')
+          setTimeout(() => btn.setAttribute('aria-pressed', 'false'), 1200)
+        })
+
+        // Force reflow + double rAF so the transition has a clean from-state.
+        void root.offsetHeight
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          root.setAttribute('data-state', 'open')
+          const firstFocusable = root.querySelector('button, [href], [tabindex]:not([tabindex="-1"])')
+          if (firstFocusable instanceof HTMLElement) firstFocusable.focus()
+        }))
+      }
+
+      _buildPopupSection(d, productPrice, money, isPrimary) {
+        const section = document.createElement('div')
+        section.className = 'sai-bkodjs1e-popup__section'
+        section.style.padding = '0.875rem 1.25rem'
+
+        if (d.summary || d.shortSummary) {
+          const p = document.createElement('p')
+          p.className = 'sai-bkodjs1e-popup__desc'
+          p.textContent = d.summary || d.shortSummary
+          section.appendChild(p)
+        }
+
+        const saving = savingsAtQty1(d, productPrice)
+        if (saving && saving.absolute > 0) {
+          const p = document.createElement('p')
+          p.className = 'sai-bkodjs1e-popup__saving'
+          p.innerHTML = `You Save <span class="sai-bkodjs1e-popup__saving-amount">${escapeHtml(money(saving.absolute))}</span>`
+          section.appendChild(p)
+        }
+
+        const code = Array.isArray(d.codes) && d.codes.length > 0
+          ? (typeof d.codes[0] === 'string' ? d.codes[0] : d.codes[0]?.code)
+          : null
+        if (code) {
+          const row = document.createElement('div')
+          row.className = 'sai-bkodjs1e-popup__code-row'
+          row.innerHTML = `
+            <span class="sai-bkodjs1e-popup__code">${escapeHtml(code)}</span>
+            <button type="button" class="sai-bkodjs1e-popup__copy" data-sai-popup-copy="${escapeHtml(code)}" aria-pressed="false" aria-label="Copy code">
+              <svg class="sai-bkodjs1e-popup__copy-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                <rect x="4" y="4" width="9" height="9" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/>
+                <path d="M3 11.5V3.5A1.5 1.5 0 0 1 4.5 2H11" fill="none" stroke="currentColor" stroke-width="1.4"/>
+              </svg>
+            </button>
+          `
+          section.appendChild(row)
+        }
+        return section
       }
 
       _renderBullets(evaluated, container) {
