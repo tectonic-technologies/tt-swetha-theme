@@ -1,0 +1,738 @@
+{% doc %}
+  PDP Promotion List — lists applicable + potentially-applicable storefront
+  discounts for the current PDP variant. Reads the normalised payload from
+  the spectrum.discounts variant metafield. Layout variants: inline list,
+  grid, carousel, dropdown. T&C opens in a modal (desktop) or
+  bottom-anchored drawer (mobile).
+
+  @param {string} mutation_handle - Mutation handle for DOM scoping (infrastructure)
+  @param {string} experience_handle - Experience handle for attribution (infrastructure)
+  @param {object} variant - Resolved snippet-instance variant; user-configurable values live on `variant.content`
+  @param {object} mo - spectrum_snippet_instance metaobject drop (unused by this snippet)
+  @param {object} entry - Resolved resource-slot entry (unused; data lives on the Shopify product metafield)
+
+  variant.content fields (see meta.json for full list):
+    - heading {string}
+    - applicable_section_title {string}
+    - potential_section_title {string}
+    - show_section_titles {boolean}
+    - list_layout {string} carousel | grid | list | dropdown
+    - cards_per_row {object} { mobile, tablet, desktop }
+    - savings_display_mode {string} absolute | percentage | both
+    - terms_template {string}
+    - overflow_behavior {string} expand_inline | open_popup | none
+    - overflow_threshold {number}
+    - promo_block_{1,2}_{image,headline,body,link,position}
+
+  @example
+  {% render '_sai-snippet-c1mzmpkz',
+    variant: variant,
+    mo: mo,
+    mutation_handle: 'mut-c1mzmpkzabcd1234',
+    experience_handle: 'pdp-offers'
+  %}
+{% enddoc %}
+
+{%- comment -%}
+  ── Institutional knowledge ──
+  The discount payload is read directly from product.selected_variant.metafields.spectrum.discounts.
+  It is written by the discount-sync concern in product-sync (see packages/services/products/concerns/discount-sync.ts).
+  Snippet renders an SSR shell + a JSON payload + a script-tag and lets the runtime JS do all card
+  formatting. This avoids Shopify Liquid's nested-array access limits on deeply-nested discount objects
+  and keeps currency/progress formatting in one place. The raw metafield value is pasted into the JSON
+  payload via | replace (rule #5 in .claude/rules/generated-liquid.md) because piping an already-JSON
+  string through | json would double-encode it as a quoted string.
+
+  Vis gate: the wrapper sets data-spectrum-vis off/on. The runtime JS waits for "on" before doing work
+  (snippet-library/CLAUDE.md line 77). Initial SSR markup is minimal so the off-state hide cost is tiny.
+{%- endcomment -%}
+
+{%- liquid
+  assign content = variant.content
+  assign heading = content.heading | default: 'All Available Offers'
+
+  if content.show_section_titles == nil
+    assign show_section_titles = true
+  else
+    assign show_section_titles = content.show_section_titles
+  endif
+
+  assign applicable_section_title = content.applicable_section_title | default: 'Available now'
+  assign potential_section_title = content.potential_section_title | default: 'Almost there'
+  assign list_layout = content.list_layout | default: 'carousel'
+
+  if content.show_savings_callout == nil
+    assign show_savings_callout = true
+  else
+    assign show_savings_callout = content.show_savings_callout
+  endif
+
+  assign savings_display_mode = content.savings_display_mode | default: 'absolute'
+
+  if content.show_min_order_threshold == nil
+    assign show_min_order_threshold = false
+  else
+    assign show_min_order_threshold = content.show_min_order_threshold
+  endif
+
+  if content.show_remaining_progress == nil
+    assign show_remaining_progress = true
+  else
+    assign show_remaining_progress = content.show_remaining_progress
+  endif
+
+  if content.show_terms == nil
+    assign show_terms = true
+  else
+    assign show_terms = content.show_terms
+  endif
+
+  assign terms_label = content.terms_label | default: 'Terms & Conditions'
+  assign terms_template = content.terms_template | default: '{{summary}}. Minimum order {{min_order}}. {{stacking_note}}. Use code {{code}} at checkout.'
+  assign description_max_lines = content.description_max_lines | default: 2
+  assign copy_cta_label = content.copy_cta_label | default: 'Copy'
+  assign copy_success_label = content.copy_success_label | default: 'Copied!'
+  assign automatic_pill_label = content.automatic_pill_label | default: 'Applied at checkout'
+  assign overflow_behavior = content.overflow_behavior | default: 'expand_inline'
+  assign overflow_threshold = content.overflow_threshold | default: 3
+  assign overflow_cta_label = content.overflow_cta_label | default: 'View all offers'
+  assign dropdown_trigger_label = content.dropdown_trigger_label | default: '{{count}} offers available'
+  assign empty_state_heading = content.empty_state_heading | default: 'No active offers'
+  assign empty_state_body = content.empty_state_body | default: 'Check back soon for new promotions.'
+
+  assign cards_per_row_mobile = content.cards_per_row.mobile | default: 1
+  assign cards_per_row_tablet = content.cards_per_row.tablet | default: cards_per_row_mobile
+  assign cards_per_row_desktop = content.cards_per_row.desktop | default: cards_per_row_tablet
+
+  assign currency_code = shop.currency | default: 'USD'
+
+  assign raw_discounts_value = product.selected_variant.metafields.spectrum.discounts.value
+-%}
+
+{% stylesheet %}
+/* =============================================================================
+ * PDP Promotion List (c1mzmpkz) — coupon list with carousel/grid/list/dropdown
+ * layouts and a desktop-modal / mobile-drawer T&C surface.
+ *
+ * Single-class author selectors stay at specificity (0,1,0) so per-instance
+ * baked rules (anchored on [data-spectrum-instance-id][data-spectrum-variant-id])
+ * always win the cascade.
+ * ============================================================================= */
+
+.sai-c1mzmpkz {
+  --sai-c1mzmpkz-card-bg: #fdf7e8;
+  --sai-c1mzmpkz-card-border: rgba(0, 0, 0, 0.08);
+  --sai-c1mzmpkz-card-radius: 0.75rem;
+  --sai-c1mzmpkz-card-pad: 0.875rem;
+  --sai-c1mzmpkz-card-min-w: 16rem;
+  --sai-c1mzmpkz-card-gap: 0.75rem;
+  --sai-c1mzmpkz-code-bg: #ffffff;
+  --sai-c1mzmpkz-code-border: rgba(0, 0, 0, 0.1);
+  --sai-c1mzmpkz-code-fg: #121212;
+  --sai-c1mzmpkz-copy-bg: transparent;
+  --sai-c1mzmpkz-copy-fg: #121212;
+  --sai-c1mzmpkz-progress-track: rgba(0, 0, 0, 0.08);
+  --sai-c1mzmpkz-progress-fill: #121212;
+  --sai-c1mzmpkz-muted-fg: rgba(0, 0, 0, 0.55);
+  --sai-c1mzmpkz-fg: #121212;
+  --sai-c1mzmpkz-cta-bg: #121212;
+  --sai-c1mzmpkz-cta-fg: #ffffff;
+  --sai-c1mzmpkz-pill-bg: rgba(0, 0, 0, 0.06);
+  --sai-c1mzmpkz-pill-fg: #121212;
+  --sai-c1mzmpkz-overlay-bg: rgba(0, 0, 0, 0.45);
+  --sai-c1mzmpkz-panel-bg: #ffffff;
+  --sai-c1mzmpkz-panel-radius: 1rem;
+  --sai-c1mzmpkz-cards-mobile: 1;
+  --sai-c1mzmpkz-cards-tablet: 1;
+  --sai-c1mzmpkz-cards-desktop: 1;
+
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  margin-block: var(--sai-size-6, 1.5rem);
+  font-family: var(--sai-font-body, inherit);
+  color: var(--sai-c1mzmpkz-fg);
+}
+
+.sai-c1mzmpkz *,
+.sai-c1mzmpkz *::before,
+.sai-c1mzmpkz *::after {
+  box-sizing: border-box;
+}
+
+.sai-c1mzmpkz__heading {
+  font-family: var(--sai-font-heading, var(--sai-font-body, inherit));
+  font-size: 1.125rem;
+  font-weight: 700;
+  margin: 0 0 var(--sai-size-3, 0.75rem) 0;
+  letter-spacing: -0.005em;
+  line-height: 1.2;
+}
+
+.sai-c1mzmpkz__empty {
+  padding: var(--sai-size-4, 1rem);
+  border: 1px dashed var(--sai-c1mzmpkz-card-border);
+  border-radius: var(--sai-c1mzmpkz-card-radius);
+  color: var(--sai-c1mzmpkz-muted-fg);
+}
+
+.sai-c1mzmpkz__empty-heading {
+  margin: 0 0 0.25rem 0;
+  font-weight: 600;
+  color: var(--sai-c1mzmpkz-fg);
+}
+
+.sai-c1mzmpkz__empty-body {
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.sai-c1mzmpkz__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sai-size-4, 1rem);
+}
+
+.sai-c1mzmpkz__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sai-size-3, 0.75rem);
+}
+
+.sai-c1mzmpkz__group-title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--sai-c1mzmpkz-muted-fg);
+  margin: 0;
+}
+
+/* ── Layout containers ───────────────────────────────────────────── */
+
+.sai-c1mzmpkz__list {
+  display: flex;
+  gap: var(--sai-c1mzmpkz-card-gap);
+}
+
+.sai-c1mzmpkz--list .sai-c1mzmpkz__list,
+.sai-c1mzmpkz--dropdown .sai-c1mzmpkz__list {
+  flex-direction: column;
+}
+
+.sai-c1mzmpkz--grid .sai-c1mzmpkz__list {
+  display: grid;
+  grid-template-columns: repeat(var(--sai-c1mzmpkz-cards-mobile), minmax(0, 1fr));
+}
+
+@media (min-width: 768px) {
+  .sai-c1mzmpkz--grid .sai-c1mzmpkz__list {
+    grid-template-columns: repeat(var(--sai-c1mzmpkz-cards-tablet), minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .sai-c1mzmpkz--grid .sai-c1mzmpkz__list {
+    grid-template-columns: repeat(var(--sai-c1mzmpkz-cards-desktop), minmax(0, 1fr));
+  }
+}
+
+.sai-c1mzmpkz--carousel .sai-c1mzmpkz__list {
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: 0.25rem;
+  padding-block: 0.25rem;
+  -webkit-overflow-scrolling: touch;
+}
+
+.sai-c1mzmpkz--carousel .sai-c1mzmpkz__card {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+  min-width: var(--sai-c1mzmpkz-card-min-w);
+  max-width: 22rem;
+}
+
+.sai-c1mzmpkz--dropdown .sai-c1mzmpkz__dropdown-panel[hidden] {
+  display: none;
+}
+
+.sai-c1mzmpkz__dropdown-trigger {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 0.875rem;
+  border-radius: var(--sai-c1mzmpkz-card-radius);
+  background: var(--sai-c1mzmpkz-pill-bg);
+  color: var(--sai-c1mzmpkz-pill-fg);
+  border: 1px solid var(--sai-c1mzmpkz-card-border);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sai-c1mzmpkz__dropdown-trigger::after {
+  content: '';
+  width: 0.5rem;
+  height: 0.5rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg) translateY(-2px);
+  transition: transform 160ms ease;
+}
+
+.sai-c1mzmpkz__dropdown-trigger[aria-expanded='true']::after {
+  transform: rotate(-135deg) translateY(2px);
+}
+
+/* ── Card ────────────────────────────────────────────────────────── */
+
+.sai-c1mzmpkz__card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: var(--sai-c1mzmpkz-card-pad);
+  background: var(--sai-c1mzmpkz-card-bg);
+  border: 1px solid var(--sai-c1mzmpkz-card-border);
+  border-radius: var(--sai-c1mzmpkz-card-radius);
+}
+
+.sai-c1mzmpkz__type-label {
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.25;
+  margin: 0;
+}
+
+.sai-c1mzmpkz__description {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--sai-c1mzmpkz-muted-fg);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--sai-c1mzmpkz-desc-lines, 2);
+  overflow: hidden;
+}
+
+.sai-c1mzmpkz__description--expanded {
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
+
+.sai-c1mzmpkz__description-toggle {
+  margin: 0;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--sai-c1mzmpkz-fg);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.sai-c1mzmpkz__code-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+  padding: 0.375rem 0.5rem;
+  background: var(--sai-c1mzmpkz-code-bg);
+  border: 1px dashed var(--sai-c1mzmpkz-code-border);
+  border-radius: 0.5rem;
+}
+
+.sai-c1mzmpkz__code-label {
+  font-size: 0.75rem;
+  color: var(--sai-c1mzmpkz-muted-fg);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.sai-c1mzmpkz__code-chip {
+  flex: 1 1 auto;
+  font-family: var(--sai-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-weight: 700;
+  font-size: 0.9375rem;
+  letter-spacing: 0.02em;
+  color: var(--sai-c1mzmpkz-code-fg);
+}
+
+.sai-c1mzmpkz__copy-btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: 0.375rem;
+  background: var(--sai-c1mzmpkz-copy-bg);
+  color: var(--sai-c1mzmpkz-copy-fg);
+  border: 1px solid var(--sai-c1mzmpkz-code-border);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sai-c1mzmpkz__copy-btn[aria-pressed='true'] {
+  background: var(--sai-c1mzmpkz-progress-fill);
+  color: #ffffff;
+  border-color: transparent;
+}
+
+.sai-c1mzmpkz__savings {
+  display: inline-block;
+  align-self: flex-start;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  background: var(--sai-c1mzmpkz-pill-bg);
+  color: var(--sai-c1mzmpkz-pill-fg);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.sai-c1mzmpkz__min-order {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--sai-c1mzmpkz-muted-fg);
+}
+
+.sai-c1mzmpkz__remaining {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.sai-c1mzmpkz__progress {
+  position: relative;
+  height: 0.375rem;
+  border-radius: 999px;
+  background: var(--sai-c1mzmpkz-progress-track);
+  overflow: hidden;
+}
+
+.sai-c1mzmpkz__progress-fill {
+  position: absolute;
+  inset: 0;
+  background: var(--sai-c1mzmpkz-progress-fill);
+  transform-origin: left center;
+  transform: scaleX(var(--sai-c1mzmpkz-progress-pct, 0));
+  transition: transform 220ms ease;
+}
+
+.sai-c1mzmpkz__card-cta {
+  margin-top: 0.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.375rem 0.75rem;
+  border-radius: 999px;
+  background: var(--sai-c1mzmpkz-pill-bg);
+  color: var(--sai-c1mzmpkz-pill-fg);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border: 0;
+  align-self: flex-start;
+}
+
+.sai-c1mzmpkz__terms-toggle {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--sai-c1mzmpkz-muted-fg);
+  text-decoration: underline;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+/* ── Promo blocks ─────────────────────────────────────────────────── */
+
+.sai-c1mzmpkz__promo-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: var(--sai-c1mzmpkz-card-pad);
+  border: 1px solid var(--sai-c1mzmpkz-card-border);
+  border-radius: var(--sai-c1mzmpkz-card-radius);
+  background: var(--sai-c1mzmpkz-panel-bg);
+}
+
+.sai-c1mzmpkz__promo-image {
+  width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+}
+
+.sai-c1mzmpkz__promo-headline {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
+.sai-c1mzmpkz__promo-body {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--sai-c1mzmpkz-muted-fg);
+}
+
+.sai-c1mzmpkz__promo-link {
+  align-self: flex-start;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+/* ── Overflow CTA ─────────────────────────────────────────────────── */
+
+.sai-c1mzmpkz__overflow-cta {
+  align-self: flex-start;
+  margin-top: 0.5rem;
+  appearance: none;
+  background: var(--sai-c1mzmpkz-cta-bg);
+  color: var(--sai-c1mzmpkz-cta-fg);
+  border: 0;
+  border-radius: 999px;
+  padding: 0.5rem 0.875rem;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sai-c1mzmpkz__card[data-sai-overflow='hidden'] {
+  display: none;
+}
+
+/* ── T&C modal / drawer ───────────────────────────────────────────── */
+
+.sai-c1mzmpkz-tc {
+  position: fixed;
+  inset: 0;
+  z-index: 99998;
+  display: flex;
+}
+
+.sai-c1mzmpkz-tc[hidden] {
+  display: none;
+}
+
+.sai-c1mzmpkz-tc__backdrop {
+  position: absolute;
+  inset: 0;
+  background: var(--sai-c1mzmpkz-overlay-bg, rgba(0, 0, 0, 0.45));
+  opacity: 0;
+  transition: opacity 220ms ease;
+}
+
+.sai-c1mzmpkz-tc[data-state='open'] .sai-c1mzmpkz-tc__backdrop {
+  opacity: 1;
+}
+
+.sai-c1mzmpkz-tc__panel {
+  position: relative;
+  z-index: 1;
+  background: var(--sai-c1mzmpkz-panel-bg, #ffffff);
+  color: var(--sai-c1mzmpkz-fg, #121212);
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+  overflow: hidden;
+}
+
+.sai-c1mzmpkz-tc__panel--modal {
+  margin: auto;
+  width: min(28rem, calc(100% - 2rem));
+  border-radius: var(--sai-c1mzmpkz-panel-radius, 1rem);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.25);
+  transform: translateY(8px);
+  opacity: 0;
+  transition: transform 220ms ease, opacity 220ms ease;
+}
+
+.sai-c1mzmpkz-tc[data-state='open'] .sai-c1mzmpkz-tc__panel--modal {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.sai-c1mzmpkz-tc__panel--drawer {
+  margin-top: auto;
+  width: 100%;
+  border-top-left-radius: var(--sai-c1mzmpkz-panel-radius, 1rem);
+  border-top-right-radius: var(--sai-c1mzmpkz-panel-radius, 1rem);
+  transform: translateY(100%);
+  transition: transform 240ms ease;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.sai-c1mzmpkz-tc[data-state='open'] .sai-c1mzmpkz-tc__panel--drawer {
+  transform: translateY(0);
+}
+
+.sai-c1mzmpkz-tc__handle {
+  width: 2.5rem;
+  height: 0.25rem;
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 999px;
+  margin: 0.5rem auto 0 auto;
+}
+
+.sai-c1mzmpkz-tc__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.sai-c1mzmpkz-tc__title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.sai-c1mzmpkz-tc__close {
+  appearance: none;
+  background: none;
+  border: 0;
+  font: inherit;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.25rem;
+  color: inherit;
+}
+
+.sai-c1mzmpkz-tc__body {
+  padding: 1rem 1.25rem;
+  overflow-y: auto;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.sai-c1mzmpkz-tc__cta {
+  appearance: none;
+  margin: 1rem 1.25rem 1.25rem 1.25rem;
+  padding: 0.625rem 1rem;
+  border-radius: 999px;
+  background: var(--sai-c1mzmpkz-cta-bg, #121212);
+  color: var(--sai-c1mzmpkz-cta-fg, #ffffff);
+  border: 0;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sai-c1mzmpkz-tc__backdrop,
+  .sai-c1mzmpkz-tc__panel--modal,
+  .sai-c1mzmpkz-tc__panel--drawer,
+  .sai-c1mzmpkz__progress-fill {
+    transition: none;
+  }
+}
+{% endstylesheet %}
+
+<sai-c1mzmpkz
+  class="sai-c1mzmpkz sai-c1mzmpkz--{{ list_layout }}"
+  data-mutation-handle="{{ mutation_handle }}"
+  style="--sai-c1mzmpkz-cards-mobile: {{ cards_per_row_mobile }}; --sai-c1mzmpkz-cards-tablet: {{ cards_per_row_tablet }}; --sai-c1mzmpkz-cards-desktop: {{ cards_per_row_desktop }}; --sai-c1mzmpkz-desc-lines: {{ description_max_lines }};"
+>
+  {%- if heading != blank -%}
+    <h2 class="sai-c1mzmpkz__heading">{{ heading | escape }}</h2>
+  {%- endif -%}
+
+  {%- if list_layout == 'dropdown' -%}
+    <button
+      type="button"
+      class="sai-c1mzmpkz__dropdown-trigger"
+      data-sai-dropdown-trigger
+      aria-expanded="false"
+      aria-controls="sai-c1mzmpkz-{{ mutation_handle }}-panel"
+    >
+      <span data-sai-dropdown-label>{{ dropdown_trigger_label | escape }}</span>
+    </button>
+    <div
+      class="sai-c1mzmpkz__dropdown-panel"
+      id="sai-c1mzmpkz-{{ mutation_handle }}-panel"
+      hidden
+    >
+      <div class="sai-c1mzmpkz__body" data-sai-body></div>
+    </div>
+  {%- else -%}
+    <div class="sai-c1mzmpkz__body" data-sai-body></div>
+  {%- endif -%}
+
+  {%- comment -%}
+    JSON payload — the runtime JS reads this once and renders every card.
+    Pasting the raw metafield value (which is already a JSON object literal)
+    requires `| replace` to neutralise any literal `</script>` substring,
+    rather than `| json` (which would re-encode the string as a quoted
+    scalar). See generated-liquid rule #5.
+  {%- endcomment -%}
+  <script type="application/json" data-sai-payload>
+{
+  "discounts": {%- if raw_discounts_value != blank -%}{{ raw_discounts_value | replace: '</script>', '<\/script>' }}{%- else -%}{"discounts":[]}{%- endif -%},
+  "config": {
+    "snippetId": {{ 'c1mzmpkz' | json }},
+    "mutationHandle": {{ mutation_handle | json }},
+    "experienceHandle": {{ experience_handle | json }},
+    "listLayout": {{ list_layout | json }},
+    "showSectionTitles": {{ show_section_titles | json }},
+    "showSavingsCallout": {{ show_savings_callout | json }},
+    "savingsDisplayMode": {{ savings_display_mode | json }},
+    "showMinOrderThreshold": {{ show_min_order_threshold | json }},
+    "showRemainingProgress": {{ show_remaining_progress | json }},
+    "showTerms": {{ show_terms | json }},
+    "termsTemplate": {{ terms_template | json }},
+    "descriptionMaxLines": {{ description_max_lines | json }},
+    "overflowBehavior": {{ overflow_behavior | json }},
+    "overflowThreshold": {{ overflow_threshold | json }},
+    "currencyCode": {{ currency_code | json }}
+  },
+  "labels": {
+    "applicableSectionTitle": {{ applicable_section_title | json }},
+    "potentialSectionTitle": {{ potential_section_title | json }},
+    "termsLabel": {{ terms_label | json }},
+    "copyCtaLabel": {{ copy_cta_label | json }},
+    "copySuccessLabel": {{ copy_success_label | json }},
+    "automaticPillLabel": {{ automatic_pill_label | json }},
+    "overflowCtaLabel": {{ overflow_cta_label | json }},
+    "dropdownTriggerLabel": {{ dropdown_trigger_label | json }},
+    "emptyStateHeading": {{ empty_state_heading | json }},
+    "emptyStateBody": {{ empty_state_body | json }},
+    "codeLabel": "Code",
+    "remainingSubtotalTemplate": "Spend {{remaining}} more to unlock",
+    "remainingQuantityTemplate": "Add {{remaining}} more item(s) to unlock",
+    "minOrderTemplate": "Min order {{amount}}",
+    "stackingNote": "Cannot be combined with other discounts unless stated"
+  },
+  "promoBlocks": [
+    {
+      "headline": {{ content.promo_block_1_headline | json }},
+      "body": {{ content.promo_block_1_body | json }},
+      "link": {{ content.promo_block_1_link | json }},
+      "position": {{ content.promo_block_1_position | default: 'hidden' | json }},
+      "imageUrl": {%- if content.promo_block_1_image and content.promo_block_1_image.url -%}{{ content.promo_block_1_image.url | json }}{%- else -%}null{%- endif -%},
+      "imageAlt": {%- if content.promo_block_1_image and content.promo_block_1_image.alt -%}{{ content.promo_block_1_image.alt | json }}{%- else -%}""{%- endif -%}
+    },
+    {
+      "headline": {{ content.promo_block_2_headline | json }},
+      "body": {{ content.promo_block_2_body | json }},
+      "link": {{ content.promo_block_2_link | json }},
+      "position": {{ content.promo_block_2_position | default: 'hidden' | json }},
+      "imageUrl": {%- if content.promo_block_2_image and content.promo_block_2_image.url -%}{{ content.promo_block_2_image.url | json }}{%- else -%}null{%- endif -%},
+      "imageAlt": {%- if content.promo_block_2_image and content.promo_block_2_image.alt -%}{{ content.promo_block_2_image.alt | json }}{%- else -%}""{%- endif -%}
+    }
+  ]
+}
+</script>
+</sai-c1mzmpkz>
+
+<script src="{{ 'sai-snippet-c1mzmpkz.js' | asset_url }}" defer></script>
