@@ -127,8 +127,8 @@
  * ============================================================================= */
 
 .sai-c1mzmpkz {
-  --sai-c1mzmpkz-card-bg: #fdf7e8;
-  --sai-c1mzmpkz-card-border: rgba(0, 0, 0, 0.08);
+  --sai-c1mzmpkz-card-bg: #ffffff;
+  --sai-c1mzmpkz-card-border: rgba(0, 0, 0, 0.12);
   --sai-c1mzmpkz-card-radius: 0.75rem;
   --sai-c1mzmpkz-card-pad: 0.875rem;
   --sai-c1mzmpkz-card-min-w: 16rem;
@@ -710,6 +710,7 @@
     "overflowBehavior": {{ overflow_behavior | json }},
     "overflowThreshold": {{ overflow_threshold | json }},
     "currencyCode": {{ currency_code | json }},
+    "variantPrice": {%- if sai_active_variant.price -%}{{ sai_active_variant.price | divided_by: 100.0 | json }}{%- else -%}null{%- endif -%},
     "debugVariantId": {{ sai_active_variant.id | json }},
     "debugHasMetafieldValue": {%- if raw_discounts_value != blank -%}true{%- else -%}false{%- endif -%}
   },
@@ -725,9 +726,9 @@
     "emptyStateHeading": {{ empty_state_heading | json }},
     "emptyStateBody": {{ empty_state_body | json }},
     "codeLabel": "Code",
-    "remainingSubtotalTemplate": "Spend {{remaining}} more to unlock",
-    "remainingQuantityTemplate": "Add {{remaining}} more item(s) to unlock",
-    "minOrderTemplate": "Min order {{amount}}",
+    "remainingSubtotalTemplate": "Spend {remaining} more to unlock",
+    "remainingQuantityTemplate": "Add {remaining} more item(s) to unlock",
+    "minOrderTemplate": "Min order {amount}",
     "stackingNote": "Cannot be combined with other discounts unless stated"
   },
   "promoBlocks": [
