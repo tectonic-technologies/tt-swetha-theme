@@ -1,20 +1,21 @@
 /* =============================================================================
  * PDP Promotion List (c1mzmpkz) — runtime.
  *
- * Reads the server-emitted JSON payload (data-sai-payload), partitions
- * discounts into "applicable" (current / satisfied) and "potential", renders
- * the 11-zone coupon card, wires Copy-code clipboard, overflow expand /
- * popup, dropdown toggle, description expand, and the T&C modal (desktop) /
- * bottom-sheet drawer (mobile).
+ * Reads the server-emitted JSON payload (data-sai-payload), recomputes
+ * qualifications against the live cart subtotal, sorts each section, renders
+ * the 11-zone coupon card, wires Copy clipboard, overflow expand-inline /
+ * popup, dropdown, carousel autoplay/arrows/dots, T&C modal (desktop) /
+ * drawer (mobile), and live cart subscription.
  *
  * Container-scoped self-guard via data-mutation-handle. Reads
- * data-spectrum-vis before doing meaningful work (vis-gate contract per
- * snippet-library/CLAUDE.md line 77).
+ * data-spectrum-vis before doing meaningful work.
  * ============================================================================= */
 
 ;(() => {
   const SNIPPET_ID = 'c1mzmpkz'
   const TAG = 'sai-c1mzmpkz'
+
+  // ── Utilities ──────────────────────────────────────────────────────────
 
   function moneyFormatter(currencyCode) {
     try {
@@ -25,7 +26,6 @@
       })
     } catch (_) {
       try {
-        // Older browsers (Safari < 14.1) don't support narrowSymbol — fall back to 'symbol'.
         return new Intl.NumberFormat(undefined, { style: 'currency', currency: currencyCode || 'USD' })
       } catch (_) {
         return { format: (n) => `${currencyCode || '$'}${Number(n).toFixed(2)}` }
@@ -62,6 +62,17 @@
     }
   }
 
+  function interpolate(template, vars) {
+    if (!template) return ''
+    let out = String(template)
+    for (const k of Object.keys(vars)) {
+      out = out.split(`{${k}}`).join(String(vars[k]))
+    }
+    return out
+  }
+
+  // ── Discount classification + sorting ──────────────────────────────────
+
   function isApplicable(d) {
     const q = d.qualification || {}
     return q.isSatisfied === true || q.applicability === 'current'
@@ -83,6 +94,73 @@
     }
     return { applicable, potential }
   }
+
+  function estimatedSavingsAmount(d) {
+    const v = d.discountValue || {}
+    if (v.type === 'FIXED' && typeof v.amount === 'number') return v.amount
+    if (v.type === 'PERCENTAGE' && typeof v.percentage === 'number') {
+      const q = d.qualification || {}
+      const matched = q.matchedSubtotalAmount || q.currentValue || q.requiredValue || 0
+      const pct = v.percentage <= 1 ? v.percentage : v.percentage / 100
+      return matched * pct
+    }
+    if (v.type === 'FREE_SHIPPING') return 0
+    return 0
+  }
+
+  function titleOf(d) {
+    return (d.title || d.shortSummary || d.summary || '').toLowerCase()
+  }
+
+  function thresholdOf(d) {
+    const q = d.qualification || {}
+    return typeof q.requiredValue === 'number' ? q.requiredValue : Number.MAX_SAFE_INTEGER
+  }
+
+  function remainingOf(d) {
+    const q = d.qualification || {}
+    return typeof q.remainingValue === 'number' ? q.remainingValue : Number.MAX_SAFE_INTEGER
+  }
+
+  function expiryEpoch(d) {
+    if (!d.endsAt) return Number.MAX_SAFE_INTEGER
+    const t = Date.parse(d.endsAt)
+    return Number.isFinite(t) ? t : Number.MAX_SAFE_INTEGER
+  }
+
+  function applicableComparator(mode) {
+    switch (mode) {
+      case 'highest_savings':
+        return (a, b) => estimatedSavingsAmount(b) - estimatedSavingsAmount(a)
+      case 'expiry_soonest':
+        return (a, b) => expiryEpoch(a) - expiryEpoch(b)
+      case 'alphabetical':
+        return (a, b) => titleOf(a).localeCompare(titleOf(b))
+      case 'threshold_asc':
+        return (a, b) => thresholdOf(a) - thresholdOf(b)
+      case 'threshold_desc':
+        return (a, b) => thresholdOf(b) - thresholdOf(a)
+      default:
+        return () => 0
+    }
+  }
+
+  function potentialComparator(mode) {
+    switch (mode) {
+      case 'closest_to_qualify':
+        return (a, b) => remainingOf(a) - remainingOf(b)
+      case 'highest_potential_savings':
+        return (a, b) => estimatedSavingsAmount(b) - estimatedSavingsAmount(a)
+      case 'threshold_asc':
+        return (a, b) => thresholdOf(a) - thresholdOf(b)
+      case 'threshold_desc':
+        return (a, b) => thresholdOf(b) - thresholdOf(a)
+      default:
+        return () => 0
+    }
+  }
+
+  // ── Card content helpers ───────────────────────────────────────────────
 
   function formatTypeLabel(d, currency) {
     const v = d.discountValue || {}
@@ -117,28 +195,47 @@
     return null
   }
 
-  function formatRemaining(d, templates, currency) {
+  function formatRemaining(d, template, currency) {
     const q = d.qualification || {}
     if (q.isSatisfied) return null
-    const metric = q.progressMetric
     const remaining = q.remainingValue
     if (remaining == null) return null
-    if (metric === 'subtotal') {
+    if (q.progressMetric === 'subtotal') {
       const fmt = moneyFormatter(currency)
-      return templates.remainingSubtotalTemplate.replace('{remaining}', fmt.format(remaining))
+      return interpolate(template, { remaining: fmt.format(remaining) })
     }
-    if (metric === 'quantity') {
-      return templates.remainingQuantityTemplate.replace('{remaining}', String(remaining))
+    if (q.progressMetric === 'quantity') {
+      return interpolate(template, { remaining: String(remaining) })
     }
     return null
   }
 
   function formatMinOrder(d, template, currency) {
     const q = d.qualification || {}
-    if (q.progressMetric !== 'subtotal') return null
-    if (q.requiredValue == null) return null
+    if (q.progressMetric !== 'subtotal' || q.requiredValue == null) return null
     const fmt = moneyFormatter(currency)
-    return template.replace('{amount}', fmt.format(q.requiredValue))
+    return interpolate(template, { amount: fmt.format(q.requiredValue) })
+  }
+
+  function formatExpiry(d, fmtMode) {
+    if (!d.endsAt) return null
+    const t = Date.parse(d.endsAt)
+    if (!Number.isFinite(t)) return null
+    const now = Date.now()
+    const diffMs = t - now
+    if (fmtMode === 'date') {
+      try { return `Expires ${new Date(t).toLocaleDateString()}` } catch (_) { return null }
+    }
+    if (fmtMode === 'countdown' || fmtMode === 'relative') {
+      if (diffMs <= 0) return 'Expired'
+      const days = Math.floor(diffMs / 86400000)
+      const hours = Math.floor((diffMs % 86400000) / 3600000)
+      if (days > 0) return `Expires in ${days}d ${hours}h`
+      if (hours > 0) return `Expires in ${hours}h`
+      const minutes = Math.floor((diffMs % 3600000) / 60000)
+      return `Expires in ${minutes}m`
+    }
+    return null
   }
 
   function progressPct(d) {
@@ -156,18 +253,16 @@
     const stackingNote = stack.orderDiscounts || stack.productDiscounts || stack.shippingDiscounts
       ? 'Stackable with other discounts'
       : 'Cannot be combined with other discounts unless stated'
-    return template
-      .replace('{summary}', d.summary || d.shortSummary || '')
-      .replace('{min_order}', minOrder || '—')
-      .replace('{code}', code || '—')
-      .replace('{stacking_note}', stackingNote)
+    return interpolate(template, {
+      summary: d.summary || d.shortSummary || '',
+      min_order: minOrder || '—',
+      code: code || '—',
+      stacking_note: stackingNote,
+    })
   }
 
-  // Cart-aware qualification recompute. The seeded metafield is a per-variant
-  // snapshot computed against the variant price alone (no cart context). At
-  // render time we know the actual cart subtotal — use the larger of (variant
-  // price, cart subtotal) as the effective progress baseline for any
-  // subtotal-thresholded discount.
+  // ── Cart-aware recompute ──────────────────────────────────────────────
+
   function recomputeForCart(discounts, cartSubtotal, variantPrice) {
     if (cartSubtotal == null && variantPrice == null) return discounts
     const baseline = Math.max(Number(cartSubtotal) || 0, Number(variantPrice) || 0)
@@ -217,21 +312,14 @@
     }
   }
 
-  // Live cart subscription. Themes vary widely in how they signal cart changes —
-  // some emit custom events (cart:updated, cart:refresh, etc), most don't.
-  // The portable approach is to hook fetch + XHR and detect any request to the
-  // Shopify cart-mutation endpoints (add/change/update/clear). Triggers a single
-  // debounced callback after each mutation completes.
+  // ── Live cart change subscription ─────────────────────────────────────
+
   function subscribeToCartChanges(callback) {
     const MUTATION_PATHS = [
-      '/cart/add',
-      '/cart/add.js',
-      '/cart/change',
-      '/cart/change.js',
-      '/cart/update',
-      '/cart/update.js',
-      '/cart/clear',
-      '/cart/clear.js',
+      '/cart/add', '/cart/add.js',
+      '/cart/change', '/cart/change.js',
+      '/cart/update', '/cart/update.js',
+      '/cart/clear', '/cart/clear.js',
     ]
 
     function isCartMutation(url) {
@@ -253,21 +341,17 @@
       }, 120)
     }
 
-    // Hook fetch
     const origFetch = window.fetch
     if (origFetch && !window.__saiC1Patched) {
       window.__saiC1Patched = true
       window.fetch = function patchedFetch(input, init) {
         const url = typeof input === 'string' ? input : (input && input.url)
         const result = origFetch.apply(this, arguments)
-        if (isCartMutation(url)) {
-          result.then(debouncedFire, debouncedFire)
-        }
+        if (isCartMutation(url)) result.then(debouncedFire, debouncedFire)
         return result
       }
     }
 
-    // Hook XHR
     const OrigXHR = window.XMLHttpRequest
     if (OrigXHR && !window.__saiC1XHRPatched) {
       window.__saiC1XHRPatched = true
@@ -285,60 +369,107 @@
       }
     }
 
-    // Listen for common theme-emitted events as a belt-and-braces backup.
     const evtNames = ['cart:updated', 'cart:refresh', 'cart:change', 'cart:added', 'cart:removed', 'shopify:cart:update']
     evtNames.forEach((name) => document.addEventListener(name, debouncedFire))
   }
+
+  // ── Lock icon SVGs ────────────────────────────────────────────────────
+
+  function lockIconSvg(style) {
+    if (style === 'info_circle') {
+      return '<svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>'
+    }
+    if (style === 'lock_open') {
+      return '<svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>'
+    }
+    return '<svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>'
+  }
+
+  // ── Card builder ──────────────────────────────────────────────────────
 
   function buildCard(d, ctx) {
     const { config, labels } = ctx
     const isAutomatic = d.applicationType === 'automatic'
     const code = (d.codes && d.codes[0]) || null
-    const card = el('article', 'sai-c1mzmpkz__card', {
+    const isCurrent = isApplicable(d)
+    const allowCopy = code && !isAutomatic && (isCurrent || config.enableCopyOnPotential)
+
+    const treatmentClass = !isCurrent
+      ? ` sai-c1mzmpkz__card--potential sai-c1mzmpkz__card--treatment-${config.potentialVisualTreatment || 'subtle'}`
+      : ''
+
+    const card = el('article', `sai-c1mzmpkz__card${treatmentClass}`, {
       'data-discount-id': d.id || '',
       'data-applicability': (d.qualification && d.qualification.applicability) || '',
     })
 
-    // Status badge — Available now / Almost there
+    // Coupon icon (top-right, optional)
+    if (config.showCouponIcon && config.couponIconUrl) {
+      card.appendChild(el('img', 'sai-c1mzmpkz__icon', {
+        src: config.couponIconUrl,
+        alt: '',
+        loading: 'lazy',
+      }))
+    } else if (!isCurrent && config.potentialVisualTreatment === 'locked') {
+      const lock = el('span', 'sai-c1mzmpkz__lock', { 'aria-hidden': 'true' })
+      lock.innerHTML = lockIconSvg(config.lockIconStyle || 'lock')
+      card.appendChild(lock)
+    }
+
+    // Status badge
     if (config.showStatusBadge) {
-      const isCurrent = isApplicable(d)
       const badgeLabel = isCurrent
         ? (labels.applicableStatusLabel || 'Available now')
         : (labels.potentialStatusLabel || 'Almost there')
-      const badge = el('span', `sai-c1mzmpkz__status-badge sai-c1mzmpkz__status-badge--${isCurrent ? 'current' : 'potential'}`, {
+      card.appendChild(el('span', `sai-c1mzmpkz__status-badge sai-c1mzmpkz__status-badge--${isCurrent ? 'current' : 'potential'}`, {
         text: badgeLabel,
-      })
-      card.appendChild(badge)
+      }))
     }
 
-    // Zone 3 — Discount Type Label
-    card.appendChild(el('h3', 'sai-c1mzmpkz__type-label', { text: formatTypeLabel(d, config.currencyCode) }))
+    // Near-miss as badge under headline (alternative position)
+    let remainingText = null
+    if (config.showRemainingAmount && !isCurrent) {
+      remainingText = formatRemaining(d, config.remainingAmountTemplate, config.currencyCode)
+    }
+    if (remainingText && config.nearMissPosition === 'badge') {
+      card.appendChild(el('span', 'sai-c1mzmpkz__remaining sai-c1mzmpkz__remaining--badge', { text: remainingText }))
+    }
 
-    // Zone 5 — Savings Callout (configurable)
+    // Discount type label
+    if (config.showTypeLabel) {
+      card.appendChild(el('h3', 'sai-c1mzmpkz__type-label', { text: formatTypeLabel(d, config.currencyCode) }))
+    }
+
+    // Savings callout
     if (config.showSavingsCallout) {
       const savings = formatSavings(d, config.savingsDisplayMode, config.currencyCode)
       if (savings) card.appendChild(el('span', 'sai-c1mzmpkz__savings', { text: savings }))
     }
 
-    // Zone 4 — Description
-    if (d.summary || d.shortSummary) {
-      const desc = el('p', 'sai-c1mzmpkz__description', { text: d.summary || d.shortSummary })
-      card.appendChild(desc)
-      // "Read more" toggle attached on init pass once we can measure scrollHeight
+    // Description
+    if (config.showDescription && (d.summary || d.shortSummary)) {
+      card.appendChild(el('p', 'sai-c1mzmpkz__description', { text: d.summary || d.shortSummary }))
     }
 
-    // Zone 11 — Min order line
+    // Min order line
     if (config.showMinOrderThreshold) {
       const minOrderText = formatMinOrder(d, labels.minOrderTemplate, config.currencyCode)
       if (minOrderText) card.appendChild(el('p', 'sai-c1mzmpkz__min-order', { text: minOrderText }))
     }
 
-    // Zone 6 — Remaining-to-unlock
-    const remaining = formatRemaining(d, labels, config.currencyCode)
-    if (remaining) card.appendChild(el('p', 'sai-c1mzmpkz__remaining', { text: remaining }))
+    // Expiry display
+    if (config.showExpiry) {
+      const expiryText = formatExpiry(d, config.expiryFormat)
+      if (expiryText) card.appendChild(el('p', 'sai-c1mzmpkz__expiry', { text: expiryText }))
+    }
 
-    // Progress bar (potential-only, opt-in)
-    if (config.showRemainingProgress && d.qualification && d.qualification.applicability === 'potential' && !d.qualification.isSatisfied) {
+    // Near-miss in flow (below description)
+    if (remainingText && config.nearMissPosition === 'below_description') {
+      card.appendChild(el('p', 'sai-c1mzmpkz__remaining', { text: remainingText }))
+    }
+
+    // Progress bar (potential only)
+    if (config.showRemainingAmount && !isCurrent) {
       const bar = el('div', 'sai-c1mzmpkz__progress', { role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100' })
       const pct = progressPct(d)
       bar.setAttribute('aria-valuenow', String(Math.round(pct * 100)))
@@ -348,43 +479,52 @@
       card.appendChild(bar)
     }
 
-    // Zones 1 + 2 — Code chip + Copy button
-    if (!isAutomatic && code) {
+    // Code chip + copy button row
+    if (config.showCodeChip && code && !isAutomatic) {
       const row = el('div', 'sai-c1mzmpkz__code-row')
       row.appendChild(el('span', 'sai-c1mzmpkz__code-label', { text: labels.codeLabel }))
       row.appendChild(el('span', 'sai-c1mzmpkz__code-chip', { text: code }))
-      const copyBtn = el('button', 'sai-c1mzmpkz__copy-btn', {
-        type: 'button',
-        'data-sai-copy': code,
-        'aria-pressed': 'false',
-        'aria-label': `${labels.copyCtaLabel} ${code}`,
-        text: labels.copyCtaLabel,
-      })
-      row.appendChild(copyBtn)
+      if (config.showCopyButton && allowCopy) {
+        row.appendChild(el('button', 'sai-c1mzmpkz__copy-btn', {
+          type: 'button',
+          'data-sai-copy': code,
+          'aria-pressed': 'false',
+          'aria-label': `${labels.copyCtaLabel} ${code}`,
+          text: labels.copyCtaLabel,
+        }))
+      }
       card.appendChild(row)
     }
 
-    // Zone 8 — CTA / automatic pill
+    // CTA — automatic pill OR near-miss-replace-cta
     if (isAutomatic) {
       card.appendChild(el('span', 'sai-c1mzmpkz__card-cta', { text: labels.automaticPillLabel }))
+    } else if (remainingText && config.nearMissPosition === 'replace_cta') {
+      card.appendChild(el('span', 'sai-c1mzmpkz__card-cta', { text: remainingText }))
     }
 
-    // Zone 9 — Terms trigger
+    // Terms toggle
     if (config.showTerms) {
-      const tcBtn = el('button', 'sai-c1mzmpkz__terms-toggle', {
+      card.appendChild(el('button', 'sai-c1mzmpkz__terms-toggle', {
         type: 'button',
         'data-sai-tc-trigger': '',
         'data-discount-id': d.id || '',
         text: labels.termsLabel,
-      })
-      card.appendChild(tcBtn)
+      }))
     }
 
     return card
   }
 
+  // ── Promo blocks ─────────────────────────────────────────────────────
+
   function buildPromoBlock(block) {
-    const wrap = el('div', 'sai-c1mzmpkz__promo-block')
+    const type = block.type || 'image_banner'
+    const wrap = el('div', `sai-c1mzmpkz__promo-block sai-c1mzmpkz__promo-block--${type}`)
+    if (type === 'labeled_divider') {
+      if (block.headline) wrap.appendChild(el('span', 'sai-c1mzmpkz__promo-headline', { text: block.headline }))
+      return wrap
+    }
     if (block.imageUrl) {
       wrap.appendChild(el('img', 'sai-c1mzmpkz__promo-image', { src: block.imageUrl, alt: block.imageAlt || '', loading: 'lazy' }))
     }
@@ -394,42 +534,148 @@
     return wrap
   }
 
-  function buildSectionList(_title, discounts, ctx, kind) {
+  // ── Section list builder + overflow ──────────────────────────────────
+
+  function buildSectionList(discounts, ctx, kind, maxVisible) {
     const group = el('section', `sai-c1mzmpkz__group sai-c1mzmpkz__group--${kind}`)
     const list = el('div', 'sai-c1mzmpkz__list')
-    for (const d of discounts) list.appendChild(buildCard(d, ctx))
-    group.appendChild(list)
+    discounts.forEach((d, i) => {
+      const card = buildCard(d, ctx)
+      if (typeof maxVisible === 'number' && i >= maxVisible) {
+        card.setAttribute('data-sai-overflow', 'hidden')
+      }
+      list.appendChild(card)
+    })
+    if (ctx.config.listLayout === 'carousel') {
+      const viewport = el('div', 'sai-c1mzmpkz__carousel-viewport')
+      viewport.appendChild(list)
+      if (ctx.config.carouselShowArrows) {
+        viewport.appendChild(el('button', 'sai-c1mzmpkz__carousel-arrow sai-c1mzmpkz__carousel-arrow--prev', { type: 'button', 'aria-label': 'Previous', 'data-sai-carousel-prev': '' }))
+        viewport.appendChild(el('button', 'sai-c1mzmpkz__carousel-arrow sai-c1mzmpkz__carousel-arrow--next', { type: 'button', 'aria-label': 'Next', 'data-sai-carousel-next': '' }))
+      }
+      group.appendChild(viewport)
+      if (ctx.config.carouselShowDots) {
+        const dots = el('div', 'sai-c1mzmpkz__dots', { 'data-sai-carousel-dots': '' })
+        for (let i = 0; i < discounts.length; i++) {
+          dots.appendChild(el('button', 'sai-c1mzmpkz__dot', { type: 'button', 'data-sai-dot-index': String(i), 'aria-label': `Go to offer ${i + 1}`, 'aria-current': i === 0 ? 'true' : 'false' }))
+        }
+        group.appendChild(dots)
+      }
+    } else {
+      group.appendChild(list)
+    }
     return group
   }
 
-  function applyOverflow(host, ctx) {
-    if (ctx.config.overflowBehavior !== 'expand_inline') return
-    const threshold = Math.max(1, Number(ctx.config.overflowThreshold) || 3)
-    const allCards = host.querySelectorAll('.sai-c1mzmpkz__card')
-    if (allCards.length <= threshold) return
-    for (let i = threshold; i < allCards.length; i++) {
-      allCards[i].setAttribute('data-sai-overflow', 'hidden')
+  function attachCarousel(group, ctx) {
+    const list = group.querySelector('.sai-c1mzmpkz__list')
+    if (!list) return
+    const prev = group.querySelector('[data-sai-carousel-prev]')
+    const next = group.querySelector('[data-sai-carousel-next]')
+    const dots = group.querySelectorAll('[data-sai-dot-index]')
+
+    function scrollByCards(delta) {
+      const firstCard = list.querySelector('.sai-c1mzmpkz__card')
+      if (!firstCard) return
+      const step = firstCard.getBoundingClientRect().width + 12
+      list.scrollBy({ left: step * delta, behavior: 'smooth' })
     }
-    const cta = el('button', 'sai-c1mzmpkz__overflow-cta', {
-      type: 'button',
-      'data-sai-overflow-expand': '',
-      text: ctx.labels.overflowCtaLabel,
+
+    if (prev) prev.addEventListener('click', () => scrollByCards(-1))
+    if (next) next.addEventListener('click', () => scrollByCards(1))
+
+    dots.forEach((dot) => {
+      dot.addEventListener('click', () => {
+        const idx = Number(dot.getAttribute('data-sai-dot-index')) || 0
+        const cards = list.querySelectorAll('.sai-c1mzmpkz__card')
+        if (cards[idx]) cards[idx].scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' })
+      })
     })
-    host.appendChild(cta)
+
+    if (dots.length > 0) {
+      list.addEventListener('scroll', () => {
+        const cards = list.querySelectorAll('.sai-c1mzmpkz__card')
+        let nearest = 0
+        let best = Number.POSITIVE_INFINITY
+        const listLeft = list.getBoundingClientRect().left
+        cards.forEach((c, i) => {
+          const d = Math.abs(c.getBoundingClientRect().left - listLeft)
+          if (d < best) { best = d; nearest = i }
+        })
+        dots.forEach((dot, i) => dot.setAttribute('aria-current', i === nearest ? 'true' : 'false'))
+      })
+    }
+
+    if (ctx.config.carouselAutoplay) {
+      const intervalMs = Math.max(1500, Number(ctx.config.carouselAutoplayIntervalMs) || 5000)
+      let timer = setInterval(() => {
+        const cards = list.querySelectorAll('.sai-c1mzmpkz__card')
+        if (cards.length < 2) return
+        const atEnd = list.scrollLeft + list.clientWidth >= list.scrollWidth - 4
+        if (atEnd) list.scrollTo({ left: 0, behavior: 'smooth' })
+        else scrollByCards(1)
+      }, intervalMs)
+      group.addEventListener('mouseenter', () => { clearInterval(timer); timer = null })
+      group.addEventListener('mouseleave', () => {
+        if (!timer) timer = setInterval(() => {
+          const atEnd = list.scrollLeft + list.clientWidth >= list.scrollWidth - 4
+          if (atEnd) list.scrollTo({ left: 0, behavior: 'smooth' })
+          else scrollByCards(1)
+        }, intervalMs)
+      })
+    }
   }
 
-  function attachOverflowExpand(host) {
-    host.addEventListener('click', (event) => {
+  function attachOverflowExpand(body, ctx, totalCount) {
+    body.addEventListener('click', (event) => {
       const target = event.target
       if (!(target instanceof Element)) return
       if (!target.matches('[data-sai-overflow-expand]')) return
-      const hidden = host.querySelectorAll('.sai-c1mzmpkz__card[data-sai-overflow="hidden"]')
-      hidden.forEach((c) => c.removeAttribute('data-sai-overflow'))
-      target.remove()
+      const groupSelector = target.getAttribute('data-sai-target-group')
+      const hidden = groupSelector
+        ? body.querySelectorAll(`.sai-c1mzmpkz__group--${groupSelector} .sai-c1mzmpkz__card[data-sai-overflow="hidden"]`)
+        : body.querySelectorAll('.sai-c1mzmpkz__card[data-sai-overflow="hidden"]')
+
+      if (ctx.config.overflowBehavior === 'open_popup') {
+        openOverflowPopup(Array.from(hidden), ctx)
+      } else {
+        hidden.forEach((c) => c.removeAttribute('data-sai-overflow'))
+        target.remove()
+      }
     })
   }
 
-  function attachCopy(host, labels) {
+  function openOverflowPopup(cards, ctx) {
+    const root = el('div', 'sai-c1mzmpkz-popup', { role: 'dialog', 'aria-modal': 'true' })
+    const backdrop = el('div', 'sai-c1mzmpkz-popup__backdrop', { 'data-sai-popup-dismiss': '' })
+    const panel = el('div', 'sai-c1mzmpkz-popup__panel')
+    panel.appendChild(el('button', 'sai-c1mzmpkz-popup__close', { type: 'button', 'aria-label': 'Close', 'data-sai-popup-dismiss': '', html: '&times;' }))
+    cards.forEach((c) => {
+      const clone = c.cloneNode(true)
+      clone.removeAttribute('data-sai-overflow')
+      panel.appendChild(clone)
+    })
+    root.appendChild(backdrop)
+    root.appendChild(panel)
+    document.body.appendChild(root)
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    function close() {
+      root.remove()
+      document.body.style.overflow = prevOverflow
+    }
+    root.addEventListener('click', (e) => {
+      const t = e.target
+      if (t instanceof Element && t.closest('[data-sai-popup-dismiss]')) close()
+    })
+    document.addEventListener('keydown', function onKey(e) {
+      if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onKey, true) }
+    }, true)
+  }
+
+  // ── Copy CTA + description expand + dropdown ─────────────────────────
+
+  function attachCopy(host, labels, durationMs) {
     host.addEventListener('click', async (event) => {
       const target = event.target
       if (!(target instanceof Element)) return
@@ -440,7 +686,6 @@
       try {
         await navigator.clipboard.writeText(code)
       } catch (_) {
-        // Fallback: select+execCommand for old browsers.
         const tmp = document.createElement('textarea')
         tmp.value = code
         tmp.setAttribute('readonly', '')
@@ -457,12 +702,12 @@
       setTimeout(() => {
         btn.textContent = originalLabel
         btn.setAttribute('aria-pressed', 'false')
-      }, 1500)
+      }, durationMs || 1500)
     })
   }
 
-  function attachDescriptionExpand(host) {
-    // Toggle line-clamp on any description that overflows.
+  function attachDescriptionExpand(host, expandable) {
+    if (!expandable) return
     const descs = host.querySelectorAll('.sai-c1mzmpkz__description')
     descs.forEach((desc) => {
       if (desc.scrollHeight - desc.clientHeight < 2) return
@@ -492,13 +737,27 @@
     })
   }
 
-  function setDropdownCount(host, count, template) {
+  function setDropdownLabel(host, count, maxSavingsStr, template) {
     const labelEl = host.querySelector('[data-sai-dropdown-label]')
     if (!labelEl) return
-    labelEl.textContent = (template || '{count} offers available').replace('{count}', String(count))
+    labelEl.textContent = interpolate(template || '{count} offers available', {
+      count: String(count),
+      max_savings: maxSavingsStr || '',
+    })
   }
 
-  // ── T&C modal / drawer ──────────────────────────────────────────────────
+  function maxSavingsString(discounts, currency) {
+    if (!discounts.length) return ''
+    let best = 0
+    for (const d of discounts) {
+      const s = estimatedSavingsAmount(d)
+      if (s > best) best = s
+    }
+    if (best <= 0) return ''
+    return moneyFormatter(currency).format(best)
+  }
+
+  // ── T&C modal / drawer ──────────────────────────────────────────────
 
   function findDiscount(discounts, id) {
     return discounts.find((d) => d && d.id === id) || null
@@ -506,22 +765,12 @@
 
   function trapFocus(container, event) {
     if (event.key !== 'Tab') return
-    const focusables = container.querySelectorAll(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-    )
-    if (focusables.length === 0) {
-      event.preventDefault()
-      return
-    }
+    const focusables = container.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
+    if (focusables.length === 0) { event.preventDefault(); return }
     const first = focusables[0]
     const last = focusables[focusables.length - 1]
-    if (event.shiftKey && document.activeElement === first) {
-      last.focus()
-      event.preventDefault()
-    } else if (!event.shiftKey && document.activeElement === last) {
-      first.focus()
-      event.preventDefault()
-    }
+    if (event.shiftKey && document.activeElement === first) { last.focus(); event.preventDefault() }
+    else if (!event.shiftKey && document.activeElement === last) { first.focus(); event.preventDefault() }
   }
 
   function openTermsSurface(d, ctx) {
@@ -545,13 +794,7 @@
       id: `sai-tc-title-${SNIPPET_ID}`,
       text: d.title || formatTypeLabel(d, config.currencyCode),
     }))
-    const closeBtn = el('button', 'sai-c1mzmpkz-tc__close', {
-      type: 'button',
-      'aria-label': 'Close',
-      'data-sai-tc-dismiss': '',
-      html: '&times;',
-    })
-    header.appendChild(closeBtn)
+    header.appendChild(el('button', 'sai-c1mzmpkz-tc__close', { type: 'button', 'aria-label': 'Close', 'data-sai-tc-dismiss': '', html: '&times;' }))
     panel.appendChild(header)
 
     const body = el('div', 'sai-c1mzmpkz-tc__body')
@@ -588,38 +831,24 @@
         if (previouslyFocused) previouslyFocused.focus()
       }
       const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-      if (reduced) {
-        cleanup()
-      } else {
-        setTimeout(cleanup, 240)
-      }
+      if (reduced) cleanup()
+      else setTimeout(cleanup, 240)
     }
 
     function onClick(event) {
       const target = event.target
       if (!(target instanceof Element)) return
-      if (target.closest('[data-sai-tc-dismiss]')) {
-        event.preventDefault()
-        close()
-        return
-      }
-      // Allow Copy CTA inside the modal to bubble — body click handler also handles copy globally.
+      if (target.closest('[data-sai-tc-dismiss]')) { event.preventDefault(); close() }
     }
-    function onKey(event) {
-      if (event.key === 'Escape') close()
-    }
-    function onTrap(event) {
-      trapFocus(root, event)
-    }
+    function onKey(event) { if (event.key === 'Escape') close() }
+    function onTrap(event) { trapFocus(root, event) }
 
     root.addEventListener('click', onClick)
     root.addEventListener('keydown', onTrap, true)
     document.addEventListener('keydown', onKey, true)
 
-    // Wire copy inside the TC root using the same handler the snippet host uses.
-    attachCopy(root, labels)
+    attachCopy(root, labels, ctx.config.copySuccessDurationMs)
 
-    // Trigger animation on next frame so transitions run from closed → open.
     requestAnimationFrame(() => {
       root.setAttribute('data-state', 'open')
       const firstFocusable = panel.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
@@ -640,7 +869,7 @@
     })
   }
 
-  // ── Init ────────────────────────────────────────────────────────────────
+  // ── Render ───────────────────────────────────────────────────────────
 
   function initHost(host) {
     if (host.dataset.saiInitialized === '1') return
@@ -657,24 +886,47 @@
     const ctx = { config, labels }
 
     const body = host.querySelector('[data-sai-body]')
+    const headingEl = host.querySelector('[data-sai-heading]')
     if (!body) return
 
     function render(discounts) {
       body.innerHTML = ''
 
       const { applicable, potential } = partition(discounts)
+      applicable.sort(applicableComparator(config.applicableSort))
+      potential.sort(potentialComparator(config.potentialSort))
+
       const totalCount = applicable.length + potential.length
 
+      // Heading interpolation ({count} placeholder)
+      if (headingEl) {
+        const baseHeading = headingEl.getAttribute('data-sai-heading-template') || headingEl.textContent
+        headingEl.setAttribute('data-sai-heading-template', baseHeading)
+        headingEl.textContent = interpolate(baseHeading, { count: String(totalCount) })
+      }
+
+      // Dropdown label
+      const maxSavings = maxSavingsString(applicable.length ? applicable : discounts, config.currencyCode)
+      setDropdownLabel(host, totalCount, maxSavings, config.dropdownCollapsedLabel || '{count} offers available')
+
+      // Empty state
       if (totalCount === 0) {
+        if (labels.emptyStateBehavior === 'hide_section') {
+          // hide the whole snippet container
+          host.style.display = 'none'
+          return
+        }
+        host.style.display = ''
         const empty = el('div', 'sai-c1mzmpkz__empty')
         empty.appendChild(el('p', 'sai-c1mzmpkz__empty-heading', { text: labels.emptyStateHeading || 'No active offers' }))
         empty.appendChild(el('p', 'sai-c1mzmpkz__empty-body', { text: labels.emptyStateBody || '' }))
         body.appendChild(empty)
-        setDropdownCount(host, 0, labels.dropdownTriggerLabel)
         return
       }
+      host.style.display = ''
 
       function appendPromoBlocksAt(position) {
+        if (!config.enablePromoBlocks) return
         for (const block of promoBlocks) {
           if (block && block.position === position && (block.headline || block.body || block.imageUrl)) {
             body.appendChild(buildPromoBlock(block))
@@ -682,33 +934,91 @@
         }
       }
 
-      // Single combined list — applicable first, then potential.
-      appendPromoBlocksAt('before_applicable')
+      appendPromoBlocksAt('top')
+
       const combined = applicable.concat(potential)
-      body.appendChild(buildSectionList(null, combined, ctx, 'combined'))
-      appendPromoBlocksAt('after_potential')
 
-      applyOverflow(body, ctx)
-      setDropdownCount(host, totalCount, labels.dropdownTriggerLabel)
+      // Decide max-visible per section. Combined render uses sum.
+      const maxApplicable = Math.max(1, Number(config.maxVisibleApplicable) || 3)
+      const maxPotential = Math.max(1, Number(config.maxVisiblePotential) || 3)
+
+      // Build a single combined list (single-row by spec) — but apply per-section visibility separately
+      // by tagging cards based on their source section.
+      const list = el('section', 'sai-c1mzmpkz__group sai-c1mzmpkz__group--combined')
+      const listInner = el('div', 'sai-c1mzmpkz__list')
+      let aShown = 0
+      let pShown = 0
+      let aHidden = 0
+      let pHidden = 0
+      combined.forEach((d) => {
+        const card = buildCard(d, ctx)
+        if (isApplicable(d)) {
+          if (aShown >= maxApplicable) { card.setAttribute('data-sai-overflow', 'hidden'); aHidden++ } else aShown++
+        } else {
+          if (pShown >= maxPotential) { card.setAttribute('data-sai-overflow', 'hidden'); pHidden++ } else pShown++
+        }
+        listInner.appendChild(card)
+      })
+
+      if (config.listLayout === 'carousel') {
+        const viewport = el('div', 'sai-c1mzmpkz__carousel-viewport')
+        viewport.appendChild(listInner)
+        if (config.carouselShowArrows) {
+          viewport.appendChild(el('button', 'sai-c1mzmpkz__carousel-arrow sai-c1mzmpkz__carousel-arrow--prev', { type: 'button', 'aria-label': 'Previous', 'data-sai-carousel-prev': '' }))
+          viewport.appendChild(el('button', 'sai-c1mzmpkz__carousel-arrow sai-c1mzmpkz__carousel-arrow--next', { type: 'button', 'aria-label': 'Next', 'data-sai-carousel-next': '' }))
+        }
+        list.appendChild(viewport)
+        if (config.carouselShowDots) {
+          const dots = el('div', 'sai-c1mzmpkz__dots', { 'data-sai-carousel-dots': '' })
+          for (let i = 0; i < combined.length; i++) {
+            dots.appendChild(el('button', 'sai-c1mzmpkz__dot', { type: 'button', 'data-sai-dot-index': String(i), 'aria-label': `Go to offer ${i + 1}`, 'aria-current': i === 0 ? 'true' : 'false' }))
+          }
+          list.appendChild(dots)
+        }
+      } else {
+        list.appendChild(listInner)
+      }
+
+      appendPromoBlocksAt('after_applicable')
+      body.appendChild(list)
+
+      // Overflow CTA
+      const totalHidden = aHidden + pHidden
+      if (totalHidden > 0) {
+        const ctaText = interpolate(labels.overflowCtaLabel || 'View all ({count})', { count: String(totalHidden) })
+        const cta = el('button', 'sai-c1mzmpkz__overflow-cta', {
+          type: 'button',
+          'data-sai-overflow-expand': '',
+          text: ctaText,
+        })
+        body.appendChild(cta)
+      }
+
+      appendPromoBlocksAt('between_sections')
+      appendPromoBlocksAt('bottom')
+
+      // Carousel wiring (per render — fresh DOM)
+      if (config.listLayout === 'carousel') {
+        attachCarousel(list, ctx)
+      }
+
       attachTermsTriggers(host, discounts, ctx)
-
-      requestAnimationFrame(() => attachDescriptionExpand(body))
+      requestAnimationFrame(() => attachDescriptionExpand(body, config.descriptionExpandable))
     }
 
-    // Initial render from per-variant snapshot.
+    // Initial render with the per-variant snapshot.
+    let lastRendered = baseDiscounts
     render(baseDiscounts)
 
-    // Listeners attached once on the host root — survive subsequent re-renders.
-    attachOverflowExpand(body)
-    attachCopy(host, labels)
+    // Listeners attached once on host root.
+    attachOverflowExpand(body, ctx, baseDiscounts.length)
+    attachCopy(host, labels, config.copySuccessDurationMs)
     attachDropdown(host)
 
-    // Cart-aware re-render — runs on initial load AND whenever the cart mutates.
-    let lastRendered = baseDiscounts
+    // Cart-aware re-render.
     function syncFromCart() {
       fetchCartSubtotal().then((cartSubtotal) => {
         const updated = recomputeForCart(baseDiscounts, cartSubtotal, config.variantPrice)
-        // Cheap shallow compare against last rendered set — skip DOM churn if nothing flipped.
         const changed = updated.some((d, i) => {
           const before = lastRendered[i] && lastRendered[i].qualification
           const after = d && d.qualification
@@ -723,17 +1033,13 @@
       })
     }
 
-    // Initial cart-aware pass (no-op if cart endpoint unreachable or empty).
     syncFromCart()
-
-    // Live subscription: re-sync whenever any cart-mutation request completes.
     subscribeToCartChanges(syncFromCart)
   }
 
   function waitForVis(host) {
     const root = host.closest('[data-spectrum-lq-snippet]') || host
     if (!root || root.getAttribute('data-spectrum-vis') === 'on' || !root.hasAttribute('data-spectrum-vis')) {
-      // No vis attribute at all (legacy / dev) or already on — init immediately.
       initHost(host)
       return
     }
