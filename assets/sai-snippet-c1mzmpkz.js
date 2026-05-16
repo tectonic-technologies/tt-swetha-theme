@@ -732,8 +732,7 @@
     trigger.addEventListener('click', () => {
       const expanded = trigger.getAttribute('aria-expanded') === 'true'
       trigger.setAttribute('aria-expanded', expanded ? 'false' : 'true')
-      if (expanded) panel.setAttribute('hidden', '')
-      else panel.removeAttribute('hidden')
+      panel.setAttribute('data-open', expanded ? 'false' : 'true')
     })
   }
 
@@ -849,10 +848,17 @@
 
     attachCopy(root, labels, ctx.config.copySuccessDurationMs)
 
+    // Force a reflow so the browser paints data-state="closed" first,
+    // then double-rAF to ensure the transition has a clean from-state.
+    // rAF alone isn't enough — the browser may coalesce the append + state
+    // change into one paint and skip the transition.
+    void root.offsetHeight
     requestAnimationFrame(() => {
-      root.setAttribute('data-state', 'open')
-      const firstFocusable = panel.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
-      if (firstFocusable instanceof HTMLElement) firstFocusable.focus()
+      requestAnimationFrame(() => {
+        root.setAttribute('data-state', 'open')
+        const firstFocusable = panel.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
+        if (firstFocusable instanceof HTMLElement) firstFocusable.focus()
+      })
     })
   }
 

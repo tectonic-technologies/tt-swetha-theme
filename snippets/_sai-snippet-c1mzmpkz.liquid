@@ -420,8 +420,31 @@
   border-radius: 999px;
 }
 
-.sai-c1mzmpkz--dropdown .sai-c1mzmpkz__dropdown-panel[hidden] {
-  display: none;
+.sai-c1mzmpkz--dropdown .sai-c1mzmpkz__dropdown-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transform: translateY(-4px);
+  margin-top: 0;
+  overflow: hidden;
+  transition: grid-template-rows 280ms ease, opacity 220ms ease, transform 240ms ease, margin-top 280ms ease;
+}
+
+.sai-c1mzmpkz--dropdown .sai-c1mzmpkz__dropdown-panel > * {
+  min-height: 0;
+}
+
+.sai-c1mzmpkz--dropdown .sai-c1mzmpkz__dropdown-panel[data-open='true'] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transform: translateY(0);
+  margin-top: 0.75rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sai-c1mzmpkz--dropdown .sai-c1mzmpkz__dropdown-panel {
+    transition: none;
+  }
 }
 
 .sai-c1mzmpkz__dropdown-trigger {
@@ -1035,7 +1058,7 @@
     <div
       class="sai-c1mzmpkz__dropdown-panel"
       id="sai-c1mzmpkz-{{ mutation_handle }}-panel"
-      {%- unless dropdown_start_expanded %} hidden{% endunless -%}
+      data-open="{% if dropdown_start_expanded %}true{% else %}false{% endif %}"
     >
       <div class="sai-c1mzmpkz__body" data-sai-body></div>
     </div>
