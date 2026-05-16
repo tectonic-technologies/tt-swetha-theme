@@ -547,7 +547,8 @@
       list.appendChild(card)
     })
     if (ctx.config.listLayout === 'carousel') {
-      const viewport = el('div', 'sai-c1mzmpkz__carousel-viewport')
+      const viewportCls = 'sai-c1mzmpkz__carousel-viewport' + (ctx.config.carouselShowArrows ? ' sai-c1mzmpkz__carousel-viewport--has-arrows' : '')
+      const viewport = el('div', viewportCls)
       viewport.appendChild(list)
       if (ctx.config.carouselShowArrows) {
         viewport.appendChild(el('button', 'sai-c1mzmpkz__carousel-arrow sai-c1mzmpkz__carousel-arrow--prev', { type: 'button', 'aria-label': 'Previous', 'data-sai-carousel-prev': '' }))
@@ -593,17 +594,28 @@
     })
 
     if (dots.length > 0) {
-      list.addEventListener('scroll', () => {
+      function updateActiveDot() {
         const cards = list.querySelectorAll('.sai-c1mzmpkz__card')
-        let nearest = 0
-        let best = Number.POSITIVE_INFINITY
-        const listLeft = list.getBoundingClientRect().left
-        cards.forEach((c, i) => {
-          const d = Math.abs(c.getBoundingClientRect().left - listLeft)
-          if (d < best) { best = d; nearest = i }
-        })
+        if (cards.length === 0) return
+        // End-of-scroll guard: when the viewport has reached the rightmost edge,
+        // force the last card's dot active. The nearest-to-left-edge heuristic
+        // breaks here because the last card may never align to the list's left
+        // edge when multiple cards fit in the viewport.
+        const atEnd = list.scrollLeft + list.clientWidth >= list.scrollWidth - 2
+        let nearest = atEnd ? cards.length - 1 : 0
+        if (!atEnd) {
+          let best = Number.POSITIVE_INFINITY
+          const listLeft = list.getBoundingClientRect().left
+          cards.forEach((c, i) => {
+            const d = Math.abs(c.getBoundingClientRect().left - listLeft)
+            if (d < best) { best = d; nearest = i }
+          })
+        }
         dots.forEach((dot, i) => dot.setAttribute('aria-current', i === nearest ? 'true' : 'false'))
-      })
+      }
+      list.addEventListener('scroll', updateActiveDot, { passive: true })
+      // Also re-run on resize since clientWidth / scrollWidth change.
+      window.addEventListener('resize', updateActiveDot)
     }
 
     if (ctx.config.carouselAutoplay) {
@@ -967,7 +979,8 @@
       })
 
       if (config.listLayout === 'carousel') {
-        const viewport = el('div', 'sai-c1mzmpkz__carousel-viewport')
+        const viewportCls = 'sai-c1mzmpkz__carousel-viewport' + (config.carouselShowArrows ? ' sai-c1mzmpkz__carousel-viewport--has-arrows' : '')
+        const viewport = el('div', viewportCls)
         viewport.appendChild(listInner)
         if (config.carouselShowArrows) {
           viewport.appendChild(el('button', 'sai-c1mzmpkz__carousel-arrow sai-c1mzmpkz__carousel-arrow--prev', { type: 'button', 'aria-label': 'Previous', 'data-sai-carousel-prev': '' }))
