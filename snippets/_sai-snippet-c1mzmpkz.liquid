@@ -1,25 +1,18 @@
 {% doc %}
   PDP Promotion List — lists applicable + potentially-applicable storefront
   discounts for the current PDP variant. Reads the normalised payload from
-  the spectrum.discounts variant metafield. Layout variants: inline list,
-  grid, carousel, dropdown. T&C opens in a modal (desktop) or
-  bottom-anchored drawer (mobile).
+  the spectrum.discounts variant metafield. Layout variants: list, grid,
+  carousel, dropdown. T&C opens in a modal (desktop) or bottom-anchored
+  drawer (mobile).
 
   @param {string} mutation_handle - Mutation handle for DOM scoping (infrastructure)
   @param {string} experience_handle - Experience handle for attribution (infrastructure)
   @param {object} variant - Resolved snippet-instance variant; user-configurable values live on `variant.content`
   @param {object} mo - spectrum_snippet_instance metaobject drop (unused by this snippet)
-  @param {object} entry - Resolved resource-slot entry (unused; data lives on the Shopify product metafield)
 
-  variant.content fields (see meta.json for full list):
-    - heading {string}
-    - list_layout {string} carousel | grid | list | dropdown
-    - cards_per_row {object} { mobile, tablet, desktop }
-    - savings_display_mode {string} absolute | percentage | both
-    - terms_template {string}
-    - overflow_behavior {string} expand_inline | open_popup | none
-    - overflow_threshold {number}
-    - promo_block_{1,2}_{image,headline,body,link,position}
+  All snippet behaviour is driven from variant.content props (see meta.json).
+  The Liquid template renders an SSR shell + a JSON payload; runtime JS does
+  the actual card rendering, sorting, and cart-aware recompute.
 
   @example
   {% render '_sai-snippet-c1mzmpkz',
@@ -31,49 +24,94 @@
 {% enddoc %}
 
 {%- comment -%}
-  ── Institutional knowledge ──
-  The discount payload is read directly from product.selected_variant.metafields.spectrum.discounts.
-  It is written by the discount-sync concern in product-sync (see packages/services/products/concerns/discount-sync.ts).
-  Snippet renders an SSR shell + a JSON payload + a script-tag and lets the runtime JS do all card
-  formatting. This avoids Shopify Liquid's nested-array access limits on deeply-nested discount objects
-  and keeps currency/progress formatting in one place. The raw metafield value is pasted into the JSON
-  payload via | replace (rule #5 in .claude/rules/generated-liquid.md) because piping an already-JSON
-  string through | json would double-encode it as a quoted string.
-
-  Vis gate: the wrapper sets data-spectrum-vis off/on. The runtime JS waits for "on" before doing work
-  (snippet-library/CLAUDE.md line 77). Initial SSR markup is minimal so the off-state hide cost is tiny.
+  Discount payload comes from product.selected_or_first_available_variant.metafields.spectrum.discounts.
+  Shopify deserializes json-typed metafields into a Ruby Hash; piping the parsed value through `| json`
+  re-serializes it as valid JSON and handles the `</script>` escape per generated-liquid rule #5.
 {%- endcomment -%}
 
 {%- liquid
   assign content = variant.content
+
+  if content.enabled_on_pdp == nil
+    assign enabled_on_pdp = true
+  else
+    assign enabled_on_pdp = content.enabled_on_pdp
+  endif
+-%}
+
+{%- liquid
   assign heading = content.heading | default: 'All Available Offers'
 
+  if content.show_heading == nil
+    assign show_heading = true
+  else
+    assign show_heading = content.show_heading
+  endif
+
+  assign empty_state_behavior = content.empty_state_behavior | default: 'hide_section'
+  assign empty_state_heading = content.empty_state_heading | default: 'No active offers'
+  assign empty_state_body = content.empty_state_body | default: 'Check back soon for new promotions.'
+
   assign list_layout = content.list_layout | default: 'carousel'
+  assign grid_columns_desktop = content.grid_columns_desktop | default: 3
+  assign grid_columns_mobile = content.grid_columns_mobile | default: 1
 
-  if content.show_savings_callout == nil
-    assign show_savings_callout = true
+  if content.carousel_autoplay == nil
+    assign carousel_autoplay = false
   else
-    assign show_savings_callout = content.show_savings_callout
+    assign carousel_autoplay = content.carousel_autoplay
+  endif
+  assign carousel_autoplay_interval_ms = content.carousel_autoplay_interval_ms | default: 5000
+
+  if content.carousel_show_arrows == nil
+    assign carousel_show_arrows = true
+  else
+    assign carousel_show_arrows = content.carousel_show_arrows
   endif
 
-  assign savings_display_mode = content.savings_display_mode | default: 'absolute'
-
-  if content.show_min_order_threshold == nil
-    assign show_min_order_threshold = false
+  if content.carousel_show_dots == nil
+    assign carousel_show_dots = false
   else
-    assign show_min_order_threshold = content.show_min_order_threshold
+    assign carousel_show_dots = content.carousel_show_dots
   endif
 
-  if content.show_remaining_progress == nil
-    assign show_remaining_progress = true
+  assign carousel_cards_visible = content.carousel_cards_visible | default: 1
+
+  if content.carousel_show_peek == nil
+    assign carousel_show_peek = true
   else
-    assign show_remaining_progress = content.show_remaining_progress
+    assign carousel_show_peek = content.carousel_show_peek
   endif
 
-  if content.show_terms == nil
-    assign show_terms = true
+  assign dropdown_collapsed_label = content.dropdown_collapsed_label | default: '{count} offers available'
+  assign dropdown_indicator_icon = content.dropdown_indicator_icon | default: 'chevron'
+
+  if content.dropdown_start_expanded == nil
+    assign dropdown_start_expanded = false
   else
-    assign show_terms = content.show_terms
+    assign dropdown_start_expanded = content.dropdown_start_expanded
+  endif
+
+  assign applicable_sort = content.applicable_sort | default: 'highest_savings'
+  assign potential_sort = content.potential_sort | default: 'closest_to_qualify'
+  assign max_visible_applicable = content.max_visible_applicable | default: 3
+  assign max_visible_potential = content.max_visible_potential | default: 3
+  assign overflow_behavior = content.overflow_behavior | default: 'expand_inline'
+  assign overflow_cta_label = content.overflow_cta_label | default: 'View all offers ({count})'
+
+  assign potential_visual_treatment = content.potential_visual_treatment | default: 'subtle'
+  assign lock_icon_style = content.lock_icon_style | default: 'lock'
+
+  if content.enable_copy_on_potential == nil
+    assign enable_copy_on_potential = false
+  else
+    assign enable_copy_on_potential = content.enable_copy_on_potential
+  endif
+
+  if content.enable_promo_blocks == nil
+    assign enable_promo_blocks = false
+  else
+    assign enable_promo_blocks = content.enable_promo_blocks
   endif
 
   if content.show_status_badge == nil
@@ -81,26 +119,86 @@
   else
     assign show_status_badge = content.show_status_badge
   endif
-
   assign applicable_status_label = content.applicable_status_label | default: 'Available now'
   assign potential_status_label = content.potential_status_label | default: 'Almost there'
 
-  assign terms_label = content.terms_label | default: 'Terms & Conditions'
-  assign terms_template = content.terms_template | default: '{{summary}}. Minimum order {{min_order}}. {{stacking_note}}. Use code {{code}} at checkout.'
-  assign description_max_lines = content.description_max_lines | default: 2
+  if content.show_code_chip == nil
+    assign show_code_chip = true
+  else
+    assign show_code_chip = content.show_code_chip
+  endif
+
+  if content.show_copy_button == nil
+    assign show_copy_button = true
+  else
+    assign show_copy_button = content.show_copy_button
+  endif
+
   assign copy_cta_label = content.copy_cta_label | default: 'Copy'
   assign copy_success_label = content.copy_success_label | default: 'Copied!'
+  assign copy_success_duration_ms = content.copy_success_duration_ms | default: 1500
   assign automatic_pill_label = content.automatic_pill_label | default: 'Applied at checkout'
-  assign overflow_behavior = content.overflow_behavior | default: 'expand_inline'
-  assign overflow_threshold = content.overflow_threshold | default: 3
-  assign overflow_cta_label = content.overflow_cta_label | default: 'View all offers'
-  assign dropdown_trigger_label = content.dropdown_trigger_label | default: '{{count}} offers available'
-  assign empty_state_heading = content.empty_state_heading | default: 'No active offers'
-  assign empty_state_body = content.empty_state_body | default: 'Check back soon for new promotions.'
 
-  assign cards_per_row_mobile = content.cards_per_row.mobile | default: 1
-  assign cards_per_row_tablet = content.cards_per_row.tablet | default: cards_per_row_mobile
-  assign cards_per_row_desktop = content.cards_per_row.desktop | default: cards_per_row_tablet
+  if content.show_type_label == nil
+    assign show_type_label = true
+  else
+    assign show_type_label = content.show_type_label
+  endif
+
+  if content.show_description == nil
+    assign show_description = true
+  else
+    assign show_description = content.show_description
+  endif
+  assign description_max_lines = content.description_max_lines | default: 2
+  if content.description_expandable == nil
+    assign description_expandable = true
+  else
+    assign description_expandable = content.description_expandable
+  endif
+
+  if content.show_savings_callout == nil
+    assign show_savings_callout = true
+  else
+    assign show_savings_callout = content.show_savings_callout
+  endif
+  assign savings_display_mode = content.savings_display_mode | default: 'absolute'
+
+  if content.show_remaining_amount == nil
+    assign show_remaining_amount = true
+  else
+    assign show_remaining_amount = content.show_remaining_amount
+  endif
+  assign remaining_amount_template = content.remaining_amount_template | default: 'Spend {remaining} more to unlock'
+  assign near_miss_position = content.near_miss_position | default: 'below_description'
+
+  if content.show_expiry == nil
+    assign show_expiry = false
+  else
+    assign show_expiry = content.show_expiry
+  endif
+  assign expiry_format = content.expiry_format | default: 'relative'
+
+  if content.show_terms == nil
+    assign show_terms = true
+  else
+    assign show_terms = content.show_terms
+  endif
+  assign terms_label = content.terms_label | default: 'Terms & Conditions'
+  assign terms_template = content.terms_template | default: '{summary}. Minimum order {min_order}. {stacking_note}. Use code {code} at checkout.'
+
+  if content.show_coupon_icon == nil
+    assign show_coupon_icon = false
+  else
+    assign show_coupon_icon = content.show_coupon_icon
+  endif
+  assign coupon_icon_url = content.coupon_icon_url | default: ''
+
+  if content.show_min_order_threshold == nil
+    assign show_min_order_threshold = false
+  else
+    assign show_min_order_threshold = content.show_min_order_threshold
+  endif
 
   assign currency_code = shop.currency | default: 'USD'
 
@@ -119,9 +217,8 @@
  * PDP Promotion List (c1mzmpkz) — coupon list with carousel/grid/list/dropdown
  * layouts and a desktop-modal / mobile-drawer T&C surface.
  *
- * Single-class author selectors stay at specificity (0,1,0) so per-instance
- * baked rules (anchored on [data-spectrum-instance-id][data-spectrum-variant-id])
- * always win the cascade.
+ * Single-class author selectors at specificity (0,1,0) so per-instance baked
+ * rules always win the cascade.
  * ============================================================================= */
 
 .sai-c1mzmpkz {
@@ -132,7 +229,7 @@
   --sai-c1mzmpkz-card-min-w: 16rem;
   --sai-c1mzmpkz-card-gap: 0.75rem;
   --sai-c1mzmpkz-code-bg: #ffffff;
-  --sai-c1mzmpkz-code-border: rgba(0, 0, 0, 0.1);
+  --sai-c1mzmpkz-code-border: rgba(0, 0, 0, 0.12);
   --sai-c1mzmpkz-code-fg: #121212;
   --sai-c1mzmpkz-copy-bg: transparent;
   --sai-c1mzmpkz-copy-fg: #121212;
@@ -148,8 +245,8 @@
   --sai-c1mzmpkz-panel-bg: #ffffff;
   --sai-c1mzmpkz-panel-radius: 1rem;
   --sai-c1mzmpkz-cards-mobile: 1;
-  --sai-c1mzmpkz-cards-tablet: 1;
   --sai-c1mzmpkz-cards-desktop: 1;
+  --sai-c1mzmpkz-cards-visible: 1;
 
   display: block;
   box-sizing: border-box;
@@ -213,15 +310,6 @@
   gap: var(--sai-size-3, 0.75rem);
 }
 
-.sai-c1mzmpkz__group-title {
-  font-size: 0.8125rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--sai-c1mzmpkz-muted-fg);
-  margin: 0;
-}
-
 /* ── Layout containers ───────────────────────────────────────────── */
 
 .sai-c1mzmpkz__list {
@@ -239,16 +327,14 @@
   grid-template-columns: repeat(var(--sai-c1mzmpkz-cards-mobile), minmax(0, 1fr));
 }
 
-@media (min-width: 768px) {
-  .sai-c1mzmpkz--grid .sai-c1mzmpkz__list {
-    grid-template-columns: repeat(var(--sai-c1mzmpkz-cards-tablet), minmax(0, 1fr));
-  }
-}
-
 @media (min-width: 1024px) {
   .sai-c1mzmpkz--grid .sai-c1mzmpkz__list {
     grid-template-columns: repeat(var(--sai-c1mzmpkz-cards-desktop), minmax(0, 1fr));
   }
+}
+
+.sai-c1mzmpkz--carousel .sai-c1mzmpkz__carousel-viewport {
+  position: relative;
 }
 
 .sai-c1mzmpkz--carousel .sai-c1mzmpkz__list {
@@ -257,13 +343,81 @@
   scroll-padding-inline: 0.25rem;
   padding-block: 0.25rem;
   -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.sai-c1mzmpkz--carousel .sai-c1mzmpkz__list::-webkit-scrollbar {
+  display: none;
 }
 
 .sai-c1mzmpkz--carousel .sai-c1mzmpkz__card {
-  flex: 0 0 auto;
+  flex: 0 0 calc((100% - (var(--sai-c1mzmpkz-cards-visible) - 1) * var(--sai-c1mzmpkz-card-gap)) / var(--sai-c1mzmpkz-cards-visible));
   scroll-snap-align: start;
   min-width: var(--sai-c1mzmpkz-card-min-w);
-  max-width: 22rem;
+}
+
+.sai-c1mzmpkz--carousel.sai-c1mzmpkz--peek .sai-c1mzmpkz__card {
+  flex-basis: calc((100% - (var(--sai-c1mzmpkz-cards-visible) - 1) * var(--sai-c1mzmpkz-card-gap)) / (var(--sai-c1mzmpkz-cards-visible) + 0.25));
+}
+
+.sai-c1mzmpkz__carousel-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 1px solid var(--sai-c1mzmpkz-card-border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.sai-c1mzmpkz__carousel-arrow[disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.sai-c1mzmpkz__carousel-arrow--prev { left: -0.5rem; }
+.sai-c1mzmpkz__carousel-arrow--next { right: -0.5rem; }
+
+.sai-c1mzmpkz__carousel-arrow::after {
+  content: '';
+  width: 0.5rem;
+  height: 0.5rem;
+  border-top: 2px solid currentColor;
+  border-right: 2px solid currentColor;
+}
+
+.sai-c1mzmpkz__carousel-arrow--prev::after { transform: rotate(-135deg) translate(-1px, 1px); }
+.sai-c1mzmpkz__carousel-arrow--next::after { transform: rotate(45deg) translate(-1px, 1px); }
+
+.sai-c1mzmpkz__dots {
+  display: inline-flex;
+  gap: 0.375rem;
+  justify-content: center;
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+.sai-c1mzmpkz__dot {
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.2);
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+.sai-c1mzmpkz__dot[aria-current='true'] {
+  background: var(--sai-c1mzmpkz-fg);
+  width: 1rem;
+  border-radius: 999px;
 }
 
 .sai-c1mzmpkz--dropdown .sai-c1mzmpkz__dropdown-panel[hidden] {
@@ -285,7 +439,15 @@
   cursor: pointer;
 }
 
-.sai-c1mzmpkz__dropdown-trigger::after {
+.sai-c1mzmpkz__dropdown-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.sai-c1mzmpkz__dropdown-indicator--chevron::after {
   content: '';
   width: 0.5rem;
   height: 0.5rem;
@@ -295,8 +457,30 @@
   transition: transform 160ms ease;
 }
 
-.sai-c1mzmpkz__dropdown-trigger[aria-expanded='true']::after {
+.sai-c1mzmpkz__dropdown-trigger[aria-expanded='true'] .sai-c1mzmpkz__dropdown-indicator--chevron::after {
   transform: rotate(-135deg) translateY(2px);
+}
+
+.sai-c1mzmpkz__dropdown-indicator--plus_minus::before {
+  content: '+';
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.sai-c1mzmpkz__dropdown-trigger[aria-expanded='true'] .sai-c1mzmpkz__dropdown-indicator--plus_minus::before {
+  content: '−';
+}
+
+.sai-c1mzmpkz__dropdown-indicator--tag::before {
+  content: '🏷';
+  font-size: 0.875rem;
+}
+
+.sai-c1mzmpkz__dropdown-indicator--percent::before {
+  content: '%';
+  font-size: 0.875rem;
+  font-weight: 700;
 }
 
 /* ── Card ────────────────────────────────────────────────────────── */
@@ -310,6 +494,44 @@
   background: var(--sai-c1mzmpkz-card-bg);
   border: 1px solid var(--sai-c1mzmpkz-card-border);
   border-radius: var(--sai-c1mzmpkz-card-radius);
+}
+
+.sai-c1mzmpkz__card--potential.sai-c1mzmpkz__card--treatment-greyed {
+  opacity: 0.55;
+  filter: grayscale(0.3);
+}
+
+.sai-c1mzmpkz__card--potential.sai-c1mzmpkz__card--treatment-locked {
+  position: relative;
+}
+
+.sai-c1mzmpkz__icon {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  width: 1.75rem;
+  height: 1.75rem;
+  object-fit: contain;
+}
+
+.sai-c1mzmpkz__lock {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--sai-c1mzmpkz-muted-fg);
+}
+
+.sai-c1mzmpkz__lock svg {
+  width: 1rem;
+  height: 1rem;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
 }
 
 .sai-c1mzmpkz__type-label {
@@ -445,10 +667,28 @@
   color: var(--sai-c1mzmpkz-muted-fg);
 }
 
+.sai-c1mzmpkz__expiry {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--sai-c1mzmpkz-muted-fg);
+}
+
 .sai-c1mzmpkz__remaining {
   margin: 0;
   font-size: 0.8125rem;
   font-weight: 600;
+}
+
+.sai-c1mzmpkz__remaining--badge {
+  align-self: flex-start;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.06);
+  color: rgba(0, 0, 0, 0.7);
+  font-weight: 700;
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .sai-c1mzmpkz__progress {
@@ -508,6 +748,49 @@
   background: var(--sai-c1mzmpkz-panel-bg);
 }
 
+.sai-c1mzmpkz__promo-block--text_image {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.sai-c1mzmpkz__promo-block--text_image .sai-c1mzmpkz__promo-image {
+  width: 4.5rem;
+  height: 4.5rem;
+  object-fit: cover;
+}
+
+.sai-c1mzmpkz__promo-block--info_callout {
+  background: rgba(20, 128, 58, 0.06);
+  border-color: rgba(20, 128, 58, 0.2);
+  color: #14803a;
+}
+
+.sai-c1mzmpkz__promo-block--labeled_divider {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  background: transparent;
+  border: 0;
+  padding: 0.25rem 0;
+}
+
+.sai-c1mzmpkz__promo-block--labeled_divider::before,
+.sai-c1mzmpkz__promo-block--labeled_divider::after {
+  content: '';
+  flex: 1 1 auto;
+  height: 1px;
+  background: var(--sai-c1mzmpkz-card-border);
+}
+
+.sai-c1mzmpkz__promo-block--labeled_divider .sai-c1mzmpkz__promo-headline {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--sai-c1mzmpkz-muted-fg);
+  margin: 0;
+}
+
 .sai-c1mzmpkz__promo-image {
   width: 100%;
   height: auto;
@@ -533,7 +816,7 @@
   text-decoration: underline;
 }
 
-/* ── Overflow CTA ─────────────────────────────────────────────────── */
+/* ── Overflow CTA / popup ──────────────────────────────────────────── */
 
 .sai-c1mzmpkz__overflow-cta {
   align-self: flex-start;
@@ -552,6 +835,48 @@
 
 .sai-c1mzmpkz__card[data-sai-overflow='hidden'] {
   display: none;
+}
+
+.sai-c1mzmpkz-popup {
+  position: fixed;
+  inset: 0;
+  z-index: 99997;
+  display: flex;
+}
+
+.sai-c1mzmpkz-popup[hidden] {
+  display: none;
+}
+
+.sai-c1mzmpkz-popup__backdrop {
+  position: absolute;
+  inset: 0;
+  background: var(--sai-c1mzmpkz-overlay-bg, rgba(0, 0, 0, 0.45));
+}
+
+.sai-c1mzmpkz-popup__panel {
+  position: relative;
+  z-index: 1;
+  margin: auto;
+  background: #ffffff;
+  border-radius: var(--sai-c1mzmpkz-panel-radius, 1rem);
+  width: min(40rem, calc(100% - 2rem));
+  max-height: 88vh;
+  overflow-y: auto;
+  padding: 1rem;
+}
+
+.sai-c1mzmpkz-popup__close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  appearance: none;
+  background: none;
+  border: 0;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.25rem;
 }
 
 /* ── T&C modal / drawer ───────────────────────────────────────────── */
@@ -684,13 +1009,14 @@
 }
 {% endstylesheet %}
 
+{%- if enabled_on_pdp -%}
 <sai-c1mzmpkz
-  class="sai-c1mzmpkz sai-c1mzmpkz--{{ list_layout }}"
+  class="sai-c1mzmpkz sai-c1mzmpkz--{{ list_layout }}{% if carousel_show_peek and list_layout == 'carousel' %} sai-c1mzmpkz--peek{% endif %}"
   data-mutation-handle="{{ mutation_handle }}"
-  style="--sai-c1mzmpkz-cards-mobile: {{ cards_per_row_mobile }}; --sai-c1mzmpkz-cards-tablet: {{ cards_per_row_tablet }}; --sai-c1mzmpkz-cards-desktop: {{ cards_per_row_desktop }}; --sai-c1mzmpkz-desc-lines: {{ description_max_lines }};"
+  style="--sai-c1mzmpkz-cards-mobile: {{ grid_columns_mobile }}; --sai-c1mzmpkz-cards-desktop: {{ grid_columns_desktop }}; --sai-c1mzmpkz-cards-visible: {{ carousel_cards_visible }}; --sai-c1mzmpkz-desc-lines: {{ description_max_lines }};"
 >
-  {%- if heading != blank -%}
-    <h2 class="sai-c1mzmpkz__heading">{{ heading | escape }}</h2>
+  {%- if show_heading and heading != blank -%}
+    <h2 class="sai-c1mzmpkz__heading" data-sai-heading>{{ heading | escape }}</h2>
   {%- endif -%}
 
   {%- if list_layout == 'dropdown' -%}
@@ -698,15 +1024,18 @@
       type="button"
       class="sai-c1mzmpkz__dropdown-trigger"
       data-sai-dropdown-trigger
-      aria-expanded="false"
+      aria-expanded="{% if dropdown_start_expanded %}true{% else %}false{% endif %}"
       aria-controls="sai-c1mzmpkz-{{ mutation_handle }}-panel"
     >
-      <span data-sai-dropdown-label>{{ dropdown_trigger_label | escape }}</span>
+      <span data-sai-dropdown-label>{{ dropdown_collapsed_label | escape }}</span>
+      {%- if dropdown_indicator_icon != 'none' -%}
+        <span class="sai-c1mzmpkz__dropdown-indicator sai-c1mzmpkz__dropdown-indicator--{{ dropdown_indicator_icon }}" aria-hidden="true"></span>
+      {%- endif -%}
     </button>
     <div
       class="sai-c1mzmpkz__dropdown-panel"
       id="sai-c1mzmpkz-{{ mutation_handle }}-panel"
-      hidden
+      {%- unless dropdown_start_expanded %} hidden{% endunless -%}
     >
       <div class="sai-c1mzmpkz__body" data-sai-body></div>
     </div>
@@ -714,12 +1043,6 @@
     <div class="sai-c1mzmpkz__body" data-sai-body></div>
   {%- endif -%}
 
-  {%- comment -%}
-    JSON payload — the runtime JS reads this once and renders every card.
-    Shopify deserializes json-typed metafields into a Ruby Hash; piping the
-    parsed value back through `| json` re-serializes it as valid JSON and
-    handles the `</script>` escape per generated-liquid rule #5.
-  {%- endcomment -%}
   <script type="application/json" data-sai-payload>
 {
   "discounts": {%- if raw_discounts_value != blank -%}{{ raw_discounts_value | json }}{%- else -%}{"discounts":[]}{%- endif -%},
@@ -728,20 +1051,47 @@
     "mutationHandle": {{ mutation_handle | json }},
     "experienceHandle": {{ experience_handle | json }},
     "listLayout": {{ list_layout | json }},
+    "gridColumnsDesktop": {{ grid_columns_desktop | json }},
+    "gridColumnsMobile": {{ grid_columns_mobile | json }},
+    "carouselAutoplay": {{ carousel_autoplay | json }},
+    "carouselAutoplayIntervalMs": {{ carousel_autoplay_interval_ms | json }},
+    "carouselShowArrows": {{ carousel_show_arrows | json }},
+    "carouselShowDots": {{ carousel_show_dots | json }},
+    "carouselCardsVisible": {{ carousel_cards_visible | json }},
+    "carouselShowPeek": {{ carousel_show_peek | json }},
+    "dropdownStartExpanded": {{ dropdown_start_expanded | json }},
+    "dropdownCollapsedLabel": {{ dropdown_collapsed_label | json }},
+    "applicableSort": {{ applicable_sort | json }},
+    "potentialSort": {{ potential_sort | json }},
+    "maxVisibleApplicable": {{ max_visible_applicable | json }},
+    "maxVisiblePotential": {{ max_visible_potential | json }},
+    "overflowBehavior": {{ overflow_behavior | json }},
+    "potentialVisualTreatment": {{ potential_visual_treatment | json }},
+    "lockIconStyle": {{ lock_icon_style | json }},
+    "enableCopyOnPotential": {{ enable_copy_on_potential | json }},
+    "enablePromoBlocks": {{ enable_promo_blocks | json }},
+    "showStatusBadge": {{ show_status_badge | json }},
+    "showCodeChip": {{ show_code_chip | json }},
+    "showCopyButton": {{ show_copy_button | json }},
+    "copySuccessDurationMs": {{ copy_success_duration_ms | json }},
+    "showTypeLabel": {{ show_type_label | json }},
+    "showDescription": {{ show_description | json }},
+    "descriptionMaxLines": {{ description_max_lines | json }},
+    "descriptionExpandable": {{ description_expandable | json }},
     "showSavingsCallout": {{ show_savings_callout | json }},
     "savingsDisplayMode": {{ savings_display_mode | json }},
-    "showMinOrderThreshold": {{ show_min_order_threshold | json }},
-    "showRemainingProgress": {{ show_remaining_progress | json }},
+    "showRemainingAmount": {{ show_remaining_amount | json }},
+    "remainingAmountTemplate": {{ remaining_amount_template | json }},
+    "nearMissPosition": {{ near_miss_position | json }},
+    "showExpiry": {{ show_expiry | json }},
+    "expiryFormat": {{ expiry_format | json }},
     "showTerms": {{ show_terms | json }},
-    "showStatusBadge": {{ show_status_badge | json }},
     "termsTemplate": {{ terms_template | json }},
-    "descriptionMaxLines": {{ description_max_lines | json }},
-    "overflowBehavior": {{ overflow_behavior | json }},
-    "overflowThreshold": {{ overflow_threshold | json }},
+    "showCouponIcon": {{ show_coupon_icon | json }},
+    "couponIconUrl": {{ coupon_icon_url | json }},
+    "showMinOrderThreshold": {{ show_min_order_threshold | json }},
     "currencyCode": {{ currency_code | json }},
-    "variantPrice": {%- if sai_active_variant.price -%}{{ sai_active_variant.price | divided_by: 100.0 | json }}{%- else -%}null{%- endif -%},
-    "debugVariantId": {{ sai_active_variant.id | json }},
-    "debugHasMetafieldValue": {%- if raw_discounts_value != blank -%}true{%- else -%}false{%- endif -%}
+    "variantPrice": {%- if sai_active_variant.price -%}{{ sai_active_variant.price | divided_by: 100.0 | json }}{%- else -%}null{%- endif -%}
   },
   "labels": {
     "applicableStatusLabel": {{ applicable_status_label | json }},
@@ -751,29 +1101,29 @@
     "copySuccessLabel": {{ copy_success_label | json }},
     "automaticPillLabel": {{ automatic_pill_label | json }},
     "overflowCtaLabel": {{ overflow_cta_label | json }},
-    "dropdownTriggerLabel": {{ dropdown_trigger_label | json }},
     "emptyStateHeading": {{ empty_state_heading | json }},
     "emptyStateBody": {{ empty_state_body | json }},
+    "emptyStateBehavior": {{ empty_state_behavior | json }},
     "codeLabel": "Code",
-    "remainingSubtotalTemplate": "Spend {remaining} more to unlock",
-    "remainingQuantityTemplate": "Add {remaining} more item(s) to unlock",
     "minOrderTemplate": "Min order {amount}",
     "stackingNote": "Cannot be combined with other discounts unless stated"
   },
   "promoBlocks": [
     {
+      "type": {{ content.promo_block_1_type | default: 'image_banner' | json }},
+      "position": {{ content.promo_block_1_position | default: 'hidden' | json }},
       "headline": {{ content.promo_block_1_headline | json }},
       "body": {{ content.promo_block_1_body | json }},
       "link": {{ content.promo_block_1_link | json }},
-      "position": {{ content.promo_block_1_position | default: 'hidden' | json }},
       "imageUrl": {%- if content.promo_block_1_image_url != blank -%}{{ content.promo_block_1_image_url | json }}{%- else -%}null{%- endif -%},
       "imageAlt": {{ content.promo_block_1_headline | default: '' | json }}
     },
     {
+      "type": {{ content.promo_block_2_type | default: 'image_banner' | json }},
+      "position": {{ content.promo_block_2_position | default: 'hidden' | json }},
       "headline": {{ content.promo_block_2_headline | json }},
       "body": {{ content.promo_block_2_body | json }},
       "link": {{ content.promo_block_2_link | json }},
-      "position": {{ content.promo_block_2_position | default: 'hidden' | json }},
       "imageUrl": {%- if content.promo_block_2_image_url != blank -%}{{ content.promo_block_2_image_url | json }}{%- else -%}null{%- endif -%},
       "imageAlt": {{ content.promo_block_2_headline | default: '' | json }}
     }
@@ -783,3 +1133,5 @@
 </sai-c1mzmpkz>
 
 <script src="{{ 'sai-snippet-c1mzmpkz.js' | asset_url }}" defer></script>
+
+{%- endif -%}
