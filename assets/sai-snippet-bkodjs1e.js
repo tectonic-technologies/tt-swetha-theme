@@ -907,8 +907,7 @@
 
       _buildPopupSection(d, productPrice, money, isPrimary) {
         const section = document.createElement('div')
-        section.className = 'sai-bkodjs1e-popup__section'
-        section.style.padding = '0.875rem 1.25rem'
+        section.className = 'sai-bkodjs1e-popup__section' + (isPrimary ? ' sai-bkodjs1e-popup__section--primary' : '')
 
         if (d.summary || d.shortSummary) {
           const p = document.createElement('p')
