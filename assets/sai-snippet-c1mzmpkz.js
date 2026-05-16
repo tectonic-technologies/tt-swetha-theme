@@ -18,9 +18,18 @@
 
   function moneyFormatter(currencyCode) {
     try {
-      return new Intl.NumberFormat(undefined, { style: 'currency', currency: currencyCode || 'USD' })
+      return new Intl.NumberFormat(undefined, {
+        style: 'currency',
+        currency: currencyCode || 'USD',
+        currencyDisplay: 'narrowSymbol',
+      })
     } catch (_) {
-      return { format: (n) => `${currencyCode || '$'}${Number(n).toFixed(2)}` }
+      try {
+        // Older browsers (Safari < 14.1) don't support narrowSymbol — fall back to 'symbol'.
+        return new Intl.NumberFormat(undefined, { style: 'currency', currency: currencyCode || 'USD' })
+      } catch (_) {
+        return { format: (n) => `${currencyCode || '$'}${Number(n).toFixed(2)}` }
+      }
     }
   }
 
