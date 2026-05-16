@@ -14,6 +14,20 @@
 ;(() => {
   const SNIPPET_ID = 'c1mzmpkz'
   const TAG = 'sai-c1mzmpkz'
+  const FEATURE_SLUG = 'pdp_promotions'
+
+  // ── Analytics helpers ─────────────────────────────────────────────────
+  // Snippet authoring guide: use __spectrumAi.snippet.bind(node, cb) to get
+  // { track, emit }. SDK auto-attaches the standard envelope and the $spectrum:
+  // prefix. Events ending in `_impression` are gated by the brand-level
+  // impressionsEnabled toggle. snake_case property keys.
+
+  function noop() {}
+  function safeFn(fn) {
+    return (name, payload) => {
+      try { fn(name, payload) } catch (_) { /* analytics is best-effort */ }
+    }
+  }
 
   // ── Utilities ──────────────────────────────────────────────────────────
 
@@ -638,7 +652,7 @@
     }
   }
 
-  function attachOverflowExpand(body, ctx, totalCount) {
+  function attachOverflowExpand(body, ctx) {
     body.addEventListener('click', (event) => {
       const target = event.target
       if (!(target instanceof Element)) return
@@ -647,6 +661,11 @@
       const hidden = groupSelector
         ? body.querySelectorAll(`.sai-c1mzmpkz__group--${groupSelector} .sai-c1mzmpkz__card[data-sai-overflow="hidden"]`)
         : body.querySelectorAll('.sai-c1mzmpkz__card[data-sai-overflow="hidden"]')
+
+      ctx.track(`${FEATURE_SLUG}:overflow_expanded`, {
+        mode: ctx.config.overflowBehavior,
+        hidden_count: hidden.length,
+      })
 
       if (ctx.config.overflowBehavior === 'open_popup') {
         openOverflowPopup(Array.from(hidden), ctx)
@@ -687,7 +706,8 @@
 
   // ── Copy CTA + description expand + dropdown ─────────────────────────
 
-  function attachCopy(host, labels, durationMs) {
+  function attachCopy(host, labels, durationMs, track) {
+    const fire = track || noop
     host.addEventListener('click', async (event) => {
       const target = event.target
       if (!(target instanceof Element)) return
@@ -695,8 +715,13 @@
       if (!btn) return
       const code = btn.getAttribute('data-sai-copy') || ''
       if (!code) return
+      const card = btn.closest('[data-discount-id]')
+      const discountId = card ? card.getAttribute('data-discount-id') : null
+      const surface = btn.closest('.sai-c1mzmpkz-tc') ? 'terms_modal' : 'card'
+      let copied = false
       try {
         await navigator.clipboard.writeText(code)
+        copied = true
       } catch (_) {
         const tmp = document.createElement('textarea')
         tmp.value = code
@@ -705,9 +730,15 @@
         tmp.style.left = '-9999px'
         document.body.appendChild(tmp)
         tmp.select()
-        try { document.execCommand('copy') } catch (_) {}
+        try { copied = document.execCommand('copy') } catch (_) {}
         document.body.removeChild(tmp)
       }
+      fire(`${FEATURE_SLUG}:copy_code`, {
+        discount_id: discountId,
+        discount_code: code,
+        surface: surface,
+        copied: copied,
+      })
       const originalLabel = btn.textContent
       btn.textContent = labels.copySuccessLabel
       btn.setAttribute('aria-pressed', 'true')
@@ -737,14 +768,17 @@
     })
   }
 
-  function attachDropdown(host) {
+  function attachDropdown(host, track) {
+    const fire = track || noop
     const trigger = host.querySelector('[data-sai-dropdown-trigger]')
     const panel = host.querySelector('.sai-c1mzmpkz__dropdown-panel')
     if (!trigger || !panel) return
     trigger.addEventListener('click', () => {
       const expanded = trigger.getAttribute('aria-expanded') === 'true'
-      trigger.setAttribute('aria-expanded', expanded ? 'false' : 'true')
-      panel.setAttribute('data-open', expanded ? 'false' : 'true')
+      const nextOpen = !expanded
+      trigger.setAttribute('aria-expanded', nextOpen ? 'true' : 'false')
+      panel.setAttribute('data-open', nextOpen ? 'true' : 'false')
+      fire(`${FEATURE_SLUG}:dropdown_toggled`, { open: nextOpen })
     })
   }
 
@@ -858,7 +892,7 @@
     root.addEventListener('keydown', onTrap, true)
     document.addEventListener('keydown', onKey, true)
 
-    attachCopy(root, labels, ctx.config.copySuccessDurationMs)
+    attachCopy(root, labels, ctx.config.copySuccessDurationMs, ctx.track)
 
     // Force a reflow so the browser paints data-state="closed" first,
     // then double-rAF to ensure the transition has a clean from-state.
@@ -883,6 +917,11 @@
       const id = trigger.getAttribute('data-discount-id') || ''
       const d = findDiscount(discounts, id)
       if (!d) return
+      ctx.track(`${FEATURE_SLUG}:terms_opened`, {
+        discount_id: d.id || null,
+        discount_code: (d.codes && d.codes[0]) || null,
+        application_type: d.applicationType || null,
+      })
       openTermsSurface(d, ctx)
     })
   }
@@ -901,7 +940,29 @@
     const labels = payload.labels || {}
     const baseDiscounts = (payload.discounts && payload.discounts.discounts) || []
     const promoBlocks = payload.promoBlocks || []
-    const ctx = { config, labels }
+
+    // Bind analytics. The Spectrum SDK auto-attaches the standard envelope
+    // (snippet_id / instance_id / experience_handle / experience_variant_id /
+    // page_context) and the $spectrum: prefix. No-bind fallback: if the SDK
+    // isn't on the page (theme without app embed), analytics become a noop
+    // and the widget still functions.
+    const wrapper = host.closest('[data-spectrum-lq-snippet]') || host
+    const api = window.__spectrumAi && window.__spectrumAi.snippet
+    let trackFn = noop
+    let emitFn = noop
+    if (api && typeof api.bind === 'function') {
+      try {
+        const handles = api.bind(wrapper, () => {
+          // No variant-driven re-render — content is read from product metafield.
+          // Keeping the bind so the analytics envelope is attached to our events.
+        })
+        if (handles) {
+          if (typeof handles.track === 'function') trackFn = safeFn(handles.track)
+          if (typeof handles.emit === 'function') emitFn = safeFn(handles.emit)
+        }
+      } catch (_) { /* keep noops */ }
+    }
+    const ctx = { config, labels, track: trackFn, emit: emitFn }
 
     const body = host.querySelector('[data-sai-body]')
     const headingEl = host.querySelector('[data-sai-heading]')
@@ -1030,9 +1091,20 @@
     render(baseDiscounts)
 
     // Listeners attached once on host root.
-    attachOverflowExpand(body, ctx, baseDiscounts.length)
-    attachCopy(host, labels, config.copySuccessDurationMs)
-    attachDropdown(host)
+    attachOverflowExpand(body, ctx)
+    attachCopy(host, labels, config.copySuccessDurationMs, ctx.track)
+    attachDropdown(host, ctx.track)
+
+    // One-shot list_impression fired after first render. The `_impression`
+    // suffix is load-bearing — the storefront SDK gates events with this
+    // suffix behind the per-brand impressionsEnabled toggle.
+    const partRender = partition(baseDiscounts)
+    ctx.track(`${FEATURE_SLUG}:list_impression`, {
+      applicable_count: partRender.applicable.length,
+      potential_count: partRender.potential.length,
+      total_count: partRender.applicable.length + partRender.potential.length,
+      list_layout: config.listLayout,
+    })
 
     // Cart-aware re-render.
     function syncFromCart() {
@@ -1047,8 +1119,17 @@
             || before.progressPercent !== after.progressPercent
         })
         if (!changed) return
+        const wasApplicableCount = partition(lastRendered).applicable.length
+        const nowApplicableCount = partition(updated).applicable.length
         lastRendered = updated
         render(updated)
+        if (nowApplicableCount !== wasApplicableCount) {
+          ctx.track(`${FEATURE_SLUG}:cart_recomputed`, {
+            applicable_count: nowApplicableCount,
+            potential_count: partition(updated).potential.length,
+            applicable_delta: nowApplicableCount - wasApplicableCount,
+          })
+        }
       })
     }
 
