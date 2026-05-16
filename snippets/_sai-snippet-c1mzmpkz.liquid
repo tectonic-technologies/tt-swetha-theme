@@ -719,16 +719,16 @@
       "body": {{ content.promo_block_1_body | json }},
       "link": {{ content.promo_block_1_link | json }},
       "position": {{ content.promo_block_1_position | default: 'hidden' | json }},
-      "imageUrl": {%- if content.promo_block_1_image and content.promo_block_1_image.url -%}{{ content.promo_block_1_image.url | json }}{%- else -%}null{%- endif -%},
-      "imageAlt": {%- if content.promo_block_1_image and content.promo_block_1_image.alt -%}{{ content.promo_block_1_image.alt | json }}{%- else -%}""{%- endif -%}
+      "imageUrl": {%- if content.promo_block_1_image_url != blank -%}{{ content.promo_block_1_image_url | json }}{%- else -%}null{%- endif -%},
+      "imageAlt": {{ content.promo_block_1_headline | default: '' | json }}
     },
     {
       "headline": {{ content.promo_block_2_headline | json }},
       "body": {{ content.promo_block_2_body | json }},
       "link": {{ content.promo_block_2_link | json }},
       "position": {{ content.promo_block_2_position | default: 'hidden' | json }},
-      "imageUrl": {%- if content.promo_block_2_image and content.promo_block_2_image.url -%}{{ content.promo_block_2_image.url | json }}{%- else -%}null{%- endif -%},
-      "imageAlt": {%- if content.promo_block_2_image and content.promo_block_2_image.alt -%}{{ content.promo_block_2_image.alt | json }}{%- else -%}""{%- endif -%}
+      "imageUrl": {%- if content.promo_block_2_image_url != blank -%}{{ content.promo_block_2_image_url | json }}{%- else -%}null{%- endif -%},
+      "imageAlt": {{ content.promo_block_2_headline | default: '' | json }}
     }
   ]
 }
