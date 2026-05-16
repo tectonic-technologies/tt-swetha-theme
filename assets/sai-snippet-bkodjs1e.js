@@ -827,6 +827,8 @@
         root.setAttribute('aria-labelledby', 'sai-bkodjs1e-popup-title')
         root.setAttribute('data-state', 'closed')
 
+        const TAG_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m15 9-6 6"/><circle cx="9.5" cy="9.5" r=".75" fill="currentColor"/><circle cx="14.5" cy="14.5" r=".75" fill="currentColor"/></svg>'
+
         root.innerHTML = `
           <div class="sai-bkodjs1e-popup__backdrop" data-sai-popup-dismiss></div>
           <div class="sai-bkodjs1e-popup__panel" data-sai-popup-panel>
@@ -835,10 +837,7 @@
               <button type="button" class="sai-bkodjs1e-popup__close" aria-label="Close" data-sai-popup-dismiss>&times;</button>
             </div>
             <div class="sai-bkodjs1e-popup__highlight">
-              <svg class="sai-bkodjs1e__callout-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                <path d="M8 1.5l1.7 1.4 2.2-.2.5 2.1 1.7 1.4-1.1 1.9.6 2.1-2.1.7-1 2-2-.8-2 .8-1-2-2.1-.7.6-2.1L1 6.2l1.7-1.4.5-2.1 2.2.2L8 1.5z" fill="none" stroke="currentColor" stroke-width="1.4"/>
-                <path d="M5.5 8.5 7 10l4-4.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
+              <span class="sai-bkodjs1e__callout-icon">${TAG_SVG.replace('<svg ', '<svg class="sai-bkodjs1e__callout-icon" ')}</span>
               <span>${escapeHtml(this._buildCalloutText(evaluated))}</span>
             </div>
             <div class="sai-bkodjs1e-popup__body" data-sai-popup-body></div>
@@ -849,19 +848,16 @@
         body.appendChild(this._buildPopupSection(evaluated.best.d, productPrice, money, /* primary */ true))
 
         if (this._state.config.showAlternatives && evaluated.alternatives.length > 0) {
+          // Divider + alternative sections live INSIDE the body so they
+          // share the body's padding and scroll with it. The divider has
+          // negative inline margins to span the body's padding for the
+          // full-width grey strip look.
           const divider = document.createElement('div')
           divider.className = 'sai-bkodjs1e-popup__divider'
-          divider.innerHTML = `
-            <svg class="sai-bkodjs1e-popup__divider-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-              <path d="M8 1.5l1.7 1.4 2.2-.2.5 2.1 1.7 1.4-1.1 1.9.6 2.1-2.1.7-1 2-2-.8-2 .8-1-2-2.1-.7.6-2.1L1 6.2l1.7-1.4.5-2.1 2.2.2L8 1.5z" fill="none" stroke="currentColor" stroke-width="1.4"/>
-            </svg>
-            <span>Other Offers</span>
-          `
-          // divider sits OUTSIDE the body padding for full-width look.
-          body.parentNode.insertBefore(divider, body.nextSibling)
+          divider.innerHTML = `<span class="sai-bkodjs1e-popup__divider-icon">${TAG_SVG.replace('<svg ', '<svg class="sai-bkodjs1e-popup__divider-icon" ')}</span><span>Other Offers</span>`
+          body.appendChild(divider)
           for (const item of evaluated.alternatives.slice(0, this._state.config.dropdownMaxItems || 5)) {
-            const sect = this._buildPopupSection(item.d, productPrice, money, false)
-            body.parentNode.appendChild(sect)
+            body.appendChild(this._buildPopupSection(item.d, productPrice, money, false))
           }
         }
 
