@@ -557,45 +557,28 @@
       .map((d) => String(d && (d.code || d)).toUpperCase())
       .filter(Boolean)
 
-    // Fetch the section-rendered discounts via Shopify's Cart Section
-    // Rendering API. POST /cart/update.js with sections=name returns the
-    // cart JSON plus a `sections` map keyed by section instance id.
-    // GET /cart?sections=… does NOT honor sections — Shopify just routes to
-    // /cart.js and returns the cart object.
+    // Read the cart-discounts data emitted inline by the section that also
+    // renders the CTA. The Section Rendering API was returning empty bytes
+    // on this Horizon theme, so we sidestep it and read the same data
+    // straight from the page's DOM at SSR-time.
     let discountsByVariant = {}
-    try {
-      console.log('[z0q31ww1] POST /cart/update.js?sections=sai_z0q_data')
-      const r = await fetch('/cart/update.js?sections=sai_z0q_data', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ attributes: {} }),
-      })
-      console.log('[z0q31ww1] response status:', r.status)
-      const body = await r.json()
-      console.log('[z0q31ww1] response keys:', Object.keys(body))
-      console.log('[z0q31ww1] sections key present:', !!body.sections)
-      if (body.sections) console.log('[z0q31ww1] sections keys:', Object.keys(body.sections))
-      const html = (body.sections && body.sections.sai_z0q_data) || ''
-      console.log('[z0q31ww1] section html length:', html.length)
-      console.log('[z0q31ww1] section html (first 1500):', html.slice(0, 1500))
-      // Parse the div-wrapped JSON (Shopify section renders strip <script> tags).
-      const div = document.createElement('div')
-      div.innerHTML = html
-      const dataDiv = div.querySelector('[data-sai-cart-discounts]')
-      const sentinel = div.querySelector('[data-sai-cart-data]')
-      console.log('[z0q31ww1] sentinel:', sentinel && sentinel.textContent)
-      console.log('[z0q31ww1] dataDiv present:', !!dataDiv)
-      if (dataDiv) {
-        try {
-          const cd = JSON.parse(dataDiv.textContent || '{}')
-          console.log('[z0q31ww1] parsed cart data:', cd)
-          discountsByVariant = cd.discountsByVariant || {}
-        } catch (e) {
-          console.error('[z0q31ww1] parse failed:', e, 'raw:', dataDiv.textContent)
+    const dataDiv = document.querySelector('[data-sai-cart-data]')
+    console.log('[z0q31ww1] inline data div found:', !!dataDiv, dataDiv && dataDiv.textContent.slice(0, 200))
+    if (dataDiv) {
+      try {
+        const cd = JSON.parse(dataDiv.textContent || '{}')
+        console.log('[z0q31ww1] parsed cart data:', cd)
+        discountsByVariant = cd.discountsByVariant || {}
+        if (cd.cart) {
+          if (typeof cd.cart.subtotal === 'number') /* override */ {}
+          if (Array.isArray(cd.cart.appliedCodes)) {
+            for (const c of cd.cart.appliedCodes) {
+              const up = String(c).toUpperCase()
+              if (!appliedCodes.includes(up)) appliedCodes.push(up)
+            }
+          }
         }
-      }
-    } catch (err) {
-      console.error('[z0q31ww1] section fetch failed:', err)
+      } catch (e) { console.error('[z0q31ww1] parse failed:', e) }
     }
     console.log('[z0q31ww1] final discountsByVariant keys:', Object.keys(discountsByVariant))
 
