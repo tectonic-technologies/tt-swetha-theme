@@ -908,14 +908,20 @@
     })
   }
 
-  function attachTermsTriggers(host, discounts, ctx) {
+  // Attach T&C delegation ONCE per host. The listener reads the live
+  // discounts list off `ctx.currentDiscounts` so subsequent cart-driven
+  // re-renders don't need to rebind (and re-binding would stack listeners
+  // → multiple drawers per click).
+  function attachTermsTriggers(host, ctx) {
+    if (host.dataset.saiTermsBound === '1') return
+    host.dataset.saiTermsBound = '1'
     host.addEventListener('click', (event) => {
       const target = event.target
       if (!(target instanceof Element)) return
       const trigger = target.closest('[data-sai-tc-trigger]')
       if (!trigger) return
       const id = trigger.getAttribute('data-discount-id') || ''
-      const d = findDiscount(discounts, id)
+      const d = findDiscount(ctx.currentDiscounts || [], id)
       if (!d) return
       ctx.track(`${FEATURE_SLUG}:terms_opened`, {
         discount_id: d.id || null,
@@ -1117,7 +1123,7 @@
         attachCarousel(list, ctx)
       }
 
-      attachTermsTriggers(host, discounts, ctx)
+      ctx.currentDiscounts = discounts
       requestAnimationFrame(() => attachDescriptionExpand(body, config.descriptionExpandable))
     }
 
@@ -1126,6 +1132,7 @@
     render(baseDiscounts)
 
     // Listeners attached once on host root.
+    attachTermsTriggers(host, ctx)
     attachOverflowExpand(body, ctx)
     attachCopy(host, labels, config.copySuccessDurationMs, ctx.track)
     attachDropdown(host, ctx.track)
