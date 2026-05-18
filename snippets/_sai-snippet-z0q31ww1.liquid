@@ -68,7 +68,7 @@
   endif
   assign input_max_length = content.input_max_length | default: 32
 
-  assign section_display_order = content.section_display_order | default: 'applicable_first'
+  assign section_display_order = content.section_display_order | default: 'applied_first'
   if content.show_section_count_badge == nil
     assign show_section_count_badge = false
   else
