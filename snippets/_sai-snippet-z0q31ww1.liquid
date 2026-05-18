@@ -259,26 +259,50 @@
 .sai-z0q31ww1-page {
   position: fixed;
   inset: 0;
-  background: var(--sai-z0q31ww1-bg);
   z-index: 9999;
   display: flex;
-  flex-direction: column;
+  justify-content: flex-end;
   font-family: var(--sai-font-body, inherit);
   color: var(--sai-z0q31ww1-fg);
 }
 
-.sai-z0q31ww1-page--enter-slide-right { animation: sai-z0q31ww1-slide-right 240ms ease-out; }
-.sai-z0q31ww1-page--enter-slide-up { animation: sai-z0q31ww1-slide-up 240ms ease-out; }
+.sai-z0q31ww1-page__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  animation: sai-z0q31ww1-backdrop-in 200ms ease-out;
+}
+
+.sai-z0q31ww1-page__panel {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 400px;
+  height: 100%;
+  background: var(--sai-z0q31ww1-bg);
+  display: flex;
+  flex-direction: column;
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.12);
+}
+
+.sai-z0q31ww1-page--enter-slide-right .sai-z0q31ww1-page__panel { animation: sai-z0q31ww1-slide-right 240ms ease-out; }
+.sai-z0q31ww1-page--enter-slide-up .sai-z0q31ww1-page__panel { animation: sai-z0q31ww1-slide-up 240ms ease-out; }
 .sai-z0q31ww1-page--enter-fade { animation: sai-z0q31ww1-fade 200ms ease-out; }
 
+@keyframes sai-z0q31ww1-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes sai-z0q31ww1-slide-right { from { transform: translateX(100%); } to { transform: translateX(0); } }
 @keyframes sai-z0q31ww1-slide-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
 @keyframes sai-z0q31ww1-fade { from { opacity: 0; } to { opacity: 1; } }
 
 @media (prefers-reduced-motion: reduce) {
-  .sai-z0q31ww1-page--enter-slide-right,
-  .sai-z0q31ww1-page--enter-slide-up,
+  .sai-z0q31ww1-page__backdrop,
+  .sai-z0q31ww1-page--enter-slide-right .sai-z0q31ww1-page__panel,
+  .sai-z0q31ww1-page--enter-slide-up .sai-z0q31ww1-page__panel,
   .sai-z0q31ww1-page--enter-fade { animation: none; }
+}
+
+@media (max-width: 480px) {
+  .sai-z0q31ww1-page__panel { max-width: 100%; }
 }
 
 .sai-z0q31ww1-page__header {
