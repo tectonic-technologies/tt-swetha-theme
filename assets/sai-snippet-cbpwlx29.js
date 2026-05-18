@@ -298,9 +298,20 @@
     return `/discount/${encodeURIComponent(code)}?redirect=${encodeURIComponent(r)}`
   }
 
-  function discountClearUrl(redirect) {
-    const r = redirect || '/cart'
-    return `/discount/?redirect=${encodeURIComponent(r)}`
+  // No standard Shopify GET route for "clear discount" — `/discount/` 404s on
+  // most themes. The reliable cross-theme path is POST /cart/update.js with
+  // `discount: ''`, then full-reload /cart so the SSR'd cart re-renders
+  // without the applied code.
+  async function clearDiscount() {
+    try {
+      await fetch('/cart/update.js', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ discount: '' }),
+        credentials: 'same-origin',
+      })
+    } catch (_) { /* swallow — reload still happens */ }
+    window.location.href = '/cart'
   }
 
   // ── Countdown ────────────────────────────────────────────────────────
@@ -1041,7 +1052,7 @@
 
   function removeDiscount(code, ctx) {
     ctx.track(`${FEATURE_SLUG}:remove_clicked`, { discount_code: code || null })
-    window.location.href = discountClearUrl()
+    clearDiscount()
   }
 
   // ── Countdown wiring per card ────────────────────────────────────────
