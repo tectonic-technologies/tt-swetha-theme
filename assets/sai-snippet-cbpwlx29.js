@@ -600,8 +600,12 @@
     if (d && d.id != null) card.setAttribute('data-discount-id', String(d.id))
     if (isBestOffer) card.setAttribute('data-best-offer', 'true')
 
-    // Countdown header only on the full (applicable / potential / expired) card.
-    // Applied + auto-applied rows are compact and inherit the widget-level timer.
+    // Countdown header rendered as the first child of the body on the
+    // highlighted best-offer card so it sits inside the inset mint area,
+    // not as a separate full-width bar above it. CSS for the best-offer
+    // variant strips the default green strip styling so it reads as a
+    // small lead-in label on top of the mint bg.
+    let pendingCountdownHeader = null
     if (isFullCard) {
       if (config.showCountdownTimer && mode !== 'expired') {
         const headerWrap = el('div', 'sai-cbpwlx29__countdown-header')
@@ -609,15 +613,19 @@
         text.appendChild(document.createTextNode(''))
         text.setAttribute('data-sai-countdown-text', '')
         headerWrap.appendChild(text)
-        card.appendChild(headerWrap)
+        pendingCountdownHeader = headerWrap
       } else if (mode === 'expired') {
         const headerWrap = el('div', 'sai-cbpwlx29__countdown-header')
         headerWrap.textContent = labels.countdownExpiredMessage || 'This offer has ended'
-        card.appendChild(headerWrap)
+        pendingCountdownHeader = headerWrap
       }
     }
 
     const body = el('div', 'sai-cbpwlx29__body')
+
+    // Countdown header lives inside the body so the highlight inset
+    // contains it. Stripped down on the best-offer card (no separate bar).
+    if (pendingCountdownHeader) body.appendChild(pendingCountdownHeader)
 
     // Discount type label (compact, above message) — full card only.
     if (config.showDiscountTypeLabel && isFullCard) {

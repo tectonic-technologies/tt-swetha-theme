@@ -281,6 +281,16 @@
   display: none;
 }
 
+/* On the highlighted best-offer card the countdown header is a lead-in
+ * label inside the mint body — strip the standalone-bar styling. */
+.sai-cbpwlx29__card[data-best-offer='true'] .sai-cbpwlx29__countdown-header {
+  background: transparent;
+  color: var(--sai-cbpwlx29-countdown-fg);
+  padding: 0 0 0.375rem 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
 .sai-cbpwlx29__countdown-time {
   font-variant-numeric: tabular-nums;
 }
