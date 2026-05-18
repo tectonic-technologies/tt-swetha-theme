@@ -1,4 +1,11 @@
-<div data-sai-cart-data>STATIC SECTION OUTPUT</div>
+<div data-sai-cart-data>STATIC SECTION OUTPUT itemCount={{ cart.item_count }}</div>
 {% schema %}
-{ "name": "Z0Q cart data" }
+{
+  "name": "Z0Q cart data",
+  "tag": "section",
+  "class": "sai-z0q-data",
+  "presets": [
+    { "name": "Z0Q cart data", "category": "Custom" }
+  ]
+}
 {% endschema %}
