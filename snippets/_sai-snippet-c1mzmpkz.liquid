@@ -607,7 +607,10 @@
   font-size: inherit;
   font-weight: inherit;
   line-height: inherit;
-  color: var(--sai-c1mzmpkz-fg);
+  /* Darker shade of grey — sits between description's muted-fg (~#737373)
+   * and full text-fg (#121212). Visible enough to read as a control but
+   * not so dark it looks like a bold link. No underline by default. */
+  color: rgba(0, 0, 0, 0.7);
   text-decoration: none;
   cursor: pointer;
   vertical-align: baseline;

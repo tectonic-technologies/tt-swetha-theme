@@ -834,7 +834,7 @@
       const ellipsisNode = document.createTextNode('… ')
       const toggle = el('button', 'sai-c1mzmpkz__description-toggle', {
         type: 'button',
-        text: 'see details',
+        text: 'show more',
         'aria-expanded': 'false',
       })
       desc.appendChild(ellipsisNode)
@@ -886,7 +886,7 @@
         } else {
           setText(best)
           ellipsisNode.nodeValue = '… '
-          toggle.textContent = 'see details'
+          toggle.textContent = 'show more'
         }
         toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false')
       })
