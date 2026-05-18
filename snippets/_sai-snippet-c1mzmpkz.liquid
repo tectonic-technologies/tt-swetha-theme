@@ -669,9 +669,9 @@
   gap: 0.375rem;
 }
 
-/* Inline "Read more / Show less" toggle — appended inside the description
- * paragraph so webkit-line-clamp truncates it at the last visible line
- * (Vaaree-style "...Read more"). */
+/* Inline "show more / show less" toggle — appended inside the description
+ * paragraph. Inherits the description's normal weight and font size; just
+ * a slightly darker grey for visual emphasis. No bold, no underline. */
 .sai-c1mzmpkz__description .sai-c1mzmpkz__description-toggle {
   display: inline;
   background: none;
@@ -680,9 +680,9 @@
   margin: 0;
   font: inherit;
   font-size: inherit;
-  font-weight: 600;
-  color: var(--sai-c1mzmpkz-fg);
-  text-decoration: underline;
+  font-weight: inherit;
+  color: rgba(0, 0, 0, 0.7);
+  text-decoration: none;
   cursor: pointer;
   vertical-align: baseline;
 }
@@ -843,6 +843,9 @@
   align-self: flex-start;
 }
 
+/* Terms & Conditions — underlined link styling so it reads clearly as a
+ * "tap to read full terms" affordance, distinct from the inline show-more
+ * toggle (which is plain dark grey, no underline). */
 .sai-c1mzmpkz__terms-toggle {
   background: none;
   border: 0;
@@ -851,14 +854,9 @@
   font-size: 0.75rem;
   font-weight: 400;
   color: var(--sai-c1mzmpkz-fg);
-  text-decoration: none;
+  text-decoration: underline;
   cursor: pointer;
   align-self: flex-start;
-}
-
-.sai-c1mzmpkz__terms-toggle:hover,
-.sai-c1mzmpkz__terms-toggle:focus-visible {
-  text-decoration: underline;
 }
 
 /* ── Promo blocks ─────────────────────────────────────────────────── */
