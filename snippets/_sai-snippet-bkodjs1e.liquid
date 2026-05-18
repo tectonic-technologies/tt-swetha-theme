@@ -378,26 +378,33 @@
   gap: var(--sai-size-2, 0.5rem);
 }
 
+/* "View / Hide other offers" trigger — a soft pill button instead of a
+ * full-width strip with a hard divider line above. Centered, with a
+ * subtle hover background so it reads as a tappable affordance without
+ * pretending to be a section separator. */
 .sai-bkodjs1e__expand-trigger {
   appearance: none;
   background: transparent;
   border: 0;
-  border-top: 1px solid var(--sai-bkodjs1e-card-border);
-  margin-block-start: var(--sai-size-2, 0.5rem);
-  padding-block: var(--sai-size-2, 0.5rem);
+  margin-block-start: var(--sai-size-3, 0.75rem);
+  margin-inline: auto;
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
   font: inherit;
+  font-size: 0.875rem;
   font-weight: 600;
-  color: var(--sai-bkodjs1e-fg);
-  display: flex;
+  color: var(--sai-bkodjs1e-accent-fg);
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.375rem;
   cursor: pointer;
-  inline-size: 100%;
+  transition: background-color 160ms ease, color 160ms ease;
 }
 
-.sai-bkodjs1e__expand-trigger:hover {
-  color: var(--sai-bkodjs1e-accent-fg);
+.sai-bkodjs1e__expand-trigger:hover,
+.sai-bkodjs1e__expand-trigger:focus-visible {
+  background: rgba(0, 0, 0, 0.04);
 }
 
 .sai-bkodjs1e__chevron {
