@@ -625,13 +625,19 @@
     }
 
     const code = getCode(d)
+    const abs = savingsAtCart(d, cart.totalPrice)
+    // Discounts with no monetary savings (e.g. free shipping) or no code
+    // can't use the "Saved $X with 'CODE'" / "Save $X with 'CODE'" templates
+    // — they'd render as "Saved $0.00 with ''". Fall back to the discount's
+    // own title / shortSummary in that case.
+    const hasMonetary = abs > 0 && code
     let messageText = ''
-    if (mode === 'applied' || mode === 'auto-applied') {
+    if ((mode === 'applied' || mode === 'auto-applied') && hasMonetary) {
       messageText = buildAppliedMessage(d, cart.totalPrice, config, labels, money)
-    } else if (mode === 'applicable') {
+    } else if (mode === 'applicable' && hasMonetary) {
       messageText = buildApplicableMessage(d, cart.totalPrice, config, labels, money)
     } else {
-      messageText = d.shortSummary || d.title || ''
+      messageText = d.title || d.shortSummary || ''
     }
     if (config.showSavingsCallout || mode === 'applied' || mode === 'auto-applied') {
       main.appendChild(buildMessageNode(messageText, code))
@@ -674,8 +680,10 @@
       body.appendChild(subrow)
     }
 
-    // Code chip + copy button (off by default — only full applicable cards).
-    if (config.showCodeChip && code && isFullCard) {
+    // Code chip + copy button (off by default — only full applicable cards
+    // when NOT the best-offer card, since the best-offer subrow already
+    // shows the code next to the pill).
+    if (config.showCodeChip && code && isFullCard && !isBestOffer) {
       const chipRow = el('div', 'sai-cbpwlx29__row')
       const chip = el('span', 'sai-cbpwlx29__code-chip', { text: code })
       chipRow.appendChild(chip)
