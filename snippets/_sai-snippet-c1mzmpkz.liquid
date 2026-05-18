@@ -670,18 +670,20 @@
 }
 
 /* Inline "show more / show less" toggle — appended inside the description
- * paragraph. Inherits the description's normal weight and font size; just
- * a slightly darker grey for visual emphasis. No bold, no underline. */
+ * paragraph. Inherits the description's normal weight and font size, sits
+ * a notch darker than the muted body text (0.55) for subtle emphasis,
+ * with a small left padding so it doesn't crash into the ellipsis. */
 .sai-c1mzmpkz__description .sai-c1mzmpkz__description-toggle {
   display: inline;
   background: none;
   border: 0;
   padding: 0;
+  padding-inline-start: 0.25rem;
   margin: 0;
   font: inherit;
   font-size: inherit;
   font-weight: inherit;
-  color: rgba(0, 0, 0, 0.7);
+  color: rgba(0, 0, 0, 0.78);
   text-decoration: none;
   cursor: pointer;
   vertical-align: baseline;
