@@ -73,10 +73,11 @@
     return []
   }
 
-  function collectDiscounts(lines) {
+  function collectDiscounts(discountsByVariant) {
     const byKey = new Map()
-    for (const line of lines || []) {
-      const list = parseDiscountsBlob(line.discounts)
+    if (!discountsByVariant || typeof discountsByVariant !== 'object') return []
+    for (const variantId of Object.keys(discountsByVariant)) {
+      const list = parseDiscountsBlob(discountsByVariant[variantId])
       for (const d of list) {
         const key = (d.id != null ? `id:${d.id}` : '') || (Array.isArray(d.codes) && d.codes[0] ? `code:${d.codes[0]}` : null) || `t:${d.title || d.shortSummary || ''}`
         if (!byKey.has(key)) byKey.set(key, d)
@@ -518,12 +519,11 @@
     try { payload = JSON.parse(payloadScript.textContent || '{}') } catch (_) { return }
 
     const config = payload.config || {}
-    const lines = Array.isArray(payload.lines) ? payload.lines : []
     const cart = payload.cart || { subtotal: 0, appliedCodes: [] }
     const subtotal = Number(cart.subtotal) || 0
     const appliedCodes = (cart.appliedCodes || []).map((c) => String(c).toUpperCase())
 
-    const raw = collectDiscounts(lines)
+    const raw = collectDiscounts(payload.discountsByVariant || {})
     const recomputed = raw.map((d) => recompute(d, subtotal))
 
     const applied = []
