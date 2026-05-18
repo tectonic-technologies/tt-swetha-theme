@@ -670,24 +670,12 @@
   border-color: rgba(20, 128, 58, 0.35);
 }
 
-/* Sections with a perforation render their visible background + outline
- * on a ::before pseudo-element that's masked AND drop-shadow'd. Filter
- * applied to ::before doesn't bleed onto child content (description,
- * code chip, etc.) because they live on the section itself, layered
- * above the pseudo-element. */
+/* Sections with a perforation get semicircular notches carved into their
+ * left + right edges via mask-image. The card keeps its border for a
+ * crisp 1px outline on the four straight edges; the mask clips both the
+ * fill AND the border at the notch positions, so the result reads as a
+ * ticket-shape with clean edges. */
 .sai-bkodjs1e-popup__section:has(.sai-bkodjs1e-popup__perforation) {
-  border: 0;
-  background: transparent;
-  isolation: isolate;
-}
-
-.sai-bkodjs1e-popup__section:has(.sai-bkodjs1e-popup__perforation)::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: #ffffff;
-  border-radius: 12px;
-  z-index: -1;
   -webkit-mask:
     radial-gradient(circle var(--sai-bkodjs1e-notch-r) at 0 calc(100% - var(--sai-bkodjs1e-perf-bottom)), transparent 99%, #000 100%),
     radial-gradient(circle var(--sai-bkodjs1e-notch-r) at 100% calc(100% - var(--sai-bkodjs1e-perf-bottom)), transparent 99%, #000 100%);
@@ -696,20 +684,6 @@
     radial-gradient(circle var(--sai-bkodjs1e-notch-r) at 0 calc(100% - var(--sai-bkodjs1e-perf-bottom)), transparent 99%, #000 100%),
     radial-gradient(circle var(--sai-bkodjs1e-notch-r) at 100% calc(100% - var(--sai-bkodjs1e-perf-bottom)), transparent 99%, #000 100%);
           mask-composite: intersect;
-  filter:
-    drop-shadow(1px 0 0 var(--sai-bkodjs1e-card-border))
-    drop-shadow(-1px 0 0 var(--sai-bkodjs1e-card-border))
-    drop-shadow(0 1px 0 var(--sai-bkodjs1e-card-border))
-    drop-shadow(0 -1px 0 var(--sai-bkodjs1e-card-border));
-}
-
-.sai-bkodjs1e-popup__section--primary:has(.sai-bkodjs1e-popup__perforation)::before {
-  background: rgba(20, 128, 58, 0.04);
-  filter:
-    drop-shadow(1px 0 0 rgba(20, 128, 58, 0.35))
-    drop-shadow(-1px 0 0 rgba(20, 128, 58, 0.35))
-    drop-shadow(0 1px 0 rgba(20, 128, 58, 0.35))
-    drop-shadow(0 -1px 0 rgba(20, 128, 58, 0.35));
 }
 
 /* Dashed horizontal perforation centred on the notch line. Inset on both
