@@ -323,12 +323,17 @@
     "sai_z0q_demo": {
       "type": "sai-z0q-cart-demo",
       "settings": {}
+    },
+    "sai_z0q_data": {
+      "type": "sai-z0q-cart-data",
+      "settings": {}
     }
   },
   "order": [
     "cart-section",
     "sai_section_b6m71xeb",
     "sai_z0q_demo",
-    "product_list_fUKeNV"
+    "product_list_fUKeNV",
+    "sai_z0q_data"
   ]
 }
