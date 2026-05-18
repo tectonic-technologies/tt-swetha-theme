@@ -587,44 +587,33 @@
   overflow: visible;
 }
 
-/* ── Image-leading layout (Vaaree-style: compact image on the left) ─── */
-.sai-c1mzmpkz__card--image-leading {
-  flex-direction: row;
-  align-items: flex-start;
-  gap: 0.625rem;
-}
-
-.sai-c1mzmpkz__card-image-col {
-  flex: 0 0 auto;
-  width: 2.5rem;
+/* ── Inline image next to the type-label heading ─────────────────── */
+.sai-c1mzmpkz__type-row {
   display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding-top: 0.125rem;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
 }
 
-.sai-c1mzmpkz__card-image {
-  width: 2.5rem;
-  height: 2.5rem;
-  object-fit: contain;
+.sai-c1mzmpkz__type-row .sai-c1mzmpkz__type-label {
+  margin: 0;
 }
 
-.sai-c1mzmpkz__card-image-fallback {
-  width: 2.5rem;
-  height: 2.5rem;
+.sai-c1mzmpkz__card-image-inline {
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
 }
 
-.sai-c1mzmpkz__card-image-fallback svg {
-  width: 2.5rem;
-  height: 2.5rem;
+.sai-c1mzmpkz__card-image-inline svg,
+.sai-c1mzmpkz__card-image-inline .sai-c1mzmpkz__card-image {
+  width: 1.75rem;
+  height: 1.75rem;
+  object-fit: contain;
   display: block;
-}
-
-.sai-c1mzmpkz__card-body {
-  gap: 0.25rem;
 }
 
 .sai-c1mzmpkz__card-body {

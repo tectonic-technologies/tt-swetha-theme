@@ -417,37 +417,22 @@
       ? ` sai-c1mzmpkz__card--potential sai-c1mzmpkz__card--treatment-${config.potentialVisualTreatment || 'subtle'}`
       : ''
 
-    // Image-leading layout (Vaaree-style): big image on the left, content
-    // in a right column. Triggered when card_icon_position is 'left' AND
-    // show_coupon_icon is on. If no URL provided, a built-in SVG coupon
-    // ticket renders as the default visual.
+    // Image is rendered inline next to the type-label heading (left of
+    // "$100.00 OFF" etc.) when `card_icon_position` is 'left'. Card stays
+    // a single-column layout; we just inject the image into the type-label
+    // row. 'top_right' keeps the legacy absolute-positioned corner icon.
     const iconPosition = config.cardIconPosition || 'top_right'
-    const useImageLeading = iconPosition === 'left' && config.showCouponIcon
+    const imageLeading = iconPosition === 'left' && config.showCouponIcon
 
-    const card = el('article', `sai-c1mzmpkz__card${treatmentClass}${useImageLeading ? ' sai-c1mzmpkz__card--image-leading' : ''}`, {
+    const card = el('article', `sai-c1mzmpkz__card${treatmentClass}`, {
       'data-discount-id': d.id || '',
       'data-applicability': (d.qualification && d.qualification.applicability) || '',
     })
 
-    let body = card
-    if (useImageLeading) {
-      const imgCol = el('div', 'sai-c1mzmpkz__card-image-col')
-      if (config.couponIconUrl) {
-        imgCol.appendChild(el('img', 'sai-c1mzmpkz__card-image', {
-          src: config.couponIconUrl,
-          alt: '',
-          loading: 'lazy',
-        }))
-      } else {
-        const fallback = el('span', 'sai-c1mzmpkz__card-image-fallback', { 'aria-hidden': 'true' })
-        fallback.innerHTML = DEFAULT_COUPON_SVG
-        imgCol.appendChild(fallback)
-      }
-      card.appendChild(imgCol)
-      body = el('div', 'sai-c1mzmpkz__card-body')
-      card.appendChild(body)
-    } else if (config.showCouponIcon && config.couponIconUrl && iconPosition !== 'none') {
-      // Legacy top-right icon.
+    const body = card
+
+    if (config.showCouponIcon && config.couponIconUrl && iconPosition === 'top_right') {
+      // Legacy top-right small icon.
       card.appendChild(el('img', 'sai-c1mzmpkz__icon', {
         src: config.couponIconUrl,
         alt: '',
@@ -457,6 +442,20 @@
       const lock = el('span', 'sai-c1mzmpkz__lock', { 'aria-hidden': 'true' })
       lock.innerHTML = lockIconSvg(config.lockIconStyle || 'lock')
       card.appendChild(lock)
+    }
+
+    function buildInlineImage() {
+      const wrap = el('span', 'sai-c1mzmpkz__card-image-inline', { 'aria-hidden': 'true' })
+      if (config.couponIconUrl) {
+        wrap.appendChild(el('img', 'sai-c1mzmpkz__card-image', {
+          src: config.couponIconUrl,
+          alt: '',
+          loading: 'lazy',
+        }))
+      } else {
+        wrap.innerHTML = DEFAULT_COUPON_SVG
+      }
+      return wrap
     }
 
     // Status badge
@@ -478,9 +477,24 @@
       body.appendChild(el('span', 'sai-c1mzmpkz__remaining sai-c1mzmpkz__remaining--badge', { text: remainingText }))
     }
 
-    // Discount type label
+    // Discount type label — image inline to the left of the heading
+    // when card_icon_position === 'left'.
     if (config.showTypeLabel) {
-      body.appendChild(el('h3', 'sai-c1mzmpkz__type-label', { text: formatTypeLabel(d, config.currencyCode) }))
+      const labelText = formatTypeLabel(d, config.currencyCode)
+      if (imageLeading) {
+        const row = el('div', 'sai-c1mzmpkz__type-row')
+        row.appendChild(buildInlineImage())
+        row.appendChild(el('h3', 'sai-c1mzmpkz__type-label', { text: labelText }))
+        body.appendChild(row)
+      } else {
+        body.appendChild(el('h3', 'sai-c1mzmpkz__type-label', { text: labelText }))
+      }
+    } else if (imageLeading) {
+      // Type label is hidden but image is still meaningful — render the
+      // image alone above the savings/description.
+      const row = el('div', 'sai-c1mzmpkz__type-row')
+      row.appendChild(buildInlineImage())
+      body.appendChild(row)
     }
 
     // Savings callout
