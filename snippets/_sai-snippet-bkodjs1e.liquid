@@ -618,15 +618,62 @@
 }
 
 .sai-bkodjs1e-popup__body {
-  padding: 0;
+  padding: 1rem 1.25rem 1.25rem;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
 }
 
+/* Each section = coupon-ticket card. Self-contained with border + radius +
+ * scalloped notches on the side edges right above the code chip (the
+ * "perforation" line). */
 .sai-bkodjs1e-popup__section {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  padding: 1rem 1.25rem;
+  padding: 0.875rem 1rem;
+  background: #ffffff;
+  border: 1px solid var(--sai-bkodjs1e-card-border);
+  border-radius: 12px;
+}
+
+.sai-bkodjs1e-popup__section--primary {
+  background: rgba(20, 128, 58, 0.04);
+  border-color: rgba(20, 128, 58, 0.35);
+}
+
+/* Dashed horizontal perforation between content and code chip. */
+.sai-bkodjs1e-popup__perforation {
+  position: relative;
+  height: 1px;
+  background: repeating-linear-gradient(to right, rgba(0, 0, 0, 0.28) 0 4px, transparent 4px 8px);
+  margin: 0.375rem -1rem 0.25rem;
+}
+
+/* Scalloped notches on left/right edges at the perforation line. The dots
+ * are the card's parent (popup body) background, masking out small
+ * semicircles from the card's edges to create the ticket look. */
+.sai-bkodjs1e-popup__perforation::before,
+.sai-bkodjs1e-popup__perforation::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 1px solid var(--sai-bkodjs1e-card-border);
+  transform: translateY(-50%);
+}
+
+.sai-bkodjs1e-popup__perforation::before { left: -9px; }
+.sai-bkodjs1e-popup__perforation::after { right: -9px; }
+
+.sai-bkodjs1e-popup__section--primary .sai-bkodjs1e-popup__perforation::before,
+.sai-bkodjs1e-popup__section--primary .sai-bkodjs1e-popup__perforation::after {
+  border-color: rgba(20, 128, 58, 0.35);
 }
 
 .sai-bkodjs1e-popup__divider {
@@ -653,38 +700,6 @@
   inline-size: 1.125rem;
   block-size: 1.125rem;
   color: var(--sai-bkodjs1e-success-fg, #14803a);
-}
-
-.sai-bkodjs1e-popup__status {
-  display: inline-flex;
-  align-items: center;
-  align-self: flex-start;
-  gap: 0.3125rem;
-  padding: 0.125rem 0.5rem 0.125rem 0.4375rem;
-  border-radius: 999px;
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  margin-bottom: 0.125rem;
-}
-
-.sai-bkodjs1e-popup__status::before {
-  content: '';
-  width: 0.4375rem;
-  height: 0.4375rem;
-  border-radius: 50%;
-  background: currentColor;
-}
-
-.sai-bkodjs1e-popup__status--current {
-  background: rgba(20, 128, 58, 0.12);
-  color: #14803a;
-}
-
-.sai-bkodjs1e-popup__status--potential {
-  background: rgba(0, 0, 0, 0.06);
-  color: rgba(0, 0, 0, 0.6);
 }
 
 .sai-bkodjs1e-popup__desc {
