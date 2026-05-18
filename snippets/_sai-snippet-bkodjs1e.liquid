@@ -139,9 +139,9 @@
   assign applicable_message_template = content.applicable_message_template | default: 'Applicable on: {description}'
   assign discount_name_prefix = content.discount_name_prefix | default: 'with'
   assign savings_delta_format = content.savings_delta_format | default: 'both'
-  assign expand_trigger_text = content.expand_trigger_text | default: 'View details'
+  assign expand_trigger_text = content.expand_trigger_text | default: 'View other offers'
   assign collapse_trigger_text = content.collapse_trigger_text | default: 'Hide details'
-  assign dropdown_trigger_text = content.dropdown_trigger_text | default: 'View details'
+  assign dropdown_trigger_text = content.dropdown_trigger_text | default: 'View other offers'
   assign dropdown_max_items = content.dropdown_max_items | default: 5
   assign sticky_modal_trigger = content.sticky_modal_trigger | default: 'tap_price'
   assign price_update_animation = content.price_update_animation | default: 'fade'
@@ -266,15 +266,16 @@
 
 .sai-bkodjs1e__best-price-row {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   flex-wrap: wrap;
-  gap: 0.375rem;
+  gap: 0.375rem 0.5rem;
   font-size: 1rem;
 }
 
 .sai-bkodjs1e__best-price-prefix {
   font-weight: 600;
   color: var(--sai-bkodjs1e-fg);
+  order: 1;
 }
 
 .sai-bkodjs1e__best-price {
@@ -283,6 +284,21 @@
   line-height: 1.1;
   letter-spacing: -0.01em;
   color: var(--sai-bkodjs1e-accent-fg);
+  order: 2;
+}
+
+/* Countdown sits inline near the price/prefix (after the price). */
+.sai-bkodjs1e__best-price-row .sai-bkodjs1e__countdown {
+  order: 3;
+  margin-inline-start: auto;
+}
+
+/* Savings drops to its own line below — no longer competes with the
+ * countdown chip for horizontal space. */
+.sai-bkodjs1e__best-price-row .sai-bkodjs1e__savings {
+  order: 4;
+  flex-basis: 100%;
+  margin-top: 0.125rem;
 }
 
 .sai-bkodjs1e__bullets {
@@ -1137,7 +1153,7 @@
 
     <ul class="sai-bkodjs1e__bullets" data-sai-bullets hidden></ul>
 
-    <ul class="sai-bkodjs1e__alt-list" data-sai-alt-list hidden></ul>
+    <div class="sai-bkodjs1e__alt-list" data-sai-alt-list hidden></div>
 
     <button type="button" class="sai-bkodjs1e__expand-trigger" data-sai-expand-trigger hidden aria-expanded="false">
       <span data-sai-expand-label>{{ expand_trigger_text | escape }}</span>
