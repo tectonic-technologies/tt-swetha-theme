@@ -712,15 +712,14 @@
     drop-shadow(0 -1px 0 rgba(20, 128, 58, 0.35));
 }
 
-/* Dashed horizontal perforation centred on the notch line. Absolutely
- * positioned so it sits flush with the notch midpoint regardless of
- * content height variation above the code chip. The translateY(-0.5px)
- * pulls the 1px-tall line up by half its height so its CENTRE — not its
- * top — sits at perf-bottom (which is where the notch centres sit). */
+/* Dashed horizontal perforation centred on the notch line. Inset on both
+ * sides by the notch radius so the dashes start at the inner edge of each
+ * semicircle, not at the card's bounding-box edge (which the mask has
+ * already cut away). */
 .sai-bkodjs1e-popup__perforation {
   position: absolute;
-  left: 0;
-  right: 0;
+  left: var(--sai-bkodjs1e-notch-r);
+  right: var(--sai-bkodjs1e-notch-r);
   bottom: var(--sai-bkodjs1e-perf-bottom);
   height: 1px;
   background: repeating-linear-gradient(to right, rgba(0, 0, 0, 0.28) 0 4px, transparent 4px 8px);
