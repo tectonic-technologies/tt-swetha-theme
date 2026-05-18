@@ -465,18 +465,25 @@
     panel.appendChild(scroll)
     page.appendChild(panel)
 
-    // Append + scroll lock. Append first (in initial off-screen state per
-    // CSS), then on next animation frame add `--open` so the transition
-    // plays. Without the rAF, the browser may collapse the two states and
-    // skip the animation entirely.
+    // Append + scroll lock + animate via Web Animations API. WAAPI is more
+    // reliable than CSS transitions on dynamically-portalled elements
+    // because it doesn't depend on initial-state CSS being applied before
+    // the change class is added.
     document.body.appendChild(page)
     const prevOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    // Force a layout read, then add open class on next frame.
-    void page.offsetWidth
-    requestAnimationFrame(() => {
-      page.classList.add(`${TAG}-page--open`)
-    })
+    page.classList.add(`${TAG}-page--open`)
+    const slideKf = config.pageEntryAnimation === 'slide_up'
+      ? [{ transform: 'translateY(100%)' }, { transform: 'translateY(0)' }]
+      : config.pageEntryAnimation === 'fade'
+      ? [{ opacity: 0 }, { opacity: 1 }]
+      : [{ transform: 'translateX(100%)' }, { transform: 'translateX(0)' }]
+    const easing = 'cubic-bezier(0.22, 0.61, 0.36, 1)'
+    const duration = config.pageEntryAnimation === 'fade' ? 200 : 280
+    try {
+      panel.animate(slideKf, { duration, easing, fill: 'both' })
+      backdrop.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 220, easing: 'ease-out', fill: 'both' })
+    } catch (_) { /* WAAPI unsupported, fall back to instant open */ }
 
     // Card-level Apply.
     scroll.addEventListener('click', (e) => {
@@ -497,17 +504,32 @@
       host._pageClosing = true
       document.removeEventListener('keydown', onEsc)
       ctx.track(`${FEATURE_SLUG}:page_closed`, {})
-      // Removing --open reverses the transition (panel slides back out,
-      // backdrop fades). Unmount after the transition duration.
-      page.classList.remove(`${TAG}-page--open`)
       page.style.pointerEvents = 'none'
+      const exitKf = config.pageEntryAnimation === 'slide_up'
+        ? [{ transform: 'translateY(0)' }, { transform: 'translateY(100%)' }]
+        : config.pageEntryAnimation === 'fade'
+        ? [{ opacity: 1 }, { opacity: 0 }]
+        : [{ transform: 'translateX(0)' }, { transform: 'translateX(100%)' }]
+      const easing = 'cubic-bezier(0.4, 0, 1, 1)'
       const duration = config.pageEntryAnimation === 'fade' ? 200 : 280
-      window.setTimeout(() => {
+      let panelAnim = null
+      try {
+        panelAnim = panel.animate(exitKf, { duration, easing, fill: 'forwards' })
+        backdrop.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220, easing: 'ease-in', fill: 'forwards' })
+      } catch (_) { /* WAAPI unsupported */ }
+      const unmount = () => {
         host._pageOpen = false
         host._pageClosing = false
         document.body.style.overflow = prevOverflow
         page.remove()
-      }, duration + 20)
+      }
+      if (panelAnim) {
+        panelAnim.onfinish = unmount
+        // Belt-and-braces in case onfinish doesn't fire.
+        window.setTimeout(unmount, duration + 60)
+      } else {
+        window.setTimeout(unmount, duration + 60)
+      }
     }
     function onEsc(e) { if (e.key === 'Escape') closePage() }
     document.addEventListener('keydown', onEsc)
