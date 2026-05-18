@@ -664,8 +664,10 @@
       }
     }
 
-    // Progress bar (threshold coupons).
-    if (config.showProgressBar && mode !== 'applied') {
+    // Progress bar — only for potential (not-yet-eligible) coupons.
+    // Applied + applicable coupons don't need a progress bar; their state
+    // is already obvious from the message + CTA.
+    if (config.showProgressBar && mode === 'potential') {
       const progressNode = buildProgress(d, ctx, mode)
       if (progressNode) body.appendChild(progressNode)
     }
@@ -751,9 +753,14 @@
     if (isPotential(d)) {
       const q = d.qualification || {}
       const required = Number(q.requiredValue)
-      const current = q.progressMetric === 'quantity' ? cart.itemCount : cart.totalPrice
+      // Use the server-recomputed currentValue (set by recomputeAgainstCart)
+      // rather than raw cart.totalPrice — keeps quantity-metric coupons honest
+      // when the qualification context isn't the cart subtotal.
+      const current = Number.isFinite(Number(q.currentValue))
+        ? Number(q.currentValue)
+        : (q.progressMetric === 'quantity' ? cart.itemCount : cart.totalPrice)
       const remaining = Number(q.remainingValue)
-      const meta = el('div', 'sai-cbpwlx29__next-coupon-meta', {
+      row.appendChild(el('div', 'sai-cbpwlx29__next-coupon-meta', {
         text: Number.isFinite(remaining) && remaining > 0
           ? fillTemplate(labels.remainingAmountTemplate || 'Add {remaining} more to unlock', {
               remaining: formatRemainingValue(d, money),
@@ -761,25 +768,24 @@
               current: formatCurrentValue(d, cart, money),
             })
           : '',
-      })
-      row.appendChild(meta)
+      }))
 
-      if (config.showProgressBar && Number.isFinite(required) && required > 0) {
-        const pct = Math.max(0, Math.min(1, current / required))
+      // Progress bar only when there's genuine progress to show (cart hasn't
+      // already met the threshold) — a 100%-filled bar on a potential coupon
+      // is misleading, so we hard-cap pct < 1 when remaining > 0.
+      if (config.showProgressBar && Number.isFinite(required) && required > 0
+        && Number.isFinite(remaining) && remaining > 0) {
+        const pctRaw = current / required
+        const pct = Math.max(0, Math.min(0.95, pctRaw))
         const track = el('div', 'sai-cbpwlx29__next-coupon-track')
         const fill = el('div', 'sai-cbpwlx29__next-coupon-fill')
         fill.style.setProperty('--sai-cbpwlx29-progress-pct', String(pct))
         track.appendChild(fill)
         row.appendChild(track)
       }
-    } else if (isApplicable(d)) {
-      const saving = savingsAtCart(d, cart.totalPrice)
-      if (saving > 0) {
-        row.appendChild(el('div', 'sai-cbpwlx29__next-coupon-meta', {
-          text: labels.thresholdMetMessage || 'Eligible to apply',
-        }))
-      }
     }
+    // Applicable + applied alternatives don't get a progress bar — the
+    // inline APPLY chip already communicates state.
     return row
   }
 
@@ -1131,9 +1137,14 @@
       totalPrice: Number.isFinite(Number(baseCart.totalPrice)) ? Number(baseCart.totalPrice) : 0,
       itemCount: Number.isFinite(Number(baseCart.itemCount)) ? Number(baseCart.itemCount) : 0,
       currency: baseCart.currency || 'USD',
-      appliedDiscountCodes: Array.isArray(baseCart.appliedDiscountCodes)
-        ? baseCart.appliedDiscountCodes.map((c) => String(c).toUpperCase())
-        : [],
+      // Dedupe: cart.discount_codes and cart.cart_level_discount_applications
+      // overlap for code-based discounts. Set-based dedupe + uppercase
+      // canonicalisation makes isApplied() match regardless of source.
+      appliedDiscountCodes: Array.from(new Set(
+        (Array.isArray(baseCart.appliedDiscountCodes) ? baseCart.appliedDiscountCodes : [])
+          .map((c) => String(c).toUpperCase().trim())
+          .filter(Boolean)
+      )),
     }
 
     // Union + dedupe + recompute against live cart.

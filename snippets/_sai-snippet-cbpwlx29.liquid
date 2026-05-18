@@ -710,13 +710,35 @@
     "itemCount": {{ cart.item_count | default: 0 | json }},
     "currency": {{ currency_code | json }},
     "appliedDiscountCodes": [
+      {%- assign sai_dc_first = true -%}
       {%- for dc in cart.discount_codes -%}
-        {%- if dc.applicable -%}{{ dc.code | upcase | json }}{%- unless forloop.last -%},{%- endunless -%}{%- endif -%}
+        {%- if dc.applicable -%}
+          {%- unless sai_dc_first -%},{%- endunless -%}
+          {{ dc.code | upcase | json }}
+          {%- assign sai_dc_first = false -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {%- comment -%}
+        Cart-level discount applications carry both code-based and automatic
+        discounts that are CURRENTLY APPLIED to the cart. cart.discount_codes
+        only carries code-based attempts and can be empty for automatic
+        discounts. Union both so the snippet detects applied state correctly.
+      {%- endcomment -%}
+      {%- for app in cart.cart_level_discount_applications -%}
+        {%- if app.target_selection != nil or app.title != blank -%}
+          {%- assign app_code = app.title | upcase -%}
+          {%- unless sai_dc_first -%},{%- endunless -%}
+          {{ app_code | json }}
+          {%- assign sai_dc_first = false -%}
+        {%- endif -%}
       {%- endfor -%}
     ],
     "cartLevelDiscountTitles": [
+      {%- assign sai_app_first = true -%}
       {%- for app in cart.cart_level_discount_applications -%}
-        {{ app.title | json }}{%- unless forloop.last -%},{%- endunless -%}
+        {%- unless sai_app_first -%},{%- endunless -%}
+        {{ app.title | json }}
+        {%- assign sai_app_first = false -%}
       {%- endfor -%}
     ]
   },
