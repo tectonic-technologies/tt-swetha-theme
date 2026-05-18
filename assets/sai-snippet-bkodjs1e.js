@@ -959,10 +959,28 @@
         section.className = 'sai-bkodjs1e-popup__section' + (isPrimary ? ' sai-bkodjs1e-popup__section--primary' : '')
 
         if (d.summary || d.shortSummary) {
-          const p = document.createElement('p')
-          p.className = 'sai-bkodjs1e-popup__desc'
-          p.textContent = d.summary || d.shortSummary
-          section.appendChild(p)
+          // Shopify discount summaries cram multiple facts onto one line with
+          // ` • ` separators ("$50.00 off … • Minimum purchase of $500.00 •
+          // For all countries"). Split into separate lines so each fact reads
+          // cleanly.
+          const raw = d.summary || d.shortSummary
+          const parts = String(raw).split(/\s*•\s*/).map((s) => s.trim()).filter(Boolean)
+          if (parts.length > 1) {
+            const ul = document.createElement('ul')
+            ul.className = 'sai-bkodjs1e-popup__desc-list'
+            for (const part of parts) {
+              const li = document.createElement('li')
+              li.className = 'sai-bkodjs1e-popup__desc-item'
+              li.textContent = part
+              ul.appendChild(li)
+            }
+            section.appendChild(ul)
+          } else {
+            const p = document.createElement('p')
+            p.className = 'sai-bkodjs1e-popup__desc'
+            p.textContent = raw
+            section.appendChild(p)
+          }
         }
 
         const saving = savingsAtQty1(d, productPrice)
