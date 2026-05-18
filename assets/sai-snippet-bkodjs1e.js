@@ -1203,13 +1203,15 @@
 
         const money = this._moneyFn()
         const productPrice = centsToDecimal(this._state.product.price)
+        const displayMode = this._state.config.displayMode
 
-        // "Other Offers" header only when called directly from the inline
-        // callout (the always-visible mode). The expandable card's trigger
-        // already labels the alternatives ("View other offers" / "Hide
-        // other offers"), so a duplicate divider there would be redundant.
-        // `alreadyAttached` is true when called from expandable/popup paths.
-        if (!alreadyAttached && this._state.config.displayMode === 'default') {
+        // Inline-callout mode: plain text rows (name + meta) — no card chrome.
+        // Expandable / dropdown popup: full ticket cards via _buildPopupSection.
+        const useFlatRows = displayMode === 'default'
+
+        // "Other Offers" header — only in inline mode where the section needs
+        // a label. Expandable mode's trigger already labels it.
+        if (!alreadyAttached && useFlatRows) {
           const TAG_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m15 9-6 6"/><circle cx="9.5" cy="9.5" r=".75" fill="currentColor"/><circle cx="14.5" cy="14.5" r=".75" fill="currentColor"/></svg>'
           const divider = document.createElement('div')
           divider.className = 'sai-bkodjs1e-popup__divider'
@@ -1218,11 +1220,15 @@
         }
 
         const cap =
-          this._state.config.displayMode === 'dropdown'
+          displayMode === 'dropdown'
             ? Math.max(1, Number(this._state.config.dropdownMaxItems) || 5)
             : evaluated.alternatives.length
         for (const item of evaluated.alternatives.slice(0, cap)) {
-          container.appendChild(this._buildPopupSection(item.d, productPrice, money, false))
+          if (useFlatRows) {
+            container.appendChild(this._buildAltItem(item, productPrice, money))
+          } else {
+            container.appendChild(this._buildPopupSection(item.d, productPrice, money, false))
+          }
         }
 
         if (!alreadyAttached) {
