@@ -1,27 +1,701 @@
-<div style="background:#1f7a3a;color:#fff;padding:12px;margin:8px 0;font:bold 16px sans-serif;">SNIPPET A: before liquid block</div>
+{% doc %}
+  View All Offers (Cart).
+
+  Renders a small entry CTA on the cart that opens a full-page
+  "Apply Coupon" view (drawer / fullscreen) listing every discount
+  across all cart-line variants in three sections — Applied,
+  Applicable (Best Coupon), Potentially Applicable (More Offers).
+
+  Metaobject-backed: all configuration is placement-wide; the data
+  (per-variant `spectrum.discounts` metafield) varies by what's in cart.
+
+  @param mutation_handle    {string}   wrapper-injected
+  @param experience_handle  {string}   wrapper-injected
+  @param variant            {object}   resolved snippet-instance variant
+{% enddoc %}
 
 {%- liquid
   assign content = variant.content
+  # Coerce the template drop to a string. `template | append: ''` is the
+  # canonical idiom — direct `template | default: ''` keeps it as a drop and
+  # the subsequent `contains` check silently fails (always false), which is
+  # what hid the snippet entirely on the cart page.
   assign template_name = template | append: ''
+
   if content.enabled == nil
     assign enabled = true
   else
     assign enabled = content.enabled
   endif
+
+  assign entry_cta_text = content.entry_cta_text | default: 'View All Offers'
+  assign entry_cta_style = content.entry_cta_style | default: 'card'
+  assign entry_cta_icon = content.entry_cta_icon | default: 'percent'
+
+  if content.entry_cta_show_count == nil
+    assign entry_cta_show_count = false
+  else
+    assign entry_cta_show_count = content.entry_cta_show_count
+  endif
+  if content.entry_cta_show_max_savings == nil
+    assign entry_cta_show_max_savings = false
+  else
+    assign entry_cta_show_max_savings = content.entry_cta_show_max_savings
+  endif
+  assign entry_cta_min_coupons = content.entry_cta_min_coupons | default: 1
+
+  assign page_title = content.page_title | default: 'Apply Coupon'
+  assign page_entry_animation = content.page_entry_animation | default: 'slide_right'
+  assign page_close_style = content.page_close_style | default: 'back_arrow'
+  if content.page_header_sticky == nil
+    assign page_header_sticky = true
+  else
+    assign page_header_sticky = content.page_header_sticky
+  endif
+
+  if content.show_input_form == nil
+    assign show_input_form = true
+  else
+    assign show_input_form = content.show_input_form
+  endif
+  assign input_position = content.input_position | default: 'top'
+  assign input_placeholder = content.input_placeholder | default: 'Enter your coupon code'
+  assign input_apply_label = content.input_apply_label | default: 'Apply'
+  if content.input_auto_uppercase == nil
+    assign input_auto_uppercase = true
+  else
+    assign input_auto_uppercase = content.input_auto_uppercase
+  endif
+  assign input_max_length = content.input_max_length | default: 32
+
+  assign section_display_order = content.section_display_order | default: 'applicable_first'
+  if content.show_section_count_badge == nil
+    assign show_section_count_badge = false
+  else
+    assign show_section_count_badge = content.show_section_count_badge
+  endif
+  if content.show_section_divider == nil
+    assign show_section_divider = false
+  else
+    assign show_section_divider = content.show_section_divider
+  endif
+
+  assign applied_header_text = content.applied_header_text | default: 'Applied'
+  assign applied_sort = content.applied_sort | default: 'highest_savings'
+  assign applied_max_visible = content.applied_max_visible | default: 5
+
+  assign applicable_header_text = content.applicable_header_text | default: 'Best Coupon'
+  assign applicable_sort = content.applicable_sort | default: 'highest_savings'
+  assign applicable_max_visible = content.applicable_max_visible | default: 5
+
+  assign potential_header_text = content.potential_header_text | default: 'More Offers'
+  assign potential_sort = content.potential_sort | default: 'closest_to_qualify'
+  assign potential_max_visible = content.potential_max_visible | default: 10
+
+  if content.enable_collapsible_sections == nil
+    assign enable_collapsible_sections = false
+  else
+    assign enable_collapsible_sections = content.enable_collapsible_sections
+  endif
+  if content.default_collapsed_applied == nil
+    assign default_collapsed_applied = false
+  else
+    assign default_collapsed_applied = content.default_collapsed_applied
+  endif
+  if content.default_collapsed_applicable == nil
+    assign default_collapsed_applicable = false
+  else
+    assign default_collapsed_applicable = content.default_collapsed_applicable
+  endif
+  if content.default_collapsed_potential == nil
+    assign default_collapsed_potential = true
+  else
+    assign default_collapsed_potential = content.default_collapsed_potential
+  endif
+  assign collapse_indicator = content.collapse_indicator | default: 'chevron'
+
+  if content.show_code_chip == nil
+    assign show_code_chip = true
+  else
+    assign show_code_chip = content.show_code_chip
+  endif
+  if content.show_copy_code_button == nil
+    assign show_copy_code_button = true
+  else
+    assign show_copy_code_button = content.show_copy_code_button
+  endif
+  if content.show_discount_type_label == nil
+    assign show_discount_type_label = true
+  else
+    assign show_discount_type_label = content.show_discount_type_label
+  endif
+  if content.show_description == nil
+    assign show_description = true
+  else
+    assign show_description = content.show_description
+  endif
+  assign description_max_lines = content.description_max_lines | default: 2
+  if content.description_expandable == nil
+    assign description_expandable = true
+  else
+    assign description_expandable = content.description_expandable
+  endif
+  if content.show_savings_callout == nil
+    assign show_savings_callout = true
+  else
+    assign show_savings_callout = content.show_savings_callout
+  endif
+  assign savings_format = content.savings_format | default: 'absolute'
+  if content.show_remaining_amount == nil
+    assign show_remaining_amount = true
+  else
+    assign show_remaining_amount = content.show_remaining_amount
+  endif
+  assign remaining_amount_template = content.remaining_amount_template | default: 'Add {remaining} more to unlock'
+  if content.show_expiry_display == nil
+    assign show_expiry_display = false
+  else
+    assign show_expiry_display = content.show_expiry_display
+  endif
+  assign expiry_format = content.expiry_format | default: 'relative'
+  assign apply_button_text = content.apply_button_text | default: 'APPLY'
+  assign remove_link_text = content.remove_link_text | default: 'APPLIED'
+  assign apply_loading_text = content.apply_loading_text | default: 'Applying…'
+  if content.show_terms == nil
+    assign show_terms = false
+  else
+    assign show_terms = content.show_terms
+  endif
+  assign terms_label = content.terms_label | default: 'Terms & Conditions'
+  if content.show_coupon_asset == nil
+    assign show_coupon_asset = true
+  else
+    assign show_coupon_asset = content.show_coupon_asset
+  endif
+  if content.show_min_order_threshold == nil
+    assign show_min_order_threshold = false
+  else
+    assign show_min_order_threshold = content.show_min_order_threshold
+  endif
+
+  assign currency_code = shop.currency
 -%}
 
-<div style="background:#1f7a3a;color:#fff;padding:12px;margin:8px 0;font:bold 16px sans-serif;">SNIPPET B: after liquid block — enabled = {{ enabled }}, template = {{ template_name }}</div>
+{% stylesheet %}
+.sai-z0q31ww1 {
+  --sai-z0q31ww1-fg: #1a1a1a;
+  --sai-z0q31ww1-muted-fg: rgba(0, 0, 0, 0.55);
+  --sai-z0q31ww1-border: rgba(0, 0, 0, 0.08);
+  --sai-z0q31ww1-bg: #ffffff;
+  --sai-z0q31ww1-applied-bg: #1f7a3a;
+  --sai-z0q31ww1-applicable-bg: #c2632e;
+  --sai-z0q31ww1-potential-bg: rgba(0, 0, 0, 0.32);
+  --sai-z0q31ww1-success-fg: #1f7a3a;
+  --sai-z0q31ww1-cta-fg: #c2632e;
 
-{%- if enabled -%}
-  <div style="background:#c2632e;color:#fff;padding:12px;margin:8px 0;font:bold 16px sans-serif;">SNIPPET C: enabled branch entered</div>
+  display: block;
+  width: calc(100% - 2rem);
+  max-width: 1200px;
+  margin: 1rem auto;
+  font-family: var(--sai-font-body, inherit);
+  color: var(--sai-z0q31ww1-fg);
+  box-sizing: border-box;
+}
 
-  <button type="button" data-sai-entry style="display:flex;align-items:center;gap:12px;width:calc(100% - 2rem);max-width:1200px;margin:1rem auto;padding:16px;background:#fff;border:1px solid rgba(0,0,0,0.08);border-radius:10px;box-shadow:0 2px 6px rgba(0,0,0,0.08);cursor:pointer;font-size:16px;font-weight:700;color:#1a1a1a;">
-    <span style="width:28px;height:28px;color:#1f7a3a;">
-      <svg viewBox="0 0 32 32" aria-hidden="true"><path fill="currentColor" d="M16 0c1.4 1.9 3.6 1.1 5.6 1.5.4 2 1.9 3.5 4 3.7-.4 2 1 3.8 2.7 5-1 1.8-.5 4 1 5.3-1.5 1.3-2 3.5-1 5.3-1.7 1.2-3.1 3-2.7 5-2.1.2-3.6 1.7-4 3.7-2-.4-4.2.4-5.6 2.3-1.4-1.9-3.6-2.7-5.6-2.3-.4-2-1.9-3.5-4-3.7.4-2-1-3.8-2.7-5 1-1.8.5-4-1-5.3 1.5-1.3 2-3.5 1-5.3 1.7-1.2 3.1-3 2.7-5 2.1-.2 3.6-1.7 4-3.7 2 .4 4.2-.4 5.6-2.3z"/><path d="M21 11 11 21" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>
-    </span>
-    <span style="flex:1;">View All Offers (DEBUG)</span>
-    <span>›</span>
-  </button>
-{%- endif -%}
+.sai-z0q31ww1 *,
+.sai-z0q31ww1 *::before,
+.sai-z0q31ww1 *::after { box-sizing: border-box; }
 
-<div style="background:#1f7a3a;color:#fff;padding:12px;margin:8px 0;font:bold 16px sans-serif;">SNIPPET D: after enabled block</div>
+.sai-z0q31ww1--hidden { display: none; }
+
+/* ── Entry CTA ─────────────────────────────────────────────────────── */
+
+.sai-z0q31ww1__entry {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  background: var(--sai-z0q31ww1-bg);
+  border: 1px solid var(--sai-z0q31ww1-border);
+  border-radius: 0.625rem;
+  padding: 0.875rem 1rem;
+  cursor: pointer;
+  appearance: none;
+  font: inherit;
+  text-align: left;
+  color: var(--sai-z0q31ww1-fg);
+}
+
+.sai-z0q31ww1__entry-icon {
+  flex: 0 0 auto;
+  width: 1.75rem;
+  height: 1.75rem;
+  color: var(--sai-z0q31ww1-applied-bg);
+}
+
+.sai-z0q31ww1__entry-icon svg { width: 100%; height: 100%; }
+
+.sai-z0q31ww1__entry-text {
+  flex: 1 1 auto;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.sai-z0q31ww1__entry-meta {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: var(--sai-z0q31ww1-muted-fg);
+  margin-top: 0.125rem;
+}
+
+.sai-z0q31ww1__entry-chevron {
+  flex: 0 0 auto;
+  color: var(--sai-z0q31ww1-muted-fg);
+}
+
+/* ── Page (rendered into <body> on open) ────────────────────────────── */
+
+.sai-z0q31ww1-page {
+  /* The page is portalled into <body>, outside the .sai-z0q31ww1 host that
+   * owns the CSS variables, so we redeclare the design tokens here. */
+  --sai-z0q31ww1-fg: #1a1a1a;
+  --sai-z0q31ww1-muted-fg: rgba(0, 0, 0, 0.55);
+  --sai-z0q31ww1-border: rgba(0, 0, 0, 0.08);
+  --sai-z0q31ww1-bg: #ffffff;
+  --sai-z0q31ww1-applied-bg: #1f7a3a;
+  --sai-z0q31ww1-applicable-bg: #c2632e;
+  --sai-z0q31ww1-potential-bg: rgba(0, 0, 0, 0.32);
+  --sai-z0q31ww1-success-fg: #1f7a3a;
+  --sai-z0q31ww1-cta-fg: #c2632e;
+
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  justify-content: flex-end;
+  font-family: var(--sai-font-body, inherit);
+  color: var(--sai-z0q31ww1-fg);
+  box-sizing: border-box;
+}
+
+.sai-z0q31ww1-page *,
+.sai-z0q31ww1-page *::before,
+.sai-z0q31ww1-page *::after { box-sizing: border-box; }
+
+.sai-z0q31ww1-page__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  animation: sai-z0q31ww1-backdrop-in 200ms ease-out;
+}
+
+.sai-z0q31ww1-page__panel {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 400px;
+  height: 100%;
+  background: var(--sai-z0q31ww1-bg);
+  display: flex;
+  flex-direction: column;
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.12);
+}
+
+.sai-z0q31ww1-page--enter-slide-right .sai-z0q31ww1-page__panel { animation: sai-z0q31ww1-slide-right-in 260ms cubic-bezier(0.22, 0.61, 0.36, 1); }
+.sai-z0q31ww1-page--enter-slide-up .sai-z0q31ww1-page__panel { animation: sai-z0q31ww1-slide-up-in 260ms cubic-bezier(0.22, 0.61, 0.36, 1); }
+.sai-z0q31ww1-page--enter-fade { animation: sai-z0q31ww1-fade-in 200ms ease-out; }
+
+/* Exit — applied by JS on close, animation runs then JS removes the page. */
+.sai-z0q31ww1-page--exit { pointer-events: none; }
+.sai-z0q31ww1-page--exit .sai-z0q31ww1-page__backdrop { animation: sai-z0q31ww1-backdrop-out 220ms ease-out forwards; }
+.sai-z0q31ww1-page--exit-slide-right .sai-z0q31ww1-page__panel { animation: sai-z0q31ww1-slide-right-out 260ms cubic-bezier(0.4, 0, 1, 1) forwards; }
+.sai-z0q31ww1-page--exit-slide-up .sai-z0q31ww1-page__panel { animation: sai-z0q31ww1-slide-up-out 260ms cubic-bezier(0.4, 0, 1, 1) forwards; }
+.sai-z0q31ww1-page--exit-fade { animation: sai-z0q31ww1-fade-out 200ms ease-in forwards; }
+
+@keyframes sai-z0q31ww1-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sai-z0q31ww1-backdrop-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes sai-z0q31ww1-slide-right-in { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes sai-z0q31ww1-slide-right-out { from { transform: translateX(0); } to { transform: translateX(100%); } }
+@keyframes sai-z0q31ww1-slide-up-in { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes sai-z0q31ww1-slide-up-out { from { transform: translateY(0); } to { transform: translateY(100%); } }
+@keyframes sai-z0q31ww1-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sai-z0q31ww1-fade-out { from { opacity: 1; } to { opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .sai-z0q31ww1-page__backdrop,
+  .sai-z0q31ww1-page--enter-slide-right .sai-z0q31ww1-page__panel,
+  .sai-z0q31ww1-page--enter-slide-up .sai-z0q31ww1-page__panel,
+  .sai-z0q31ww1-page--exit-slide-right .sai-z0q31ww1-page__panel,
+  .sai-z0q31ww1-page--exit-slide-up .sai-z0q31ww1-page__panel,
+  .sai-z0q31ww1-page--enter-fade,
+  .sai-z0q31ww1-page--exit-fade { animation: none; }
+}
+
+@media (max-width: 480px) {
+  .sai-z0q31ww1-page__panel { max-width: 100%; }
+}
+
+.sai-z0q31ww1-page__header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid var(--sai-z0q31ww1-border);
+  background: var(--sai-z0q31ww1-bg);
+}
+
+.sai-z0q31ww1-page__header--sticky {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.sai-z0q31ww1-page__close {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0.25rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--sai-z0q31ww1-fg);
+}
+
+.sai-z0q31ww1-page__title {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.sai-z0q31ww1-page__scroll {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 0 1rem 1.5rem;
+}
+
+.sai-z0q31ww1-page__input-form {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  margin: 0.75rem 0 1.25rem;
+  border: 1px solid var(--sai-z0q31ww1-border);
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.sai-z0q31ww1-page__input {
+  flex: 1 1 auto;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0.75rem 0.875rem;
+  font: inherit;
+  font-size: 0.9375rem;
+  color: var(--sai-z0q31ww1-fg);
+  outline: none;
+}
+
+.sai-z0q31ww1-page__input::placeholder { color: var(--sai-z0q31ww1-muted-fg); }
+
+.sai-z0q31ww1-page__input-apply {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-left: 1px solid var(--sai-z0q31ww1-border);
+  padding: 0 1rem;
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--sai-z0q31ww1-cta-fg);
+  cursor: pointer;
+}
+
+.sai-z0q31ww1-page__feedback {
+  margin: 0.25rem 0 1rem;
+  font-size: 0.8125rem;
+}
+
+.sai-z0q31ww1-page__feedback--error { color: #b00020; }
+.sai-z0q31ww1-page__feedback--success { color: var(--sai-z0q31ww1-success-fg); }
+
+.sai-z0q31ww1-page__section { margin: 1rem 0 0.5rem; }
+
+.sai-z0q31ww1-page__section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 0.625rem;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.sai-z0q31ww1-page__section-count {
+  display: inline-flex;
+  min-width: 1.25rem;
+  padding: 0 0.4rem;
+  height: 1.25rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--sai-z0q31ww1-muted-fg);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.sai-z0q31ww1-page__section-toggle {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--sai-z0q31ww1-fg);
+}
+
+.sai-z0q31ww1-page__section-body[data-collapsed='true'] { display: none; }
+
+/* ── Coupon card ────────────────────────────────────────────────────── */
+
+.sai-z0q31ww1-card {
+  display: grid;
+  grid-template-columns: 3rem 1fr auto;
+  gap: 0;
+  background: #ffffff;
+  border: 0;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  margin-bottom: 0.875rem;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04);
+}
+
+.sai-z0q31ww1-card__bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  min-height: 100%;
+  padding: 0.625rem 0;
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+
+.sai-z0q31ww1-card[data-state='applied'] .sai-z0q31ww1-card__bar { background: var(--sai-z0q31ww1-applied-bg); }
+.sai-z0q31ww1-card[data-state='applicable'] .sai-z0q31ww1-card__bar { background: var(--sai-z0q31ww1-applicable-bg); }
+.sai-z0q31ww1-card[data-state='potential'] .sai-z0q31ww1-card__bar { background: var(--sai-z0q31ww1-potential-bg); }
+
+.sai-z0q31ww1-card[data-state='potential'] { color: var(--sai-z0q31ww1-muted-fg); }
+.sai-z0q31ww1-card[data-state='potential'] .sai-z0q31ww1-card__code { color: var(--sai-z0q31ww1-muted-fg); }
+
+.sai-z0q31ww1-card__body {
+  padding: 0.75rem 1rem;
+  min-width: 0;
+}
+
+.sai-z0q31ww1-card__code {
+  font-family: var(--sai-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-weight: 700;
+  font-size: 0.9375rem;
+  letter-spacing: 0.04em;
+  color: var(--sai-z0q31ww1-fg);
+}
+
+.sai-z0q31ww1-card__savings {
+  margin-top: 0.125rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--sai-z0q31ww1-success-fg);
+}
+
+.sai-z0q31ww1-card__remaining {
+  margin-top: 0.125rem;
+  font-size: 0.875rem;
+  color: var(--sai-z0q31ww1-fg);
+}
+
+.sai-z0q31ww1-card__description {
+  margin-top: 0.375rem;
+  padding-top: 0.375rem;
+  border-top: 1px dashed var(--sai-z0q31ww1-border);
+  font-size: 0.8125rem;
+  color: var(--sai-z0q31ww1-muted-fg);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--sai-z0q31ww1-desc-lines, 2);
+  overflow: hidden;
+}
+
+.sai-z0q31ww1-card__description--expanded {
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
+
+.sai-z0q31ww1-card__trailing {
+  display: flex;
+  align-items: flex-start;
+  padding: 0.75rem 1rem 0.75rem 0;
+}
+
+.sai-z0q31ww1-card__cta {
+  appearance: none;
+  background: transparent;
+  border: 1px solid var(--sai-z0q31ww1-cta-fg);
+  color: var(--sai-z0q31ww1-cta-fg);
+  border-radius: 0.25rem;
+  padding: 0.375rem 0.75rem;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
+.sai-z0q31ww1-card__cta--applied {
+  border: 0;
+  background: transparent;
+  color: var(--sai-z0q31ww1-success-fg);
+  padding: 0.375rem 0;
+}
+
+.sai-z0q31ww1-card[data-state='potential'] .sai-z0q31ww1-card__cta { display: none; }
+
+.sai-z0q31ww1-page__show-more {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--sai-z0q31ww1-cta-fg);
+  cursor: pointer;
+  margin: 0.25rem 0 0.5rem;
+}
+
+.sai-z0q31ww1-page__empty {
+  text-align: center;
+  padding: 2rem 1rem;
+  color: var(--sai-z0q31ww1-muted-fg);
+  font-size: 0.875rem;
+}
+{% endstylesheet %}
+
+{% comment %}
+  Top-level wrapper renders the entry CTA on cart only. The full page is
+  built and portalled into <body> by JS on open.
+{% endcomment %}
+
+<sai-z0q31ww1
+  data-mutation-handle="{{ mutation_handle }}"
+  data-enabled="{% if enabled %}true{% else %}false{% endif %}"
+  class="sai-z0q31ww1{% unless enabled %} sai-z0q31ww1--hidden{% endunless %}"
+>
+  {%- if enabled -%}
+    <button
+      type="button"
+      class="sai-z0q31ww1__entry sai-z0q31ww1__entry--{{ entry_cta_style }}"
+      data-sai-entry
+      data-sai-entry-min-coupons="{{ entry_cta_min_coupons }}"
+    >
+      {%- if entry_cta_icon != 'none' -%}
+        <span class="sai-z0q31ww1__entry-icon" data-sai-entry-icon="{{ entry_cta_icon }}"></span>
+      {%- endif -%}
+      <span class="sai-z0q31ww1__entry-text">
+        <span data-sai-entry-label>{{ entry_cta_text | escape }}</span>
+        <span class="sai-z0q31ww1__entry-meta" data-sai-entry-meta hidden></span>
+      </span>
+      <span class="sai-z0q31ww1__entry-chevron">
+        <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </span>
+    </button>
+
+    <script type="application/json" data-sai-payload>
+{
+  "config": {
+    "entryCtaText": {{ entry_cta_text | json }},
+    "entryCtaShowCount": {{ entry_cta_show_count | json }},
+    "entryCtaShowMaxSavings": {{ entry_cta_show_max_savings | json }},
+    "entryCtaMinCoupons": {{ entry_cta_min_coupons | json }},
+    "entryCtaIcon": {{ entry_cta_icon | json }},
+    "pageTitle": {{ page_title | json }},
+    "pageEntryAnimation": {{ page_entry_animation | json }},
+    "pageCloseStyle": {{ page_close_style | json }},
+    "pageHeaderSticky": {{ page_header_sticky | json }},
+    "showInputForm": {{ show_input_form | json }},
+    "inputPosition": {{ input_position | json }},
+    "inputPlaceholder": {{ input_placeholder | json }},
+    "inputApplyLabel": {{ input_apply_label | json }},
+    "inputAutoUppercase": {{ input_auto_uppercase | json }},
+    "inputMaxLength": {{ input_max_length | json }},
+    "sectionDisplayOrder": {{ section_display_order | json }},
+    "showSectionCountBadge": {{ show_section_count_badge | json }},
+    "showSectionDivider": {{ show_section_divider | json }},
+    "appliedHeaderText": {{ applied_header_text | json }},
+    "appliedSort": {{ applied_sort | json }},
+    "appliedMaxVisible": {{ applied_max_visible | json }},
+    "applicableHeaderText": {{ applicable_header_text | json }},
+    "applicableSort": {{ applicable_sort | json }},
+    "applicableMaxVisible": {{ applicable_max_visible | json }},
+    "potentialHeaderText": {{ potential_header_text | json }},
+    "potentialSort": {{ potential_sort | json }},
+    "potentialMaxVisible": {{ potential_max_visible | json }},
+    "enableCollapsibleSections": {{ enable_collapsible_sections | json }},
+    "defaultCollapsedApplied": {{ default_collapsed_applied | json }},
+    "defaultCollapsedApplicable": {{ default_collapsed_applicable | json }},
+    "defaultCollapsedPotential": {{ default_collapsed_potential | json }},
+    "collapseIndicator": {{ collapse_indicator | json }},
+    "showCodeChip": {{ show_code_chip | json }},
+    "showCopyCodeButton": {{ show_copy_code_button | json }},
+    "showDiscountTypeLabel": {{ show_discount_type_label | json }},
+    "showDescription": {{ show_description | json }},
+    "descriptionMaxLines": {{ description_max_lines | json }},
+    "descriptionExpandable": {{ description_expandable | json }},
+    "showSavingsCallout": {{ show_savings_callout | json }},
+    "savingsFormat": {{ savings_format | json }},
+    "showRemainingAmount": {{ show_remaining_amount | json }},
+    "remainingAmountTemplate": {{ remaining_amount_template | json }},
+    "showExpiryDisplay": {{ show_expiry_display | json }},
+    "expiryFormat": {{ expiry_format | json }},
+    "applyButtonText": {{ apply_button_text | json }},
+    "removeLinkText": {{ remove_link_text | json }},
+    "applyLoadingText": {{ apply_loading_text | json }},
+    "showTerms": {{ show_terms | json }},
+    "termsLabel": {{ terms_label | json }},
+    "showCouponAsset": {{ show_coupon_asset | json }},
+    "showMinOrderThreshold": {{ show_min_order_threshold | json }},
+    "currencyCode": {{ currency_code | json }}
+  },
+  "lines": [
+    {%- for line in cart.items -%}
+      {%- assign vv = line.variant.metafields.spectrum.discounts.value -%}
+      {
+        "variantId": {{ line.variant.id | append: '' | json }},
+        "quantity": {{ line.quantity | json }},
+        "linePrice": {{ line.final_line_price | divided_by: 100.0 | json }},
+        "discounts": {%- if vv != blank -%}{{ vv | json }}{%- else -%}null{%- endif -%}
+      }{%- unless forloop.last -%},{%- endunless -%}
+    {%- endfor -%}
+  ],
+  "cart": {
+    "subtotal": {{ cart.items_subtotal_price | divided_by: 100.0 | json }},
+    "appliedCodes": [{%- for d in cart.discount_codes -%}{{ d.code | upcase | json }}{%- unless forloop.last -%},{%- endunless -%}{%- endfor -%}]
+  }
+}
+    </script>
+  {%- endif -%}
+</sai-z0q31ww1>
+
+<script src="{{ 'sai-snippet-z0q31ww1.js' | asset_url }}" async></script>
