@@ -592,7 +592,10 @@
   function buildCard(d, mode, ctx, opts) {
     const { config, labels, cart, money } = ctx
     const isBestOffer = !!(opts && opts.bestOffer)
-    const isFullCard = mode === 'applicable' || mode === 'potential' || mode === 'expired'
+    // Only the highlighted best-offer applicable card carries the full chrome
+    // (countdown header, code chip, description, terms, etc.). Plain
+    // applicable rows below it render compact (icon + savings + Apply).
+    const isFullCard = (mode === 'applicable' && isBestOffer) || mode === 'potential' || mode === 'expired'
     const card = el('div', 'sai-cbpwlx29__card', { 'data-sai-card-state': mode })
     if (d && d.id != null) card.setAttribute('data-discount-id', String(d.id))
     if (isBestOffer) card.setAttribute('data-best-offer', 'true')
@@ -1009,8 +1012,13 @@
     const upgradeApplicable = appliedTopSavings > 0
       ? applicableList.filter((d) => savingsAtCart(d, cart.totalPrice) > appliedTopSavings)
       : applicableList
-    const bestOffer = upgradeApplicable[0] || null
-    const restApplicable = upgradeApplicable.slice(1)
+    // Cap applicable suggestions at max_coupons_displayed (default 3) —
+    // 1st renders as highlighted best-offer card, the rest as compact rows
+    // with an Apply CTA. Same cap regardless of display_mode.
+    const applicableCap = Math.max(1, Number(config.maxCouponsDisplayed) || 3)
+    const cappedApplicable = upgradeApplicable.slice(0, applicableCap)
+    const bestOffer = cappedApplicable[0] || null
+    const restApplicable = cappedApplicable.slice(1)
 
     const rendered = []
     for (const d of appliedList) {
@@ -1023,21 +1031,15 @@
       slot.appendChild(c)
       rendered.push({ d: bestOffer, mode: 'applicable', el: c })
     }
+    for (const d of restApplicable) {
+      const c = buildCard(d, 'applicable', ctx)
+      slot.appendChild(c)
+      rendered.push({ d, mode: 'applicable', el: c })
+    }
     for (const d of autoAppliedList) {
       const c = buildCard(d, 'auto-applied', ctx)
       slot.appendChild(c)
       rendered.push({ d, mode: 'auto-applied', el: c })
-    }
-    // Additional applicable coupons (beyond the best one) — only when
-    // multi-stack mode is on; render as next-coupon rows for compactness.
-    if (config.displayMode === 'multi-stack' && restApplicable.length > 0) {
-      const cap = Math.max(0, (Number(config.maxCouponsDisplayed) || 3) - 1)
-      const next = restApplicable.slice(0, cap)
-      if (next.length > 0) {
-        const wrap = el('div', 'sai-cbpwlx29__next-coupons')
-        for (const d of next) wrap.appendChild(buildNextCouponRow(d, ctx))
-        slot.appendChild(wrap)
-      }
     }
 
     // Manual code entry.
