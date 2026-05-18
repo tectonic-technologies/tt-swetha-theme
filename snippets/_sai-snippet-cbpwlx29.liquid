@@ -153,14 +153,6 @@
     assign show_min_order_threshold = content.show_min_order_threshold
   endif
 
-  if content.show_view_all_coupons == nil
-    assign show_view_all_coupons = true
-  else
-    assign show_view_all_coupons = content.show_view_all_coupons
-  endif
-  assign view_all_coupons_label = content.view_all_coupons_label | default: 'View All Coupons'
-  assign view_all_coupons_drawer_handle = content.view_all_coupons_drawer_handle | default: ''
-
   if content.show_empty_state == nil
     assign show_empty_state = false
   else
@@ -799,8 +791,6 @@
     "showTerms": {{ show_terms | json }},
     "showCouponIcon": {{ show_coupon_icon | json }},
     "showMinOrderThreshold": {{ show_min_order_threshold | json }},
-    "showViewAllCoupons": {{ show_view_all_coupons | json }},
-    "viewAllCouponsDrawerHandle": {{ view_all_coupons_drawer_handle | json }},
     "showEmptyState": {{ show_empty_state | json }}
   },
   "labels": {
@@ -819,7 +809,6 @@
     "removeLinkText": {{ remove_link_text | json }},
     "applyLoadingText": {{ apply_loading_text | json }},
     "termsLabel": {{ terms_label | json }},
-    "viewAllCouponsLabel": {{ view_all_coupons_label | json }},
     "emptyStateHeading": {{ empty_state_heading | json }},
     "emptyStateBody": {{ empty_state_body | json }},
     "copyCtaLabel": "Copy",

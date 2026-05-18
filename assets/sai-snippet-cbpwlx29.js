@@ -964,16 +964,6 @@
       }
     }
 
-    // View All Coupons handoff.
-    if (config.showViewAllCoupons) {
-      const va = el('button', 'sai-cbpwlx29__view-all', {
-        type: 'button',
-        'data-sai-view-all': '',
-        text: labels.viewAllCouponsLabel || 'View All Coupons',
-      })
-      slot.appendChild(va)
-    }
-
     // Manual code entry.
     if (config.showManualCodeEntry) renderManualEntry(slot, labels, ctx)
 
@@ -1017,19 +1007,6 @@
           copy.textContent = labels.copySuccessLabel || 'Copied!'
           setTimeout(() => { copy.setAttribute('aria-pressed', 'false'); copy.textContent = prev }, 1500)
         })
-        return
-      }
-      const viewAll = target.closest('[data-sai-view-all]')
-      if (viewAll) {
-        e.preventDefault()
-        ctx.track(`${FEATURE_SLUG}:view_all_clicked`, {
-          drawer_handle: config.viewAllCouponsDrawerHandle || null,
-        })
-        try {
-          window.dispatchEvent(new CustomEvent('spectrum:coupons-drawer:open', {
-            detail: { handle: config.viewAllCouponsDrawerHandle || null },
-          }))
-        } catch (_) { /* no listener */ }
         return
       }
     })
