@@ -1,18 +1,4 @@
-{%- comment -%}Cart discounts data for z0q31ww1 — uses div not script.{%- endcomment -%}
-<div data-sai-cart-data hidden style="display:none">SECTION-RAN itemCount={{ cart.item_count }} subtotal={{ cart.items_subtotal_price }}</div>
-<div data-sai-cart-discounts hidden style="display:none">{
-  "discountsByVariant": {
-    {%- assign sai_first = true -%}
-    {%- for item in cart.items -%}
-      {%- assign v_raw = item.variant.metafields.spectrum.discounts.value -%}
-      {%- if v_raw != blank -%}
-        {%- unless sai_first -%},{%- endunless -%}
-        {{ item.variant.id | append: '' | json }}: {{ v_raw | json }}
-        {%- assign sai_first = false -%}
-      {%- endif -%}
-    {%- endfor -%}
-  }
-}</div>
+<div data-sai-cart-data>STATIC SECTION OUTPUT</div>
 {% schema %}
 { "name": "Z0Q cart data" }
 {% endschema %}
