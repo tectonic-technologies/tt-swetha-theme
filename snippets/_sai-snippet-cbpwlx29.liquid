@@ -54,7 +54,7 @@
     assign show_progress_bar = content.show_progress_bar
   endif
   assign threshold_message_template = content.threshold_message_template | default: 'Add {remaining} more to unlock'
-  assign threshold_met_message = content.threshold_met_message | default: 'Eligible — applies at checkout'
+  assign threshold_met_message = content.threshold_met_message | default: 'Eligible to apply'
   if content.show_amounts_on_bar_ends == nil
     assign show_amounts_on_bar_ends = true
   else
@@ -66,7 +66,7 @@
   else
     assign show_countdown_timer = content.show_countdown_timer
   endif
-  assign timer_source = content.timer_source | default: 'coupon_expiry'
+  assign timer_source = content.timer_source | default: 'session_window'
   assign session_window_duration_minutes = content.session_window_duration_minutes | default: 30
   if content.countdown_show_seconds == nil
     assign countdown_show_seconds = true
@@ -183,6 +183,10 @@
  * ============================================================================= */
 
 .sai-cbpwlx29 {
+  /* Max container width capped at 1200px on wide viewports; full-bleed
+   * on narrower screens. No left/right padding — cards bleed to the
+   * available width minus the parent container's own padding.
+   */
   --sai-cbpwlx29-card-bg: #ffffff;
   --sai-cbpwlx29-card-border: rgba(0, 0, 0, 0.08);
   --sai-cbpwlx29-card-radius: 0.625rem;
@@ -209,7 +213,10 @@
   display: block;
   box-sizing: border-box;
   width: 100%;
+  max-width: 1200px;
+  margin-inline: auto;
   margin-block: var(--sai-size-4, 1rem);
+  padding: 0;
   font-family: var(--sai-font-body, inherit);
   color: var(--sai-cbpwlx29-message-fg);
 }
@@ -583,9 +590,7 @@
 }
 
 .sai-cbpwlx29__next-coupons {
-  margin-top: 0.5rem;
-  border-top: 1px solid var(--sai-cbpwlx29-card-border);
-  padding-top: 0.5rem;
+  margin-top: 0.75rem;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -593,16 +598,26 @@
 
 .sai-cbpwlx29__next-coupon {
   display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  padding: 0.625rem 0.75rem;
+  background: var(--sai-cbpwlx29-card-bg);
+  border: 1px solid var(--sai-cbpwlx29-card-border);
+  border-radius: 0.5rem;
+}
+
+.sai-cbpwlx29__next-coupon-head {
+  display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.375rem 0;
-  font-size: 0.8125rem;
 }
 
 .sai-cbpwlx29__next-coupon-name {
   flex: 1 1 auto;
   min-width: 0;
+  font-size: 0.875rem;
   font-weight: 600;
+  color: var(--sai-cbpwlx29-message-fg);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -611,21 +626,39 @@
 .sai-cbpwlx29__next-coupon-meta {
   color: var(--sai-cbpwlx29-muted-fg);
   font-size: 0.75rem;
+  line-height: 1.3;
+}
+
+.sai-cbpwlx29__next-coupon-track {
+  position: relative;
+  height: 0.25rem;
+  border-radius: 999px;
+  background: var(--sai-cbpwlx29-progress-track);
+  overflow: hidden;
+}
+
+.sai-cbpwlx29__next-coupon-fill {
+  position: absolute;
+  inset: 0;
+  background: var(--sai-cbpwlx29-progress-fill);
+  transform-origin: left center;
+  transform: scaleX(var(--sai-cbpwlx29-progress-pct, 0));
+  transition: transform 220ms ease;
 }
 
 .sai-cbpwlx29__next-coupon-apply {
   appearance: none;
-  background: transparent;
-  color: var(--sai-cbpwlx29-message-fg);
-  border: 1px solid var(--sai-cbpwlx29-card-border);
+  background: var(--sai-cbpwlx29-apply-bg);
+  color: var(--sai-cbpwlx29-apply-fg);
+  border: 0;
   border-radius: 999px;
-  padding: 0.25rem 0.625rem;
+  padding: 0.3125rem 0.75rem;
   font: inherit;
   font-size: 0.6875rem;
   font-weight: 700;
   letter-spacing: 0.06em;
-  text-transform: uppercase;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .sai-cbpwlx29__empty {
