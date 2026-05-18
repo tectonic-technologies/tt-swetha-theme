@@ -1191,14 +1191,9 @@
         const money = this._moneyFn()
         const productPrice = centsToDecimal(this._state.product.price)
 
-        // "Other Offers" divider — same styling as the dropdown popup so
-        // inline / expandable layouts feel cohesive with the modal UI.
-        const TAG_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m15 9-6 6"/><circle cx="9.5" cy="9.5" r=".75" fill="currentColor"/><circle cx="14.5" cy="14.5" r=".75" fill="currentColor"/></svg>'
-        const divider = document.createElement('div')
-        divider.className = 'sai-bkodjs1e-popup__divider'
-        divider.innerHTML = `<span class="sai-bkodjs1e-popup__divider-icon">${TAG_SVG.replace('<svg ', '<svg class="sai-bkodjs1e-popup__divider-icon" ')}</span><span>Other Offers</span>`
-        container.appendChild(divider)
-
+        // No "Other Offers" header — the expand-trigger already labels the
+        // section ("View other offers" / "Hide other offers"). Skip the
+        // divider to avoid label duplication.
         const cap =
           this._state.config.displayMode === 'dropdown'
             ? Math.max(1, Number(this._state.config.dropdownMaxItems) || 5)
