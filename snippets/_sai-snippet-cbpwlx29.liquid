@@ -183,9 +183,12 @@
  * ============================================================================= */
 
 .sai-cbpwlx29 {
-  /* Max container width capped at 1200px on wide viewports; full-bleed
-   * on narrower screens. No left/right padding — cards bleed to the
-   * available width minus the parent container's own padding.
+  /* Single bordered container with internal sections. The whole widget
+   * — countdown header, applied/applicable coupon, next coupons, manual
+   * code entry — sits in one box, sections separated by hairline dividers
+   * rather than three independent cards.
+   *
+   * Max width 1200px on desktop, full-bleed on mobile, no L/R padding.
    */
   --sai-cbpwlx29-card-bg: #ffffff;
   --sai-cbpwlx29-card-border: rgba(0, 0, 0, 0.08);
@@ -219,6 +222,11 @@
   padding: 0;
   font-family: var(--sai-font-body, inherit);
   color: var(--sai-cbpwlx29-message-fg);
+  background: var(--sai-cbpwlx29-card-bg);
+  border: 1px solid var(--sai-cbpwlx29-card-border);
+  border-radius: var(--sai-cbpwlx29-card-radius);
+  box-shadow: var(--sai-cbpwlx29-card-shadow);
+  overflow: hidden;
 }
 
 .sai-cbpwlx29 *,
@@ -244,15 +252,14 @@
 .sai-cbpwlx29__card {
   display: flex;
   flex-direction: column;
-  background: var(--sai-cbpwlx29-card-bg);
-  border: 1px solid var(--sai-cbpwlx29-card-border);
-  border-radius: var(--sai-cbpwlx29-card-radius);
-  box-shadow: var(--sai-cbpwlx29-card-shadow);
-  overflow: hidden;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .sai-cbpwlx29__card + .sai-cbpwlx29__card {
-  margin-top: var(--sai-size-2, 0.5rem);
+  border-top: 1px solid var(--sai-cbpwlx29-card-border);
 }
 
 .sai-cbpwlx29__countdown-header {
@@ -464,16 +471,19 @@
   appearance: none;
   background: none;
   border: 0;
-  padding: 0;
-  margin-top: 0.125rem;
+  border-top: 1px solid var(--sai-cbpwlx29-card-border);
+  padding: 0.625rem var(--sai-cbpwlx29-card-pad);
+  margin: 0;
   font: inherit;
   font-size: 0.8125rem;
   color: var(--sai-cbpwlx29-view-all-fg);
   cursor: pointer;
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 0.25rem;
-  align-self: flex-start;
+  width: 100%;
+  justify-content: flex-start;
+  text-align: left;
 }
 
 .sai-cbpwlx29__view-all::after {
@@ -541,7 +551,8 @@
   display: flex;
   flex-direction: column;
   gap: 0.375rem;
-  margin-top: 0.5rem;
+  padding: 0.625rem var(--sai-cbpwlx29-card-pad);
+  border-top: 1px solid var(--sai-cbpwlx29-card-border);
 }
 
 .sai-cbpwlx29__manual-row {
@@ -590,20 +601,23 @@
 }
 
 .sai-cbpwlx29__next-coupons {
-  margin-top: 0.75rem;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  border-top: 1px solid var(--sai-cbpwlx29-card-border);
 }
 
 .sai-cbpwlx29__next-coupon {
   display: flex;
   flex-direction: column;
   gap: 0.375rem;
-  padding: 0.625rem 0.75rem;
-  background: var(--sai-cbpwlx29-card-bg);
-  border: 1px solid var(--sai-cbpwlx29-card-border);
-  border-radius: 0.5rem;
+  padding: 0.625rem var(--sai-cbpwlx29-card-pad);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.sai-cbpwlx29__next-coupon + .sai-cbpwlx29__next-coupon {
+  border-top: 1px solid var(--sai-cbpwlx29-card-border);
 }
 
 .sai-cbpwlx29__next-coupon-head {
@@ -663,8 +677,8 @@
 
 .sai-cbpwlx29__empty {
   padding: var(--sai-cbpwlx29-card-pad);
-  border: 1px dashed var(--sai-cbpwlx29-card-border);
-  border-radius: var(--sai-cbpwlx29-card-radius);
+  background: transparent;
+  border: 0;
   color: var(--sai-cbpwlx29-muted-fg);
 }
 
