@@ -480,17 +480,27 @@
   height: 1rem;
 }
 
-/* Highlighted best-offer card. Mint background, soft rounded corners,
- * and a Best-Offer pill rendered under the savings message. */
+/* Highlighted best-offer card. Mint background lives in a pseudo-element
+ * inset from the card edges so the card itself can keep full width without
+ * fighting the container's flow. */
 .sai-cbpwlx29__card[data-best-offer='true'] {
+  position: relative;
+  z-index: 0;
+  padding-block: 0.5rem;
+}
+
+.sai-cbpwlx29__card[data-best-offer='true']::before {
+  content: '';
+  position: absolute;
+  inset: 0.5rem var(--sai-cbpwlx29-card-pad);
   background: var(--sai-cbpwlx29-best-offer-bg);
   border-radius: var(--sai-cbpwlx29-card-radius);
-  margin-inline: var(--sai-cbpwlx29-card-pad);
-  margin-block: 0.5rem;
+  z-index: -1;
+  pointer-events: none;
 }
 
 .sai-cbpwlx29__card[data-best-offer='true'] .sai-cbpwlx29__body {
-  padding: 0.75rem 0.875rem;
+  padding: 0.75rem calc(var(--sai-cbpwlx29-card-pad) + 0.875rem);
 }
 
 .sai-cbpwlx29__subrow {
