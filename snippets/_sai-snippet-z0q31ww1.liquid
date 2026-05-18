@@ -678,21 +678,8 @@
     "showMinOrderThreshold": {{ show_min_order_threshold | json }},
     "currencyCode": {{ currency_code | json }}
   },
-  "discountsByVariant": {
-    {%- assign sai_first = true -%}
-    {%- for item in cart.items -%}
-      {%- assign v_raw = item.variant.metafields.spectrum.discounts.value -%}
-      {%- if v_raw != blank -%}
-        {%- unless sai_first -%},{%- endunless -%}
-        {{ item.variant.id | append: '' | json }}: {{ v_raw | json }}
-        {%- assign sai_first = false -%}
-      {%- endif -%}
-    {%- endfor -%}
-  },
-  "cart": {
-    "subtotal": {{ cart.items_subtotal_price | divided_by: 100.0 | json }},
-    "appliedCodes": [{%- for d in cart.discount_codes -%}{{ d.code | upcase | json }}{%- unless forloop.last -%},{%- endunless -%}{%- endfor -%}]
-  }
+  "discountsByVariant": {},
+  "cart": { "subtotal": 0, "appliedCodes": [] }
 }
     </script>
   {%- endif -%}

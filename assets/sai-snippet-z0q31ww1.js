@@ -509,7 +509,39 @@
   }
 
   // ── Bootstrap ────────────────────────────────────────────────────────
-  function bootHost(host) {
+  async function fetchCart() {
+    try {
+      const r = await fetch('/cart.js', { headers: { Accept: 'application/json' } })
+      if (!r.ok) return { items: [], total_price: 0, discount_codes: [] }
+      return await r.json()
+    } catch (_) {
+      return { items: [], total_price: 0, discount_codes: [] }
+    }
+  }
+
+  // Per-variant spectrum.discounts metafield isn't exposed by /cart.js, so
+  // we fetch each item's product JSON and read variant metafields if the
+  // theme exposes them. Falls back to /products/{handle}.js which most
+  // themes serve from Online Store 2.0.
+  async function fetchVariantDiscounts(items) {
+    const byVariant = {}
+    const handles = new Set(items.map((it) => it && it.handle).filter(Boolean))
+    await Promise.all(Array.from(handles).map(async (handle) => {
+      try {
+        const r = await fetch(`/products/${handle}.js`, { headers: { Accept: 'application/json' } })
+        if (!r.ok) return
+        const product = await r.json()
+        for (const v of product.variants || []) {
+          if (v && v.metafields && v.metafields.spectrum && v.metafields.spectrum.discounts) {
+            byVariant[String(v.id)] = v.metafields.spectrum.discounts
+          }
+        }
+      } catch (_) { /* skip */ }
+    }))
+    return byVariant
+  }
+
+  async function bootHost(host) {
     if (host._booted) return
     host._booted = true
 
@@ -519,11 +551,17 @@
     try { payload = JSON.parse(payloadScript.textContent || '{}') } catch (_) { return }
 
     const config = payload.config || {}
-    const cart = payload.cart || { subtotal: 0, appliedCodes: [] }
-    const subtotal = Number(cart.subtotal) || 0
-    const appliedCodes = (cart.appliedCodes || []).map((c) => String(c).toUpperCase())
+    // Server-side cart iteration was unstable in this theme — hydrate cart
+    // + per-variant discounts client-side via /cart.js + the variant
+    // metafields exposed by Shopify's product JSON.
+    const cart = await fetchCart()
+    const discountsByVariant = await fetchVariantDiscounts(cart.items || [])
+    const subtotal = Number(cart.total_price) > 0 ? Number(cart.total_price) / 100 : 0
+    const appliedCodes = (cart.discount_codes || [])
+      .map((d) => String(d && (d.code || d)).toUpperCase())
+      .filter(Boolean)
 
-    const raw = collectDiscounts(payload.discountsByVariant || {})
+    const raw = collectDiscounts(discountsByVariant)
     const recomputed = raw.map((d) => recompute(d, subtotal))
 
     const applied = []
