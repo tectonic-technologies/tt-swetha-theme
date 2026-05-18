@@ -1407,58 +1407,18 @@
         }
       }
 
+      // Sticky-bar tap reuses the dropdown-pill popup UI so the merchant
+      // gets one consistent rich modal (header + coupon-ticket sections +
+      // perforation + alternatives divider + slide-in animation) regardless
+      // of whether the trigger was the sticky bar or the dropdown trigger.
       _openModal() {
-        const modal = this.querySelector('[data-sai-modal]')
-        const close = this.querySelector('[data-sai-modal-close]')
-        const content = this.querySelector('[data-sai-modal-content]')
-        if (!modal || !content) return
-        // Re-render the inline-callout into the modal so customers see full
-        // details. The widget's own body keeps its display mode.
-        content.innerHTML = ''
         const evaluated = this._lastEvaluated || evaluate(this._state)
-        const unlock = this._buildUnlock(evaluated)
-        if (unlock) {
-          const u = document.createElement('div')
-          u.className = 'sai-bkodjs1e__unlock'
-          u.appendChild(unlock)
-          content.appendChild(u)
-        }
-        const bullets = this._buildBullets(evaluated)
-        if (bullets) content.appendChild(bullets)
-        if (this._state.config.showAlternatives) {
-          const list = document.createElement('ul')
-          list.className = 'sai-bkodjs1e__alt-list'
-          this._renderAlternatives(evaluated, list, true)
-          content.appendChild(list)
-        }
-
-        modal.setAttribute('data-open', 'true')
-        if (close && !close._bound) {
-          close._bound = true
-          close.addEventListener('click', () => this._closeModal())
-        }
-        const onKey = (event) => {
-          if (event.key === 'Escape') this._closeModal()
-        }
-        this._modalKeyListener = onKey
-        document.addEventListener('keydown', onKey)
-        // Backdrop click closes.
-        modal.addEventListener(
-          'click',
-          (event) => {
-            if (event.target === modal) this._closeModal()
-          },
-          { once: true },
-        )
+        this._openDropdownPopup(evaluated)
       }
 
       _closeModal() {
-        const modal = this.querySelector('[data-sai-modal]')
-        if (modal) modal.setAttribute('data-open', 'false')
-        if (this._modalKeyListener) {
-          document.removeEventListener('keydown', this._modalKeyListener)
-          this._modalKeyListener = null
-        }
+        // Retained as a no-op for any external callers — the popup created
+        // by _openDropdownPopup manages its own close lifecycle.
       }
 
       _bindCartSync() {
