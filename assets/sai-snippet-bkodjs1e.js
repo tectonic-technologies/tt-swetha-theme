@@ -634,26 +634,6 @@
         }
         this.classList.remove('sai-bkodjs1e--hidden')
 
-        // Sticky-only mode: when the merchant turns on the sticky mobile
-        // bar, the inline / expandable / dropdown body collapses entirely
-        // — the bar IS the widget. Hides everything except the sticky
-        // anchor at the bottom of the screen.
-        if (config.stickyMobileBar) {
-          this.classList.add('sai-bkodjs1e--sticky-only')
-          this._setHidden('[data-sai-price-row]', true)
-          this._setHidden('[data-sai-badge]', true)
-          this._setHidden('[data-sai-heading]', true)
-          this._setHidden('[data-sai-bullets]', true)
-          this._setHidden('[data-sai-unlock]', true)
-          this._setHidden('[data-sai-alt-list]', true)
-          this._setHidden('[data-sai-expand-trigger]', true)
-          this._setHidden('[data-sai-dropdown-trigger]', true)
-          this._setHidden('[data-sai-dropdown-panel]', true)
-          this._renderSticky(evaluated)
-          this._setupCountdown(evaluated)
-          return
-        }
-
         const mode = config.displayMode
         // Headline price-row is shared by all three modes.
         this._renderHeadline(evaluated)
@@ -666,6 +646,18 @@
           this._renderExpandable(evaluated)
         } else {
           this._renderInlineCallout(evaluated)
+        }
+
+        // Sticky mobile bar is additive — renders alongside the inline body.
+        // When sticky is on we hide ONLY the alternatives list (the bar's
+        // popup already surfaces them on tap), keeping the inline callout's
+        // headline / bullets / unlock messaging intact.
+        if (config.stickyMobileBar) {
+          this.classList.add('sai-bkodjs1e--sticky-on')
+          this._setHidden('[data-sai-alt-list]', true)
+          this._renderSticky(evaluated)
+        } else {
+          this.classList.remove('sai-bkodjs1e--sticky-on')
         }
 
         this._setupCountdown(evaluated)

@@ -593,7 +593,10 @@
 }
 
 /* Anchor the toggle at the bottom-right of the wrap, fading any text
- * that would otherwise show through from underneath. */
+ * that would otherwise show through from underneath. Visually seamless
+ * with the description text — same font size + line-height, no border,
+ * no underline; weight + color give it just enough emphasis to read as
+ * a link. */
 .sai-c1mzmpkz__description-wrap--has-toggle .sai-c1mzmpkz__description-toggle {
   position: absolute;
   right: 0;
@@ -601,9 +604,19 @@
   margin: 0;
   padding: 0 0 0 1rem;
   background: linear-gradient(to right, transparent, var(--sai-c1mzmpkz-card-bg, #fff) 0.6rem);
+  border: 0;
+  font-family: inherit;
   font-size: 0.8125rem;
+  font-weight: 600;
   line-height: 1.35;
   color: var(--sai-c1mzmpkz-fg);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.sai-c1mzmpkz__description-wrap--has-toggle .sai-c1mzmpkz__description-toggle:hover,
+.sai-c1mzmpkz__description-wrap--has-toggle .sai-c1mzmpkz__description-toggle:focus-visible {
+  text-decoration: underline;
 }
 
 /* Expanded — drop the line-clamp + trailing padding, push the toggle
