@@ -485,12 +485,21 @@
     })
 
     function closePage() {
-      if (!host._pageOpen) return
-      host._pageOpen = false
-      document.body.style.overflow = prevOverflow
-      page.remove()
+      if (!host._pageOpen || host._pageClosing) return
+      host._pageClosing = true
       document.removeEventListener('keydown', onEsc)
       ctx.track(`${FEATURE_SLUG}:page_closed`, {})
+      // Swap enter classes for exit classes — CSS keyframes run the
+      // reverse animation, then we strip the DOM after the duration.
+      page.classList.remove(`${TAG}-page--enter-${config.pageEntryAnimation}`)
+      page.classList.add(`${TAG}-page--exit`, `${TAG}-page--exit-${config.pageEntryAnimation}`)
+      const duration = config.pageEntryAnimation === 'fade' ? 200 : 260
+      window.setTimeout(() => {
+        host._pageOpen = false
+        host._pageClosing = false
+        document.body.style.overflow = prevOverflow
+        page.remove()
+      }, duration)
     }
     function onEsc(e) { if (e.key === 'Escape') closePage() }
     document.addEventListener('keydown', onEsc)
