@@ -569,6 +569,11 @@
   margin: 0;
 }
 
+/* Description wrap — relative anchor for the absolute "see details" toggle. */
+.sai-c1mzmpkz__description-wrap {
+  position: relative;
+}
+
 .sai-c1mzmpkz__description {
   margin: 0;
   font-size: 0.8125rem;
@@ -579,37 +584,41 @@
   -webkit-line-clamp: var(--sai-c1mzmpkz-desc-lines, 2);
   overflow: hidden;
   word-break: break-word;
-  position: relative;
 }
 
-/* When toggle is present inside the clamped description, reserve trailing
- * space on the last line and overlay the toggle at the bottom-right. */
-.sai-c1mzmpkz__description--has-toggle {
-  padding-right: 5rem;
+/* Reserve trailing space on the last visible line for the toggle so the
+ * underlying text doesn't crash into "see details". */
+.sai-c1mzmpkz__description-wrap--has-toggle .sai-c1mzmpkz__description {
+  padding-right: 4.5rem;
 }
 
-.sai-c1mzmpkz__description--has-toggle .sai-c1mzmpkz__description-toggle {
+/* Anchor the toggle at the bottom-right of the wrap, fading any text
+ * that would otherwise show through from underneath. */
+.sai-c1mzmpkz__description-wrap--has-toggle .sai-c1mzmpkz__description-toggle {
   position: absolute;
   right: 0;
   bottom: 0;
-  background: linear-gradient(to right, transparent, var(--sai-c1mzmpkz-card-bg, #fff) 0.75rem);
-  padding-left: 1.25rem;
-  padding-right: 0;
-  z-index: 1;
+  margin: 0;
+  padding: 0 0 0 1rem;
+  background: linear-gradient(to right, transparent, var(--sai-c1mzmpkz-card-bg, #fff) 0.6rem);
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  color: var(--sai-c1mzmpkz-fg);
 }
 
-.sai-c1mzmpkz__description--expanded {
+/* Expanded — drop the line-clamp + trailing padding, push the toggle
+ * inline below the now-full text. */
+.sai-c1mzmpkz__description-wrap--expanded .sai-c1mzmpkz__description {
   display: block;
   -webkit-line-clamp: unset;
   overflow: visible;
   padding-right: 0;
 }
 
-.sai-c1mzmpkz__description--expanded .sai-c1mzmpkz__description-toggle {
+.sai-c1mzmpkz__description-wrap--expanded .sai-c1mzmpkz__description-toggle {
   position: static;
   background: none;
   padding-left: 0;
-  display: inline-block;
   margin-top: 0.25rem;
 }
 

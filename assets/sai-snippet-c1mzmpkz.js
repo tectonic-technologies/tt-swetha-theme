@@ -503,14 +503,16 @@
       if (savings) body.appendChild(el('span', 'sai-c1mzmpkz__savings', { text: savings }))
     }
 
-    // Description — plain truncated text. The "Read more" / "Show less"
-    // toggle is appended INLINE at the end of the truncated description
-    // by attachDescriptionExpand() once the DOM has measured overflow.
-    // The Terms & Conditions link is a separate sibling rendered below.
+    // Description — wrapped in a relative container so the inline
+    // "Read more / Show less" toggle (added by attachDescriptionExpand)
+    // can be absolutely positioned at the bottom-right of the truncated
+    // text. The Terms & Conditions link is a separate sibling below.
     if (config.showDescription && (d.summary || d.shortSummary)) {
-      body.appendChild(el('p', 'sai-c1mzmpkz__description', {
+      const wrap = el('div', 'sai-c1mzmpkz__description-wrap')
+      wrap.appendChild(el('p', 'sai-c1mzmpkz__description', {
         text: d.summary || d.shortSummary,
       }))
+      body.appendChild(wrap)
     }
 
     // Min order line
@@ -801,23 +803,24 @@
 
   function attachDescriptionExpand(host, expandable) {
     if (!expandable) return
-    const descs = host.querySelectorAll('.sai-c1mzmpkz__description')
-    descs.forEach((desc) => {
-      if (desc.scrollHeight - desc.clientHeight <= 2) return
-      desc.classList.add('sai-c1mzmpkz__description--has-toggle')
+    const wraps = host.querySelectorAll('.sai-c1mzmpkz__description-wrap')
+    wraps.forEach((wrap) => {
+      const desc = wrap.querySelector('.sai-c1mzmpkz__description')
+      if (!desc || desc.scrollHeight - desc.clientHeight <= 2) return
+      wrap.classList.add('sai-c1mzmpkz__description-wrap--has-toggle')
       const toggle = el('button', 'sai-c1mzmpkz__description-toggle', {
         type: 'button',
-        text: 'Read more',
+        text: 'see details',
         'aria-expanded': 'false',
       })
-      // Append INSIDE the description so absolute positioning anchors to
-      // the description's box. The toggle sits at the bottom-right of the
-      // clamped area, visually inline with the last visible line.
-      desc.appendChild(toggle)
+      // Sibling of description inside the relative wrap. Absolute-positioned
+      // at the bottom-right via CSS, with a fade-out so the text underneath
+      // doesn't show through.
+      wrap.appendChild(toggle)
       toggle.addEventListener('click', (e) => {
         e.stopPropagation()
-        const expanded = desc.classList.toggle('sai-c1mzmpkz__description--expanded')
-        toggle.textContent = expanded ? 'Show less' : 'Read more'
+        const expanded = wrap.classList.toggle('sai-c1mzmpkz__description-wrap--expanded')
+        toggle.textContent = expanded ? 'show less' : 'see details'
         toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false')
       })
     })
