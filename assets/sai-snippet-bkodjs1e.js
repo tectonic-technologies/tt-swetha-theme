@@ -634,6 +634,26 @@
         }
         this.classList.remove('sai-bkodjs1e--hidden')
 
+        // Sticky-only mode: when the merchant turns on the sticky mobile
+        // bar, the inline / expandable / dropdown body collapses entirely
+        // — the bar IS the widget. Hides everything except the sticky
+        // anchor at the bottom of the screen.
+        if (config.stickyMobileBar) {
+          this.classList.add('sai-bkodjs1e--sticky-only')
+          this._setHidden('[data-sai-price-row]', true)
+          this._setHidden('[data-sai-badge]', true)
+          this._setHidden('[data-sai-heading]', true)
+          this._setHidden('[data-sai-bullets]', true)
+          this._setHidden('[data-sai-unlock]', true)
+          this._setHidden('[data-sai-alt-list]', true)
+          this._setHidden('[data-sai-expand-trigger]', true)
+          this._setHidden('[data-sai-dropdown-trigger]', true)
+          this._setHidden('[data-sai-dropdown-panel]', true)
+          this._renderSticky(evaluated)
+          this._setupCountdown(evaluated)
+          return
+        }
+
         const mode = config.displayMode
         // Headline price-row is shared by all three modes.
         this._renderHeadline(evaluated)
@@ -646,10 +666,6 @@
           this._renderExpandable(evaluated)
         } else {
           this._renderInlineCallout(evaluated)
-        }
-
-        if (config.stickyMobileBar) {
-          this._renderSticky(evaluated)
         }
 
         this._setupCountdown(evaluated)
@@ -1278,6 +1294,7 @@
 
       _renderSticky(evaluated) {
         const sticky = this.querySelector('[data-sai-sticky]')
+        const stickyInfo = this.querySelector('[data-sai-sticky-info]')
         const price = this.querySelector('[data-sai-sticky-price]')
         const label = this.querySelector('[data-sai-sticky-label]')
         const infoBtn = this.querySelector('[data-sai-sticky-info-button]')
@@ -1288,19 +1305,41 @@
           return
         }
         sticky.hidden = false
+        sticky.classList.add('sai-bkodjs1e__sticky--callout')
+
+        // Sticky bar now mirrors the dropdown popup's highlight strip:
+        //   [🏷] Get it at $649.95            [chevron]
         const money = this._moneyFn()
         const productPrice = centsToDecimal(this._state.product.price)
         const finalPrice = discountedPrice(evaluated.best.d, productPrice)
-        if (price) price.textContent = money(finalPrice)
-        if (label) {
-          label.textContent =
-            applicability(evaluated.best.d) === 'current'
-              ? evaluated.best.d?.shortSummary || evaluated.best.d?.title || ''
-              : this._buildUnlockText(evaluated.best.d)
+
+        if (stickyInfo) {
+          stickyInfo.innerHTML = `
+            <span class="sai-bkodjs1e__sticky-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/>
+                <path d="m15 9-6 6"/>
+                <circle cx="9.5" cy="9.5" r=".75" fill="currentColor"/>
+                <circle cx="14.5" cy="14.5" r=".75" fill="currentColor"/>
+              </svg>
+            </span>
+            <span class="sai-bkodjs1e__sticky-callout-text">Get it at <strong data-sai-sticky-price>${escapeHtml(money(finalPrice))}</strong></span>
+          `
         }
+
+        // Hide the secondary label — the callout text already says everything.
+        if (label) label.hidden = true
+
         if (infoBtn) {
           const trigger = this._state.config.stickyModalTrigger
           infoBtn.hidden = trigger === 'tap_price'
+          // Swap the info-circle for a chevron-right — matches the popup
+          // callout's "tap to expand" affordance.
+          infoBtn.innerHTML = `
+            <svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true" focusable="false">
+              <path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          `
         }
         if (cta) {
           cta.hidden = !this._state.config.stickyCombineWithATC

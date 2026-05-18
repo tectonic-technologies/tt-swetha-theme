@@ -940,6 +940,67 @@
   }
 }
 
+/* Sticky-only mode: when sticky_mobile_bar is on, the inline body is
+ * hidden entirely. The sticky bar IS the widget. Show on all viewports
+ * (not just mobile) so the merchant can preview it on desktop too. */
+.sai-bkodjs1e--sticky-only .sai-bkodjs1e__sticky {
+  display: flex;
+}
+
+/* Callout style — mirrors the dropdown popup's __highlight strip:
+ * pale-green pill background, tag icon + "Get it at $X" text + chevron. */
+.sai-bkodjs1e__sticky--callout {
+  background: var(--sai-bkodjs1e-accent-bg, #e8f5ec);
+  color: var(--sai-bkodjs1e-accent-fg, #1f7a3a);
+  box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.08);
+  padding: 0.625rem 1rem calc(env(safe-area-inset-bottom, 0px) + 0.625rem);
+}
+
+.sai-bkodjs1e__sticky--callout .sai-bkodjs1e__sticky-info {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+.sai-bkodjs1e__sticky-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  color: var(--sai-bkodjs1e-accent-fg, #1f7a3a);
+}
+
+.sai-bkodjs1e__sticky-icon svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.sai-bkodjs1e__sticky-callout-text {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--sai-bkodjs1e-accent-fg, #1f7a3a);
+  line-height: 1.2;
+}
+
+.sai-bkodjs1e__sticky--callout [data-sai-sticky-price] {
+  font-weight: 800;
+}
+
+.sai-bkodjs1e__sticky--callout .sai-bkodjs1e__sticky-info-button {
+  color: var(--sai-bkodjs1e-accent-fg, #1f7a3a);
+  background: transparent;
+  border: 0;
+  padding: 0.25rem;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+
 .sai-bkodjs1e__sticky-info {
   display: flex;
   flex-direction: column;
