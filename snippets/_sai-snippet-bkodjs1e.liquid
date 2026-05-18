@@ -529,11 +529,12 @@
   overflow: hidden;
 }
 
-/* Desktop (≥768px): centered modal with scale/fade-in. */
+/* Desktop (≥768px): centered modal with scale/fade-in. Caps at 700px so a
+ * tall offers list doesn't overflow the viewport — body scrolls inside. */
 .sai-bkodjs1e-popup__panel--modal {
   margin: auto;
   width: min(30rem, calc(100% - 2rem));
-  max-height: 88vh;
+  max-height: min(700px, 88vh);
   border-radius: 14px;
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.28);
   transform: translateY(12px) scale(0.97);
@@ -620,6 +621,10 @@
 .sai-bkodjs1e-popup__body {
   padding: 1rem 1.25rem 1.25rem;
   overflow-y: auto;
+  /* flex grow + min-height: 0 lets this child of the flex column actually
+   * scroll inside instead of pushing the panel past its max-height cap. */
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 0.875rem;
