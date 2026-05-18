@@ -557,16 +557,17 @@
       .map((d) => String(d && (d.code || d)).toUpperCase())
       .filter(Boolean)
 
-    // Fetch the section-rendered discounts blob via the Section Rendering
-    // API — this is a tiny dedicated section that emits JSON only, so its
-    // Liquid runs in isolation from the main page and any cart-iteration
-    // quirk can't break the host snippet.
+    // Fetch the section-rendered discounts blob via Shopify's Section
+    // Rendering API. The section is registered in templates/cart.json with
+    // instance id `sai_z0q_data`, so /cart?sections=sai_z0q_data returns
+    // just that section's HTML — the cart.items iteration runs in isolation
+    // and can't break the host snippet.
     let discountsByVariant = {}
     try {
-      const r = await fetch('/?sections=sai-z0q-cart-data', { headers: { Accept: 'application/json' } })
+      const r = await fetch('/cart?sections=sai_z0q_data', { headers: { Accept: 'application/json' } })
       if (r.ok) {
         const sectionMap = await r.json()
-        const html = sectionMap['sai-z0q-cart-data'] || ''
+        const html = sectionMap.sai_z0q_data || ''
         const match = html.match(/<script[^>]*data-sai-cart-data[^>]*>([\s\S]*?)<\/script>/)
         if (match) {
           const cd = JSON.parse(match[1])
