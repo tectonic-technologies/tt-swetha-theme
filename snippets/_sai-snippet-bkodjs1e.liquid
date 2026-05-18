@@ -908,11 +908,18 @@
 /* ── Alternatives list ────────────────────────────────────────────────────── */
 .sai-bkodjs1e__alt-list {
   list-style: none;
-  margin: 0;
-  padding: 0;
+  margin: 0.5rem 0 0;
+  padding: 0.875rem 1rem;
   display: flex;
   flex-direction: column;
   gap: 0.625rem;
+  background: rgba(0, 0, 0, 0.025);
+  border: 1px solid var(--sai-bkodjs1e-card-border);
+  border-radius: 12px;
+}
+
+.sai-bkodjs1e__alt-list:first-child {
+  margin-top: 0;
 }
 
 .sai-bkodjs1e__alt-item {

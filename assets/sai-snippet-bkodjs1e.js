@@ -800,6 +800,16 @@
           calloutLabel.textContent = this._buildCalloutText(evaluated)
         }
 
+        // Countdown is rendered inside [data-sai-price-row] which is hidden
+        // in dropdown mode. Detach + re-mount it inside the trigger stack
+        // so the urgency timer still surfaces above the dropdown pill.
+        if (this._state.config.showCountdown) {
+          const countdownEl = this.querySelector('[data-sai-countdown]')
+          if (countdownEl && trigger && !trigger.contains(countdownEl)) {
+            trigger.insertBefore(countdownEl, trigger.firstChild)
+          }
+        }
+
         this._wireDropdownPopup(evaluated)
       }
 
