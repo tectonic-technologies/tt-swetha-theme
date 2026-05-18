@@ -557,31 +557,28 @@
       .map((d) => String(d && (d.code || d)).toUpperCase())
       .filter(Boolean)
 
-    // Fetch the section-rendered discounts blob via Shopify's Section
-    // Rendering API.
+    // Fetch the section-rendered discounts via Shopify's Cart Section
+    // Rendering API. POST /cart/update.js with sections=name returns the
+    // cart JSON plus a `sections` map keyed by section instance id.
+    // GET /cart?sections=… does NOT honor sections — Shopify just routes to
+    // /cart.js and returns the cart object.
     let discountsByVariant = {}
     try {
-      console.log('[z0q31ww1] fetching /cart?sections=sai_z0q_data')
-      const r = await fetch('/cart?sections=sai_z0q_data', { headers: { Accept: 'application/json' } })
-      console.log('[z0q31ww1] section response status:', r.status)
+      const r = await fetch('/cart/update.js?sections=sai_z0q_data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ attributes: {} }),
+      })
       if (r.ok) {
-        const sectionMap = await r.json()
-        console.log('[z0q31ww1] section keys:', Object.keys(sectionMap))
-        const html = sectionMap.sai_z0q_data || ''
-        console.log('[z0q31ww1] sai_z0q_data html length:', html.length)
-        console.log('[z0q31ww1] sai_z0q_data html (first 600):', html.slice(0, 600))
+        const body = await r.json()
+        const html = (body.sections && body.sections.sai_z0q_data) || ''
         const match = html.match(/<script[^>]*data-sai-cart-data[^>]*>([\s\S]*?)<\/script>/)
-        console.log('[z0q31ww1] script tag matched:', !!match)
         if (match) {
           const cd = JSON.parse(match[1])
-          console.log('[z0q31ww1] parsed cart data:', cd)
           discountsByVariant = cd.discountsByVariant || {}
         }
       }
-    } catch (err) {
-      console.error('[z0q31ww1] section fetch failed:', err)
-    }
-    console.log('[z0q31ww1] final discountsByVariant keys:', Object.keys(discountsByVariant))
+    } catch (_) { /* skip */ }
 
     const raw = collectDiscounts(discountsByVariant)
     const recomputed = raw.map((d) => recompute(d, subtotal))
