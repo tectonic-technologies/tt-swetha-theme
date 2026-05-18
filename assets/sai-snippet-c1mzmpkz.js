@@ -800,11 +800,19 @@
     if (!expandable) return
     const descs = host.querySelectorAll('.sai-c1mzmpkz__description')
     descs.forEach((desc) => {
-      if (desc.scrollHeight - desc.clientHeight < 2) return
-      // Skip when the inline "see details" / T&C link is already rendered
-      // inside the description — that link is the user-facing "show more"
-      // surface and the standalone toggle would duplicate it.
-      if (desc.querySelector('.sai-c1mzmpkz__description-link')) return
+      // Measure ONLY the description text, not the trailing inline T&C link.
+      // The link adds to scrollHeight even on short descriptions, which
+      // would always trigger the toggle. Temporarily detach the link for
+      // measurement, then re-attach.
+      const link = desc.querySelector('.sai-c1mzmpkz__description-link')
+      let parked = null
+      if (link) { parked = link.previousSibling; link.remove() }
+      const overflowing = desc.scrollHeight - desc.clientHeight > 2
+      if (link) {
+        if (parked) parked.after(link)
+        else desc.appendChild(link)
+      }
+      if (!overflowing) return
       const toggle = el('button', 'sai-c1mzmpkz__description-toggle', {
         type: 'button',
         text: 'Read more',
