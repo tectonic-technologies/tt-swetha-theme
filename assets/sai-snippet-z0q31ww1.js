@@ -662,6 +662,16 @@
 
     const entry = host.querySelector('[data-sai-entry]')
     if (entry) entry.addEventListener('click', () => openPage(host, ctx))
+
+    // Cross-snippet trigger: cbpwlx29 (Best Applicable Coupons) emits
+    // 'spectrum:view-all-offers:open' from its View all coupons link.
+    // Listen on the window so any source can open the drawer.
+    window.addEventListener('spectrum:view-all-offers:open', (e) => {
+      try {
+        e.preventDefault && e.preventDefault()
+      } catch (_) { /* event already consumed */ }
+      openPage(host, ctx)
+    })
   }
 
   function waitForVis(host) {

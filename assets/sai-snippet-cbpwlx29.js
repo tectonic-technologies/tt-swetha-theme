@@ -186,7 +186,9 @@
     if (!q) return d
     const out = Object.assign({}, d, { qualification: Object.assign({}, q) })
     const oq = out.qualification
-    const metric = oq.progressMetric
+    // 'subtotal' and 'cart_value' are synonyms — both compare the discount's
+    // requiredValue against the live cart subtotal.
+    const metric = oq.progressMetric === 'subtotal' ? 'cart_value' : oq.progressMetric
     if (metric === 'cart_value' && Number.isFinite(cart.totalPrice)) {
       oq.currentValue = cart.totalPrice
       if (Number.isFinite(Number(oq.requiredValue))) {
@@ -405,8 +407,15 @@
       const res = await fetch('/cart.js', { credentials: 'same-origin' })
       if (!res.ok) return null
       const data = await res.json()
+      // Use items_subtotal_price (pre-discount subtotal) so threshold
+      // qualifications match Shopify's own rules — total_price is post-
+      // discount and shrinks the moment any coupon is applied, falsely
+      // disqualifying other coupons.
+      const subtotalCents = typeof data.items_subtotal_price === 'number'
+        ? data.items_subtotal_price
+        : (typeof data.total_price === 'number' ? data.total_price : 0)
       return {
-        totalPrice: typeof data.total_price === 'number' ? data.total_price / 100 : 0,
+        totalPrice: subtotalCents / 100,
         itemCount: typeof data.item_count === 'number' ? data.item_count : 0,
         appliedDiscountCodes: (Array.isArray(data.discount_codes) ? data.discount_codes : [])
           .filter((d) => d && d.applicable)
@@ -1093,6 +1102,32 @@
 
     // Manual code entry.
     if (config.showManualCodeEntry) renderManualEntry(slot, labels, ctx)
+
+    // View all coupons — dispatches an event the View All Offers (z0q31ww1)
+    // snippet listens for and opens its drawer. Falls back to clicking the
+    // entry CTA directly if no listener is present.
+    if (config.showViewAllCoupons) {
+      const link = el('button', 'sai-cbpwlx29__view-all', {
+        type: 'button',
+        'data-sai-view-all': '',
+        text: (labels && labels.viewAllCouponsLabel) || config.viewAllCouponsLabel || 'View all coupons',
+      })
+      link.addEventListener('click', (e) => {
+        e.preventDefault()
+        ctx.track(`${FEATURE_SLUG}:view_all_clicked`, {})
+        let handled = false
+        try {
+          const evt = new CustomEvent('spectrum:view-all-offers:open', { bubbles: true, cancelable: true, detail: { source: 'cbpwlx29' } })
+          handled = !window.dispatchEvent(evt)
+        } catch (_) { /* old browser */ }
+        if (!handled) {
+          // Fallback: click the z0q31ww1 entry CTA if present on the page.
+          const cta = document.querySelector('sai-z0q31ww1 [data-sai-entry]')
+          if (cta) cta.click()
+        }
+      })
+      slot.appendChild(link)
+    }
 
     // Countdown timer drives only the cards that emit a countdown header
     // (full applicable / potential / expired). buildCard skips the header

@@ -40,6 +40,13 @@
   assign display_mode = content.display_mode | default: 'default'
   assign max_coupons_displayed = content.max_coupons_displayed | default: 3
   assign next_applicable_remaining_threshold = content.next_applicable_remaining_threshold | default: 500
+
+  if content.show_view_all_coupons == nil
+    assign show_view_all_coupons = true
+  else
+    assign show_view_all_coupons = content.show_view_all_coupons
+  endif
+  assign view_all_coupons_label = content.view_all_coupons_label | default: 'View all coupons'
   assign within_tier_sort = content.within_tier_sort | default: 'highest_savings'
 
   if content.enable_auto_apply == nil
@@ -915,6 +922,8 @@
     "displayMode": {{ display_mode | json }},
     "maxCouponsDisplayed": {{ max_coupons_displayed | json }},
     "nextApplicableRemainingThreshold": {{ next_applicable_remaining_threshold | json }},
+    "showViewAllCoupons": {{ show_view_all_coupons | json }},
+    "viewAllCouponsLabel": {{ view_all_coupons_label | json }},
     "withinTierSort": {{ within_tier_sort | json }},
     "enableAutoApply": {{ enable_auto_apply | json }},
     "autoApplyTrigger": {{ auto_apply_trigger | json }},
