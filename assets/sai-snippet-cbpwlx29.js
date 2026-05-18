@@ -114,6 +114,13 @@
     return !isApplicable(d) && applicability(d) === 'potential'
   }
 
+  // Automatic discounts (free shipping, auto-merchant promos) attach at
+  // checkout without a code. Treat them as "applied" once qualified so the
+  // widget shows a ✓ Applied tick instead of an Apply / Remove control.
+  function isAutoApplied(d) {
+    return d && d.applicationType === 'automatic' && isApplicable(d)
+  }
+
   function getCode(d) {
     if (!d || !Array.isArray(d.codes) || d.codes.length === 0) return null
     const raw = d.codes[0]
@@ -412,6 +419,8 @@
 
   // ── Icon SVGs ────────────────────────────────────────────────────────
   const DISCOUNT_BADGE_SVG = '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M5.5 5.5l5 5M5.5 5.5h.01M10.5 10.5h.01" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>'
+  const SHIPPING_TRUCK_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 6h11v9H3zM14 9h4l3 3v3h-7zM7 18.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM17 18.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>'
+  const CHECKMARK_SVG = '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'
 
   // ── Render ──────────────────────────────────────────────────────────
   function renderEmpty(slot, labels) {
@@ -570,29 +579,35 @@
   // Renders one coupon card. Mode 'applied' shows REMOVE; 'applicable' shows
   // APPLY; 'potential' shows progress bar + remaining; 'expired' shows the
   // expired-message in place of the countdown.
-  function buildCard(d, mode, ctx) {
+  function buildCard(d, mode, ctx, opts) {
     const { config, labels, cart, money } = ctx
+    const isBestOffer = !!(opts && opts.bestOffer)
+    const isFullCard = mode === 'applicable' || mode === 'potential' || mode === 'expired'
     const card = el('div', 'sai-cbpwlx29__card', { 'data-sai-card-state': mode })
     if (d && d.id != null) card.setAttribute('data-discount-id', String(d.id))
+    if (isBestOffer) card.setAttribute('data-best-offer', 'true')
 
-    // Countdown header (per-card so each gets its own urgency line).
-    if (config.showCountdownTimer && mode !== 'expired') {
-      const headerWrap = el('div', 'sai-cbpwlx29__countdown-header')
-      const text = el('span', 'sai-cbpwlx29__countdown-text')
-      text.appendChild(document.createTextNode(''))
-      text.setAttribute('data-sai-countdown-text', '')
-      headerWrap.appendChild(text)
-      card.appendChild(headerWrap)
-    } else if (mode === 'expired') {
-      const headerWrap = el('div', 'sai-cbpwlx29__countdown-header')
-      headerWrap.textContent = labels.countdownExpiredMessage || 'This offer has ended'
-      card.appendChild(headerWrap)
+    // Countdown header only on the full (applicable / potential / expired) card.
+    // Applied + auto-applied rows are compact and inherit the widget-level timer.
+    if (isFullCard) {
+      if (config.showCountdownTimer && mode !== 'expired') {
+        const headerWrap = el('div', 'sai-cbpwlx29__countdown-header')
+        const text = el('span', 'sai-cbpwlx29__countdown-text')
+        text.appendChild(document.createTextNode(''))
+        text.setAttribute('data-sai-countdown-text', '')
+        headerWrap.appendChild(text)
+        card.appendChild(headerWrap)
+      } else if (mode === 'expired') {
+        const headerWrap = el('div', 'sai-cbpwlx29__countdown-header')
+        headerWrap.textContent = labels.countdownExpiredMessage || 'This offer has ended'
+        card.appendChild(headerWrap)
+      }
     }
 
     const body = el('div', 'sai-cbpwlx29__body')
 
-    // Discount type label (compact, above message).
-    if (config.showDiscountTypeLabel) {
+    // Discount type label (compact, above message) — full card only.
+    if (config.showDiscountTypeLabel && isFullCard) {
       const label = describeType(d)
       if (label) body.appendChild(el('p', 'sai-cbpwlx29__type-label', { text: label }))
     }
@@ -602,20 +617,23 @@
     const main = el('div', 'sai-cbpwlx29__row-main')
     if (config.showCouponIcon) {
       const icon = el('span', 'sai-cbpwlx29__icon')
-      icon.innerHTML = DISCOUNT_BADGE_SVG
+      // Free shipping uses a truck glyph; everything else uses the percent badge.
+      const isShipping = d && d.discountValue && d.discountValue.type === 'FREE_SHIPPING'
+      icon.innerHTML = isShipping ? SHIPPING_TRUCK_SVG : DISCOUNT_BADGE_SVG
+      if (isShipping) icon.classList.add('sai-cbpwlx29__icon--shipping')
       main.appendChild(icon)
     }
 
     const code = getCode(d)
     let messageText = ''
-    if (mode === 'applied') {
+    if (mode === 'applied' || mode === 'auto-applied') {
       messageText = buildAppliedMessage(d, cart.totalPrice, config, labels, money)
     } else if (mode === 'applicable') {
       messageText = buildApplicableMessage(d, cart.totalPrice, config, labels, money)
     } else {
       messageText = d.shortSummary || d.title || ''
     }
-    if (config.showSavingsCallout || mode === 'applied') {
+    if (config.showSavingsCallout || mode === 'applied' || mode === 'auto-applied') {
       main.appendChild(buildMessageNode(messageText, code))
     } else {
       const fallback = el('span', 'sai-cbpwlx29__message', { text: d.shortSummary || d.title || '' })
@@ -628,22 +646,36 @@
       const removeBtn = el('button', 'sai-cbpwlx29__remove', {
         type: 'button',
         'data-sai-remove': code || '',
-        text: labels.removeLinkText || 'REMOVE',
+        text: labels.removeLinkText || 'Remove',
       })
       trailing.appendChild(removeBtn)
+    } else if (mode === 'auto-applied') {
+      const applied = el('span', 'sai-cbpwlx29__applied-tick')
+      applied.innerHTML = `${CHECKMARK_SVG}<span>${labels.autoAppliedLabel || 'Applied'}</span>`
+      trailing.appendChild(applied)
     } else if (mode === 'applicable' && code) {
       const applyBtn = el('button', 'sai-cbpwlx29__apply', {
         type: 'button',
         'data-sai-apply': code,
-        text: labels.applyButtonText || 'APPLY',
+        text: labels.applyButtonText || 'Apply',
       })
       trailing.appendChild(applyBtn)
     }
     row.appendChild(trailing)
     body.appendChild(row)
 
-    // Code chip + copy button (off by default — applied state UX hides it).
-    if (config.showCodeChip && code && mode !== 'applied') {
+    // "Best Offer For You" pill under the message on the highlighted card.
+    if (isBestOffer && mode === 'applicable' && code) {
+      const subrow = el('div', 'sai-cbpwlx29__subrow')
+      subrow.appendChild(el('span', 'sai-cbpwlx29__code-inline', { text: code }))
+      subrow.appendChild(el('span', 'sai-cbpwlx29__pill', {
+        text: labels.bestOfferPillLabel || 'Best Offer For You',
+      }))
+      body.appendChild(subrow)
+    }
+
+    // Code chip + copy button (off by default — only full applicable cards).
+    if (config.showCodeChip && code && isFullCard) {
       const chipRow = el('div', 'sai-cbpwlx29__row')
       const chip = el('span', 'sai-cbpwlx29__code-chip', { text: code })
       chipRow.appendChild(chip)
@@ -659,8 +691,8 @@
       body.appendChild(chipRow)
     }
 
-    // Description (optional, line-clamped, expandable).
-    if (config.showDescription && (d.summary || d.shortSummary)) {
+    // Description (optional, line-clamped, expandable) — full card only.
+    if (config.showDescription && isFullCard && (d.summary || d.shortSummary)) {
       const desc = el('p', 'sai-cbpwlx29__description', { text: d.summary || d.shortSummary })
       body.appendChild(desc)
       if (config.descriptionExpandable) {
@@ -692,22 +724,22 @@
       if (text) body.appendChild(el('p', 'sai-cbpwlx29__remaining', { text }))
     }
 
-    // Min order threshold (separate from progress bar).
-    if (config.showMinOrderThreshold) {
+    // Min order threshold (separate from progress bar) — full card only.
+    if (config.showMinOrderThreshold && isFullCard) {
       const req = thresholdRequired(d)
       if (req != null) {
         body.appendChild(el('p', 'sai-cbpwlx29__min-order', { text: `Min order ${money.format(req)}` }))
       }
     }
 
-    // Expiry display on card.
-    if (config.showExpiryDisplay) {
+    // Expiry display on card — full card only.
+    if (config.showExpiryDisplay && isFullCard) {
       const t = expiryDisplay(d, config.expiryFormat)
       if (t) body.appendChild(el('p', 'sai-cbpwlx29__expiry', { text: t }))
     }
 
-    // Terms link.
-    if (config.showTerms) {
+    // Terms link — full card only.
+    if (config.showTerms && isFullCard) {
       const termsBtn = el('button', 'sai-cbpwlx29__terms-toggle', {
         type: 'button',
         'data-sai-terms': '1',
@@ -935,29 +967,46 @@
       }
     }
 
-    const mode = config.displayMode === 'multi-stack' ? 'multi-stack' : 'default'
-    const cap = mode === 'multi-stack' ? Math.max(1, Number(config.maxCouponsDisplayed) || 3) : 1
+    // Three-tier partition:
+    //   applied  — manual codes currently in the cart (Remove)
+    //   bestOffer — top-ranked applicable not yet applied (highlighted card)
+    //   autoApplied — automatic discounts qualifying at the current cart total (✓ Applied)
+    // The widget-level timer rides on the bestOffer card.
+    const appliedList = []
+    const autoAppliedList = []
+    const applicableList = []
+    for (const d of visible) {
+      if (isApplied(d, cart.appliedDiscountCodes)) appliedList.push(d)
+      else if (isAutoApplied(d)) autoAppliedList.push(d)
+      else if (isApplicable(d)) applicableList.push(d)
+    }
+    const bestOffer = applicableList[0] || null
+    const restApplicable = applicableList.slice(1)
 
-    const cards = visible.slice(0, cap).map((d) => {
-      let cardMode = 'potential'
-      if (isApplied(d, cart.appliedDiscountCodes)) cardMode = 'applied'
-      else if (isApplicable(d)) cardMode = 'applicable'
-      const expired = endsAtMs(d) != null && endsAtMs(d) <= Date.now() && (config.countdownExpiredBehavior === 'show_message')
-      if (expired) cardMode = 'expired'
-      return buildCard(d, cardMode, ctx)
-    })
-
-    cards.forEach((c) => slot.appendChild(c))
-
-    // Next coupons (additional rows beyond the displayed cap, but only when
-    // not already in multi-stack mode with high cap).
-    if (mode !== 'multi-stack' && visible.length > 1) {
-      const next = visible.slice(1, 1 + Math.max(0, Number(config.maxCouponsDisplayed) || 3))
+    const rendered = []
+    for (const d of appliedList) {
+      const c = buildCard(d, 'applied', ctx)
+      slot.appendChild(c)
+      rendered.push({ d, mode: 'applied', el: c })
+    }
+    if (bestOffer) {
+      const c = buildCard(bestOffer, 'applicable', ctx, { bestOffer: true })
+      slot.appendChild(c)
+      rendered.push({ d: bestOffer, mode: 'applicable', el: c })
+    }
+    for (const d of autoAppliedList) {
+      const c = buildCard(d, 'auto-applied', ctx)
+      slot.appendChild(c)
+      rendered.push({ d, mode: 'auto-applied', el: c })
+    }
+    // Additional applicable coupons (beyond the best one) — only when
+    // multi-stack mode is on; render as next-coupon rows for compactness.
+    if (config.displayMode === 'multi-stack' && restApplicable.length > 0) {
+      const cap = Math.max(0, (Number(config.maxCouponsDisplayed) || 3) - 1)
+      const next = restApplicable.slice(0, cap)
       if (next.length > 0) {
         const wrap = el('div', 'sai-cbpwlx29__next-coupons')
-        for (const d of next) {
-          wrap.appendChild(buildNextCouponRow(d, ctx))
-        }
+        for (const d of next) wrap.appendChild(buildNextCouponRow(d, ctx))
         slot.appendChild(wrap)
       }
     }
@@ -965,7 +1014,10 @@
     // Manual code entry.
     if (config.showManualCodeEntry) renderManualEntry(slot, labels, ctx)
 
-    setupCountdownTimers(ctx, visible.slice(0, cap))
+    // Countdown timer drives only the cards that emit a countdown header
+    // (full applicable / potential / expired). buildCard skips the header
+    // for compact rows, so the timer setup only attaches to bestOffer.
+    setupCountdownTimers(ctx, bestOffer ? [bestOffer] : [])
     wireCardInteractions(ctx)
   }
 

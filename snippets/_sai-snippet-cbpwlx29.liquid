@@ -195,9 +195,12 @@
   --sai-cbpwlx29-code-fg: #1a1a1a;
   --sai-cbpwlx29-code-bg: rgba(0, 0, 0, 0.04);
   --sai-cbpwlx29-code-border: rgba(0, 0, 0, 0.08);
-  --sai-cbpwlx29-remove-fg: #b45a1f;
-  --sai-cbpwlx29-apply-bg: #1a1a1a;
+  --sai-cbpwlx29-remove-fg: #d24a3a;
+  --sai-cbpwlx29-apply-bg: #1f7a3a;
   --sai-cbpwlx29-apply-fg: #ffffff;
+  --sai-cbpwlx29-best-offer-bg: #e8f5ec;
+  --sai-cbpwlx29-pill-bg: #1f7a3a;
+  --sai-cbpwlx29-pill-fg: #ffffff;
   --sai-cbpwlx29-muted-fg: rgba(0, 0, 0, 0.55);
   --sai-cbpwlx29-view-all-fg: rgba(0, 0, 0, 0.65);
   --sai-cbpwlx29-progress-track: rgba(0, 0, 0, 0.08);
@@ -430,13 +433,93 @@
   border: 0;
   padding: 0;
   font: inherit;
-  font-size: 0.8125rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  text-decoration: underline;
+  font-size: 0.875rem;
+  font-weight: 600;
   cursor: pointer;
   color: var(--sai-cbpwlx29-remove-fg);
+}
+
+/* ── Three-tier layout: compact rows + highlighted best-offer card ── */
+
+/* Compact rows (applied + auto-applied): strip the card chrome so they
+ * present as flat rows separated by hairlines, like the reference. */
+.sai-cbpwlx29__card[data-sai-card-state='applied'],
+.sai-cbpwlx29__card[data-sai-card-state='auto-applied'] {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.sai-cbpwlx29__card[data-sai-card-state='applied'] .sai-cbpwlx29__body,
+.sai-cbpwlx29__card[data-sai-card-state='auto-applied'] .sai-cbpwlx29__body {
+  padding: 0.75rem var(--sai-cbpwlx29-card-pad);
+  gap: 0;
+}
+
+.sai-cbpwlx29__icon--shipping {
+  background: transparent;
+  color: var(--sai-cbpwlx29-progress-fill);
+  width: 1.75rem;
+  height: 1.75rem;
+}
+
+.sai-cbpwlx29__icon--shipping svg {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.sai-cbpwlx29__applied-tick {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--sai-cbpwlx29-success-fg);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.sai-cbpwlx29__applied-tick svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+/* Highlighted best-offer card. Mint background, soft rounded corners,
+ * and a Best-Offer pill rendered under the savings message. */
+.sai-cbpwlx29__card[data-best-offer='true'] {
+  background: var(--sai-cbpwlx29-best-offer-bg);
+  border-radius: var(--sai-cbpwlx29-card-radius);
+  margin-inline: var(--sai-cbpwlx29-card-pad);
+  margin-block: 0.5rem;
+}
+
+.sai-cbpwlx29__card[data-best-offer='true'] .sai-cbpwlx29__body {
+  padding: 0.75rem 0.875rem;
+}
+
+.sai-cbpwlx29__subrow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.sai-cbpwlx29__code-inline {
+  font-family: var(--sai-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-weight: 600;
+  font-size: 0.8125rem;
+  color: var(--sai-cbpwlx29-muted-fg);
+  letter-spacing: 0.04em;
+}
+
+.sai-cbpwlx29__pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  background: var(--sai-cbpwlx29-pill-bg);
+  color: var(--sai-cbpwlx29-pill-fg);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
 .sai-cbpwlx29__apply {
