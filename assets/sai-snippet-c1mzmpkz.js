@@ -503,25 +503,14 @@
       if (savings) body.appendChild(el('span', 'sai-c1mzmpkz__savings', { text: savings }))
     }
 
-    // Description — with optional inline "see details" link that opens the
-    // T&C modal. On mobile the link sits inline at the end of the truncated
-    // text (Vaaree-style "...see details"); on desktop it stays inline too,
-    // and the standalone Terms button below is only shown when not using
-    // inline mode.
-    const wantsInlineTermsLink = config.showTerms
+    // Description — plain truncated text. The "Read more" / "Show less"
+    // toggle is appended INLINE at the end of the truncated description
+    // by attachDescriptionExpand() once the DOM has measured overflow.
+    // The Terms & Conditions link is a separate sibling rendered below.
     if (config.showDescription && (d.summary || d.shortSummary)) {
-      const descWrap = el('p', 'sai-c1mzmpkz__description')
-      descWrap.appendChild(document.createTextNode(d.summary || d.shortSummary))
-      if (wantsInlineTermsLink) {
-        descWrap.appendChild(document.createTextNode(' '))
-        descWrap.appendChild(el('button', 'sai-c1mzmpkz__description-link', {
-          type: 'button',
-          'data-sai-tc-trigger': '',
-          'data-discount-id': d.id || '',
-          text: labels.termsLabel || 'see details',
-        }))
-      }
-      body.appendChild(descWrap)
+      body.appendChild(el('p', 'sai-c1mzmpkz__description', {
+        text: d.summary || d.shortSummary,
+      }))
     }
 
     // Min order line
@@ -576,10 +565,10 @@
       body.appendChild(el('span', 'sai-c1mzmpkz__card-cta', { text: remainingText }))
     }
 
-    // Standalone Terms toggle — only when description is hidden (and thus
-    // no inline link surfaces it). When the description is visible we surface
-    // T&C via the inline link instead of a duplicate button.
-    if (config.showTerms && !config.showDescription) {
+    // Standalone Terms & Conditions link — always rendered on its own
+    // line below the rest of the card content. Opens the T&C modal on
+    // desktop, bottom-sheet drawer on mobile.
+    if (config.showTerms) {
       body.appendChild(el('button', 'sai-c1mzmpkz__terms-toggle', {
         type: 'button',
         'data-sai-tc-trigger': '',
@@ -814,26 +803,22 @@
     if (!expandable) return
     const descs = host.querySelectorAll('.sai-c1mzmpkz__description')
     descs.forEach((desc) => {
-      // Measure ONLY the description text, not the trailing inline T&C link.
-      // The link adds to scrollHeight even on short descriptions, which
-      // would always trigger the toggle. Temporarily detach the link for
-      // measurement, then re-attach.
-      const link = desc.querySelector('.sai-c1mzmpkz__description-link')
-      let parked = null
-      if (link) { parked = link.previousSibling; link.remove() }
-      const overflowing = desc.scrollHeight - desc.clientHeight > 2
-      if (link) {
-        if (parked) parked.after(link)
-        else desc.appendChild(link)
-      }
-      if (!overflowing) return
+      // Only add the toggle when the description text actually overflows
+      // its line-clamp box.
+      if (desc.scrollHeight - desc.clientHeight <= 2) return
       const toggle = el('button', 'sai-c1mzmpkz__description-toggle', {
         type: 'button',
         text: 'Read more',
         'aria-expanded': 'false',
       })
-      desc.insertAdjacentElement('afterend', toggle)
-      toggle.addEventListener('click', () => {
+      // INLINE placement: append the toggle inside the description so the
+      // browser's webkit-line-clamp truncates both text + toggle together.
+      // The toggle ends up at the truncation point on the last visible line
+      // (Vaaree-style "...Read more").
+      desc.appendChild(document.createTextNode(' '))
+      desc.appendChild(toggle)
+      toggle.addEventListener('click', (e) => {
+        e.stopPropagation()
         const expanded = desc.classList.toggle('sai-c1mzmpkz__description--expanded')
         toggle.textContent = expanded ? 'Show less' : 'Read more'
         toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false')

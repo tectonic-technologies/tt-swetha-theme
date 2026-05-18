@@ -624,20 +624,22 @@
   gap: 0.375rem;
 }
 
-/* Inline T&C link — sits at the end of the description text on the same
- * line when there's space, wraps to a new line when not. */
-.sai-c1mzmpkz__description-link {
+/* Inline "Read more / Show less" toggle — appended inside the description
+ * paragraph so webkit-line-clamp truncates it at the last visible line
+ * (Vaaree-style "...Read more"). */
+.sai-c1mzmpkz__description .sai-c1mzmpkz__description-toggle {
   display: inline;
   background: none;
   border: 0;
   padding: 0;
   margin: 0;
   font: inherit;
-  font-size: 0.75rem;
+  font-size: inherit;
   font-weight: 600;
   color: var(--sai-c1mzmpkz-fg);
   text-decoration: underline;
   cursor: pointer;
+  vertical-align: baseline;
 }
 
 
