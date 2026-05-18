@@ -319,11 +319,16 @@
     "sai_section_b6m71xeb": {
       "type": "sai-section-b6m71xeb",
       "settings": {}
+    },
+    "sai_z0q_demo": {
+      "type": "sai-z0q-cart-demo",
+      "settings": {}
     }
   },
   "order": [
     "cart-section",
     "sai_section_b6m71xeb",
+    "sai_z0q_demo",
     "product_list_fUKeNV"
   ]
 }
