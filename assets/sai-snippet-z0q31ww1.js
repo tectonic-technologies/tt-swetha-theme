@@ -557,30 +557,25 @@
       .map((d) => String(d && (d.code || d)).toUpperCase())
       .filter(Boolean)
 
-    // Read the cart-discounts data emitted inline by the section that also
-    // renders the CTA. The Section Rendering API was returning empty bytes
-    // on this Horizon theme, so we sidestep it and read the same data
-    // straight from the page's DOM at SSR-time.
+    // Read cart-discounts data emitted inline by the host section. Shopify's
+    // Section Rendering API returned empty bytes for a dedicated cart-data
+    // section on this theme, so the section that hosts the CTA also emits
+    // a hidden <div data-sai-cart-data> alongside the snippet render. The
+    // JS reads it directly from the page DOM, avoiding any extra fetch.
     let discountsByVariant = {}
     const dataDiv = document.querySelector('[data-sai-cart-data]')
-    console.log('[z0q31ww1] inline data div found:', !!dataDiv, dataDiv && dataDiv.textContent.slice(0, 200))
     if (dataDiv) {
       try {
         const cd = JSON.parse(dataDiv.textContent || '{}')
-        console.log('[z0q31ww1] parsed cart data:', cd)
         discountsByVariant = cd.discountsByVariant || {}
-        if (cd.cart) {
-          if (typeof cd.cart.subtotal === 'number') /* override */ {}
-          if (Array.isArray(cd.cart.appliedCodes)) {
-            for (const c of cd.cart.appliedCodes) {
-              const up = String(c).toUpperCase()
-              if (!appliedCodes.includes(up)) appliedCodes.push(up)
-            }
+        if (cd.cart && Array.isArray(cd.cart.appliedCodes)) {
+          for (const c of cd.cart.appliedCodes) {
+            const up = String(c).toUpperCase()
+            if (!appliedCodes.includes(up)) appliedCodes.push(up)
           }
         }
-      } catch (e) { console.error('[z0q31ww1] parse failed:', e) }
+      } catch (_) { /* fall through with empty data */ }
     }
-    console.log('[z0q31ww1] final discountsByVariant keys:', Object.keys(discountsByVariant))
 
     const raw = collectDiscounts(discountsByVariant)
     const recomputed = raw.map((d) => recompute(d, subtotal))
