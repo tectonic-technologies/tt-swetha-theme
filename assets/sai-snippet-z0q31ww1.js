@@ -550,15 +550,30 @@
     try { payload = JSON.parse(payloadScript.textContent || '{}') } catch (_) { return }
 
     const config = payload.config || {}
-    // Server-side cart iteration was unstable in this theme — hydrate cart
-    // + per-variant discounts client-side via /cart.js + the variant
-    // metafields exposed by Shopify's product JSON.
-    const cart = await fetchCart()
-    const discountsByVariant = await fetchVariantDiscounts(cart.items || [])
-    const subtotal = Number(cart.total_price) > 0 ? Number(cart.total_price) / 100 : 0
-    const appliedCodes = (cart.discount_codes || [])
-      .map((d) => String(d && (d.code || d)).toUpperCase())
-      .filter(Boolean)
+    // Prefer the adjacent section-emitted JSON for variant discounts +
+    // applied codes (server-side, real metafield read). Fall back to live
+    // /cart.js if the section isn't present.
+    let discountsByVariant = {}
+    let subtotal = 0
+    let appliedCodes = []
+    const cartDataNode = document.getElementById('sai-z0q31ww1-cart-discounts')
+    if (cartDataNode) {
+      try {
+        const cd = JSON.parse(cartDataNode.textContent || '{}')
+        discountsByVariant = cd.discountsByVariant || {}
+        subtotal = Number(cd.cart && cd.cart.subtotal) || 0
+        appliedCodes = ((cd.cart && cd.cart.appliedCodes) || []).map((c) => String(c).toUpperCase())
+      } catch (_) { /* fall through */ }
+    }
+    if (!subtotal) {
+      const liveCart = await fetchCart()
+      subtotal = Number(liveCart.total_price) > 0 ? Number(liveCart.total_price) / 100 : 0
+      if (appliedCodes.length === 0) {
+        appliedCodes = (liveCart.discount_codes || [])
+          .map((d) => String(d && (d.code || d)).toUpperCase())
+          .filter(Boolean)
+      }
+    }
 
     const raw = collectDiscounts(discountsByVariant)
     const recomputed = raw.map((d) => recompute(d, subtotal))
