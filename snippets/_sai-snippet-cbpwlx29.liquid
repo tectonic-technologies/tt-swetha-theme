@@ -693,7 +693,7 @@
       {%- assign v_raw = item.variant.metafields.spectrum.discounts.value -%}
       {%- if v_raw != blank -%}
         {%- unless sai_first -%},{%- endunless -%}
-        {{ item.variant.id | json }}: {{ v_raw | json }}
+        {{ item.variant.id | append: '' | json }}: {{ v_raw | json }}
         {%- assign sai_first = false -%}
       {%- endif -%}
     {%- endfor -%}

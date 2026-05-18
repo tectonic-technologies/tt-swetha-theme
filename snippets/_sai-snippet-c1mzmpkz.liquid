@@ -1138,13 +1138,13 @@
   "variants": {
     {%- for v in product.variants -%}
       {%- assign v_raw = v.metafields.spectrum.discounts.value -%}
-      {{ v.id | json }}: {
+      {{ v.id | append: '' | json }}: {
         "discounts": {%- if v_raw != blank -%}{{ v_raw | json }}{%- else -%}{"discounts":[]}{%- endif -%},
         "price": {%- if v.price -%}{{ v.price | divided_by: 100.0 | json }}{%- else -%}null{%- endif -%}
       }{%- unless forloop.last -%},{%- endunless -%}
     {%- endfor -%}
   },
-  "currentVariantId": {{ sai_active_variant.id | json }},
+  "currentVariantId": {{ sai_active_variant.id | append: '' | json }},
   "promoBlocks": [
     {
       "type": {{ content.promo_block_1_type | default: 'image_banner' | json }},
