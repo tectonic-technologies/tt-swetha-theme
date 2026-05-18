@@ -12,6 +12,11 @@
  * ============================================================================= */
 
 ;(() => {
+  // Default coupon-ticket SVG — shown on cards when `show_coupon_icon` is
+  // on but no `coupon_icon_url` is supplied. Matches the Vaaree-style
+  // pink/percent ticket from the reference design.
+  const DEFAULT_COUPON_SVG = '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><defs><linearGradient id="sai-c1mzmpkz-coupon-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#FDE7EF"/><stop offset="100%" stop-color="#F8C8DC"/></linearGradient></defs><path d="M6 16a6 6 0 0 1 6-6h40a6 6 0 0 1 6 6v6a4 4 0 0 0 0 8v6a6 6 0 0 1-6 6H12a6 6 0 0 1-6-6v-6a4 4 0 0 0 0-8v-6Z" fill="url(#sai-c1mzmpkz-coupon-bg)" stroke="#2A2A2A" stroke-width="2"/><line x1="30" y1="14" x2="30" y2="42" stroke="#2A2A2A" stroke-width="1.5" stroke-dasharray="3 3"/><circle cx="48" cy="28" r="8" fill="#E4377F"/><path d="M44 32l8-8M45 25.5h.01M50.5 30.5h.01" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round"/></svg>'
+
   const SNIPPET_ID = 'c1mzmpkz'
   const TAG = 'sai-c1mzmpkz'
   const FEATURE_SLUG = 'pdp_promotions'
@@ -412,12 +417,12 @@
       ? ` sai-c1mzmpkz__card--potential sai-c1mzmpkz__card--treatment-${config.potentialVisualTreatment || 'subtle'}`
       : ''
 
-    // Image-leading layout (Vaaree-style): big image on the left, all
-    // other content in a right column. Triggered when card_icon_position
-    // is 'left' AND coupon_icon_url is set. Otherwise the legacy layout
-    // (icon top-right or absent) is used and `body` === `card`.
+    // Image-leading layout (Vaaree-style): big image on the left, content
+    // in a right column. Triggered when card_icon_position is 'left' AND
+    // show_coupon_icon is on. If no URL provided, a built-in SVG coupon
+    // ticket renders as the default visual.
     const iconPosition = config.cardIconPosition || 'top_right'
-    const useImageLeading = iconPosition === 'left' && config.showCouponIcon && config.couponIconUrl
+    const useImageLeading = iconPosition === 'left' && config.showCouponIcon
 
     const card = el('article', `sai-c1mzmpkz__card${treatmentClass}${useImageLeading ? ' sai-c1mzmpkz__card--image-leading' : ''}`, {
       'data-discount-id': d.id || '',
@@ -427,16 +432,22 @@
     let body = card
     if (useImageLeading) {
       const imgCol = el('div', 'sai-c1mzmpkz__card-image-col')
-      imgCol.appendChild(el('img', 'sai-c1mzmpkz__card-image', {
-        src: config.couponIconUrl,
-        alt: '',
-        loading: 'lazy',
-      }))
+      if (config.couponIconUrl) {
+        imgCol.appendChild(el('img', 'sai-c1mzmpkz__card-image', {
+          src: config.couponIconUrl,
+          alt: '',
+          loading: 'lazy',
+        }))
+      } else {
+        const fallback = el('span', 'sai-c1mzmpkz__card-image-fallback', { 'aria-hidden': 'true' })
+        fallback.innerHTML = DEFAULT_COUPON_SVG
+        imgCol.appendChild(fallback)
+      }
       card.appendChild(imgCol)
       body = el('div', 'sai-c1mzmpkz__card-body')
       card.appendChild(body)
     } else if (config.showCouponIcon && config.couponIconUrl && iconPosition !== 'none') {
-      // Legacy top-right icon (default).
+      // Legacy top-right icon.
       card.appendChild(el('img', 'sai-c1mzmpkz__icon', {
         src: config.couponIconUrl,
         alt: '',
@@ -790,6 +801,10 @@
     const descs = host.querySelectorAll('.sai-c1mzmpkz__description')
     descs.forEach((desc) => {
       if (desc.scrollHeight - desc.clientHeight < 2) return
+      // Skip when the inline "see details" / T&C link is already rendered
+      // inside the description — that link is the user-facing "show more"
+      // surface and the standalone toggle would duplicate it.
+      if (desc.querySelector('.sai-c1mzmpkz__description-link')) return
       const toggle = el('button', 'sai-c1mzmpkz__description-toggle', {
         type: 'button',
         text: 'Read more',
