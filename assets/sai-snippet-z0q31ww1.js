@@ -577,13 +577,22 @@
       if (body.sections) console.log('[z0q31ww1] sections keys:', Object.keys(body.sections))
       const html = (body.sections && body.sections.sai_z0q_data) || ''
       console.log('[z0q31ww1] section html length:', html.length)
-      console.log('[z0q31ww1] section html (first 800):', html.slice(0, 800))
-      const match = html.match(/<script[^>]*data-sai-cart-data[^>]*>([\s\S]*?)<\/script>/)
-      console.log('[z0q31ww1] script tag matched:', !!match)
-      if (match) {
-        const cd = JSON.parse(match[1])
-        console.log('[z0q31ww1] parsed cart data:', cd)
-        discountsByVariant = cd.discountsByVariant || {}
+      console.log('[z0q31ww1] section html (first 1500):', html.slice(0, 1500))
+      // Parse the div-wrapped JSON (Shopify section renders strip <script> tags).
+      const div = document.createElement('div')
+      div.innerHTML = html
+      const dataDiv = div.querySelector('[data-sai-cart-discounts]')
+      const sentinel = div.querySelector('[data-sai-cart-data]')
+      console.log('[z0q31ww1] sentinel:', sentinel && sentinel.textContent)
+      console.log('[z0q31ww1] dataDiv present:', !!dataDiv)
+      if (dataDiv) {
+        try {
+          const cd = JSON.parse(dataDiv.textContent || '{}')
+          console.log('[z0q31ww1] parsed cart data:', cd)
+          discountsByVariant = cd.discountsByVariant || {}
+        } catch (e) {
+          console.error('[z0q31ww1] parse failed:', e, 'raw:', dataDiv.textContent)
+        }
       }
     } catch (err) {
       console.error('[z0q31ww1] section fetch failed:', err)
