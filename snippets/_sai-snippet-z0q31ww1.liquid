@@ -68,7 +68,7 @@
   endif
   assign input_max_length = content.input_max_length | default: 32
 
-  assign section_display_order = content.section_display_order | default: 'applied_first'
+  assign section_display_order = content.section_display_order | default: 'applicable_first'
   if content.show_section_count_badge == nil
     assign show_section_count_badge = false
   else
@@ -181,7 +181,7 @@
   assign currency_code = shop.currency
 -%}
 
-<style data-sai-z0q31ww1-css>
+{% stylesheet %}
 .sai-z0q31ww1 {
   --sai-z0q31ww1-fg: #1a1a1a;
   --sai-z0q31ww1-muted-fg: rgba(0, 0, 0, 0.55);
@@ -302,35 +302,34 @@
   box-shadow: -8px 0 24px rgba(0, 0, 0, 0.12);
 }
 
-/* Transition-based open/close. Initial state: panel off-screen + backdrop
- * transparent. JS appends with no `--open` class, then on next paint adds
- * the class which transitions both to their visible state. Close removes
- * the class to play the exit transition; JS unmounts on transitionend. */
-.sai-z0q31ww1-page__backdrop {
-  opacity: 0;
-  transition: opacity 220ms ease-out;
-}
-.sai-z0q31ww1-page--enter-slide-right .sai-z0q31ww1-page__panel {
-  transform: translateX(100%);
-  transition: transform 280ms cubic-bezier(0.22, 0.61, 0.36, 1);
-}
-.sai-z0q31ww1-page--enter-slide-up .sai-z0q31ww1-page__panel {
-  transform: translateY(100%);
-  transition: transform 280ms cubic-bezier(0.22, 0.61, 0.36, 1);
-}
-.sai-z0q31ww1-page--enter-fade .sai-z0q31ww1-page__panel {
-  opacity: 0;
-  transition: opacity 200ms ease-out;
-}
+.sai-z0q31ww1-page--enter-slide-right .sai-z0q31ww1-page__panel { animation: sai-z0q31ww1-slide-right-in 260ms cubic-bezier(0.22, 0.61, 0.36, 1); }
+.sai-z0q31ww1-page--enter-slide-up .sai-z0q31ww1-page__panel { animation: sai-z0q31ww1-slide-up-in 260ms cubic-bezier(0.22, 0.61, 0.36, 1); }
+.sai-z0q31ww1-page--enter-fade { animation: sai-z0q31ww1-fade-in 200ms ease-out; }
 
-.sai-z0q31ww1-page--open .sai-z0q31ww1-page__backdrop { opacity: 1; }
-.sai-z0q31ww1-page--open.sai-z0q31ww1-page--enter-slide-right .sai-z0q31ww1-page__panel { transform: translateX(0); }
-.sai-z0q31ww1-page--open.sai-z0q31ww1-page--enter-slide-up .sai-z0q31ww1-page__panel { transform: translateY(0); }
-.sai-z0q31ww1-page--open.sai-z0q31ww1-page--enter-fade .sai-z0q31ww1-page__panel { opacity: 1; }
+/* Exit — applied by JS on close, animation runs then JS removes the page. */
+.sai-z0q31ww1-page--exit { pointer-events: none; }
+.sai-z0q31ww1-page--exit .sai-z0q31ww1-page__backdrop { animation: sai-z0q31ww1-backdrop-out 220ms ease-out forwards; }
+.sai-z0q31ww1-page--exit-slide-right .sai-z0q31ww1-page__panel { animation: sai-z0q31ww1-slide-right-out 260ms cubic-bezier(0.4, 0, 1, 1) forwards; }
+.sai-z0q31ww1-page--exit-slide-up .sai-z0q31ww1-page__panel { animation: sai-z0q31ww1-slide-up-out 260ms cubic-bezier(0.4, 0, 1, 1) forwards; }
+.sai-z0q31ww1-page--exit-fade { animation: sai-z0q31ww1-fade-out 200ms ease-in forwards; }
+
+@keyframes sai-z0q31ww1-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sai-z0q31ww1-backdrop-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes sai-z0q31ww1-slide-right-in { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes sai-z0q31ww1-slide-right-out { from { transform: translateX(0); } to { transform: translateX(100%); } }
+@keyframes sai-z0q31ww1-slide-up-in { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes sai-z0q31ww1-slide-up-out { from { transform: translateY(0); } to { transform: translateY(100%); } }
+@keyframes sai-z0q31ww1-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sai-z0q31ww1-fade-out { from { opacity: 1; } to { opacity: 0; } }
 
 @media (prefers-reduced-motion: reduce) {
   .sai-z0q31ww1-page__backdrop,
-  .sai-z0q31ww1-page__panel { transition: none; }
+  .sai-z0q31ww1-page--enter-slide-right .sai-z0q31ww1-page__panel,
+  .sai-z0q31ww1-page--enter-slide-up .sai-z0q31ww1-page__panel,
+  .sai-z0q31ww1-page--exit-slide-right .sai-z0q31ww1-page__panel,
+  .sai-z0q31ww1-page--exit-slide-up .sai-z0q31ww1-page__panel,
+  .sai-z0q31ww1-page--enter-fade,
+  .sai-z0q31ww1-page--exit-fade { animation: none; }
 }
 
 @media (max-width: 480px) {
@@ -592,7 +591,7 @@
   color: var(--sai-z0q31ww1-muted-fg);
   font-size: 0.875rem;
 }
-</style>
+{% endstylesheet %}
 
 {% comment %}
   Top-level wrapper renders the entry CTA on cart only. The full page is
@@ -679,8 +678,21 @@
     "showMinOrderThreshold": {{ show_min_order_threshold | json }},
     "currencyCode": {{ currency_code | json }}
   },
-  "discountsByVariant": {},
-  "cart": { "subtotal": 0, "appliedCodes": [] }
+  "lines": [
+    {%- for line in cart.items -%}
+      {%- assign vv = line.variant.metafields.spectrum.discounts.value -%}
+      {
+        "variantId": {{ line.variant.id | append: '' | json }},
+        "quantity": {{ line.quantity | json }},
+        "linePrice": {{ line.final_line_price | divided_by: 100.0 | json }},
+        "discounts": {%- if vv != blank -%}{{ vv | json }}{%- else -%}null{%- endif -%}
+      }{%- unless forloop.last -%},{%- endunless -%}
+    {%- endfor -%}
+  ],
+  "cart": {
+    "subtotal": {{ cart.items_subtotal_price | divided_by: 100.0 | json }},
+    "appliedCodes": [{%- for d in cart.discount_codes -%}{{ d.code | upcase | json }}{%- unless forloop.last -%},{%- endunless -%}{%- endfor -%}]
+  }
 }
     </script>
   {%- endif -%}

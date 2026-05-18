@@ -73,11 +73,10 @@
     return []
   }
 
-  function collectDiscounts(discountsByVariant) {
+  function collectDiscounts(lines) {
     const byKey = new Map()
-    if (!discountsByVariant || typeof discountsByVariant !== 'object') return []
-    for (const variantId of Object.keys(discountsByVariant)) {
-      const list = parseDiscountsBlob(discountsByVariant[variantId])
+    for (const line of lines || []) {
+      const list = parseDiscountsBlob(line.discounts)
       for (const d of list) {
         const key = (d.id != null ? `id:${d.id}` : '') || (Array.isArray(d.codes) && d.codes[0] ? `code:${d.codes[0]}` : null) || `t:${d.title || d.shortSummary || ''}`
         if (!byKey.has(key)) byKey.set(key, d)
@@ -204,10 +203,11 @@
   }
 
   function maybeHideEntry(host, ctx) {
-    // Always show the entry CTA — count-based hiding was unreliable once we
-    // moved variant-discount hydration to the client, because /products/x.js
-    // does not expose metafields on all themes.
-    host.classList.remove(`${TAG}--hidden`)
+    const { applicable, applied, autoApplied, config } = ctx
+    const total = applicable.length + applied.length + autoApplied.length
+    const min = Math.max(0, Number(config.entryCtaMinCoupons) || 0)
+    if (total < min) host.classList.add(`${TAG}--hidden`)
+    else host.classList.remove(`${TAG}--hidden`)
   }
 
   // ── Page ─────────────────────────────────────────────────────────────
@@ -465,18 +465,10 @@
     panel.appendChild(scroll)
     page.appendChild(panel)
 
-    // Append + scroll lock. Append first (in initial off-screen state per
-    // CSS), then on next animation frame add `--open` so the transition
-    // plays. Without the rAF, the browser may collapse the two states and
-    // skip the animation entirely.
+    // Append + scroll lock.
     document.body.appendChild(page)
     const prevOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    // Force a layout read, then add open class on next frame.
-    void page.offsetWidth
-    requestAnimationFrame(() => {
-      page.classList.add(`${TAG}-page--open`)
-    })
 
     // Card-level Apply.
     scroll.addEventListener('click', (e) => {
@@ -497,17 +489,17 @@
       host._pageClosing = true
       document.removeEventListener('keydown', onEsc)
       ctx.track(`${FEATURE_SLUG}:page_closed`, {})
-      // Removing --open reverses the transition (panel slides back out,
-      // backdrop fades). Unmount after the transition duration.
-      page.classList.remove(`${TAG}-page--open`)
-      page.style.pointerEvents = 'none'
-      const duration = config.pageEntryAnimation === 'fade' ? 200 : 280
+      // Swap enter classes for exit classes — CSS keyframes run the
+      // reverse animation, then we strip the DOM after the duration.
+      page.classList.remove(`${TAG}-page--enter-${config.pageEntryAnimation}`)
+      page.classList.add(`${TAG}-page--exit`, `${TAG}-page--exit-${config.pageEntryAnimation}`)
+      const duration = config.pageEntryAnimation === 'fade' ? 200 : 260
       window.setTimeout(() => {
         host._pageOpen = false
         host._pageClosing = false
         document.body.style.overflow = prevOverflow
         page.remove()
-      }, duration + 20)
+      }, duration)
     }
     function onEsc(e) { if (e.key === 'Escape') closePage() }
     document.addEventListener('keydown', onEsc)
@@ -516,39 +508,7 @@
   }
 
   // ── Bootstrap ────────────────────────────────────────────────────────
-  async function fetchCart() {
-    try {
-      const r = await fetch('/cart.js', { headers: { Accept: 'application/json' } })
-      if (!r.ok) return { items: [], total_price: 0, discount_codes: [] }
-      return await r.json()
-    } catch (_) {
-      return { items: [], total_price: 0, discount_codes: [] }
-    }
-  }
-
-  // Per-variant spectrum.discounts metafield isn't exposed by /cart.js, so
-  // we fetch each item's product JSON and read variant metafields if the
-  // theme exposes them. Falls back to /products/{handle}.js which most
-  // themes serve from Online Store 2.0.
-  async function fetchVariantDiscounts(items) {
-    const byVariant = {}
-    const handles = new Set(items.map((it) => it && it.handle).filter(Boolean))
-    await Promise.all(Array.from(handles).map(async (handle) => {
-      try {
-        const r = await fetch(`/products/${handle}.js`, { headers: { Accept: 'application/json' } })
-        if (!r.ok) return
-        const product = await r.json()
-        for (const v of product.variants || []) {
-          if (v && v.metafields && v.metafields.spectrum && v.metafields.spectrum.discounts) {
-            byVariant[String(v.id)] = v.metafields.spectrum.discounts
-          }
-        }
-      } catch (_) { /* skip */ }
-    }))
-    return byVariant
-  }
-
-  async function bootHost(host) {
+  function bootHost(host) {
     if (host._booted) return
     host._booted = true
 
@@ -558,44 +518,12 @@
     try { payload = JSON.parse(payloadScript.textContent || '{}') } catch (_) { return }
 
     const config = payload.config || {}
-    // Hydrate cart from /cart.js. Use items_subtotal_price (pre-discount
-    // subtotal) for threshold comparison — that's what Shopify itself uses
-    // to qualify discount codes. Using total_price would shrink the
-    // effective subtotal whenever any coupon is already applied and
-    // misclassify other coupons as out-of-reach. Shopify's discount_codes
-    // list includes every code the shopper has tried; filter on
-    // applicable=true so stale rejected codes don't render as APPLIED.
-    const liveCart = await fetchCart()
-    const subtotalSource = Number(liveCart.items_subtotal_price)
-    const subtotal = Number.isFinite(subtotalSource) && subtotalSource > 0
-      ? subtotalSource / 100
-      : (Number(liveCart.total_price) / 100 || 0)
-    const appliedCodes = (liveCart.discount_codes || [])
-      .filter((d) => d && d.applicable === true)
-      .map((d) => String(d.code).toUpperCase())
-      .filter(Boolean)
+    const lines = Array.isArray(payload.lines) ? payload.lines : []
+    const cart = payload.cart || { subtotal: 0, appliedCodes: [] }
+    const subtotal = Number(cart.subtotal) || 0
+    const appliedCodes = (cart.appliedCodes || []).map((c) => String(c).toUpperCase())
 
-    // Read cart-discounts data emitted inline by the host section. Shopify's
-    // Section Rendering API returned empty bytes for a dedicated cart-data
-    // section on this theme, so the section that hosts the CTA also emits
-    // a hidden <div data-sai-cart-data> alongside the snippet render. The
-    // JS reads it directly from the page DOM, avoiding any extra fetch.
-    let discountsByVariant = {}
-    const dataDiv = document.querySelector('[data-sai-cart-data]')
-    if (dataDiv) {
-      try {
-        const cd = JSON.parse(dataDiv.textContent || '{}')
-        discountsByVariant = cd.discountsByVariant || {}
-        if (cd.cart && Array.isArray(cd.cart.appliedCodes)) {
-          for (const c of cd.cart.appliedCodes) {
-            const up = String(c).toUpperCase()
-            if (!appliedCodes.includes(up)) appliedCodes.push(up)
-          }
-        }
-      } catch (_) { /* fall through with empty data */ }
-    }
-
-    const raw = collectDiscounts(discountsByVariant)
+    const raw = collectDiscounts(lines)
     const recomputed = raw.map((d) => recompute(d, subtotal))
 
     const applied = []

@@ -186,9 +186,7 @@
     if (!q) return d
     const out = Object.assign({}, d, { qualification: Object.assign({}, q) })
     const oq = out.qualification
-    // 'subtotal' and 'cart_value' are synonyms — both compare the discount's
-    // requiredValue against the live cart subtotal.
-    const metric = oq.progressMetric === 'subtotal' ? 'cart_value' : oq.progressMetric
+    const metric = oq.progressMetric
     if (metric === 'cart_value' && Number.isFinite(cart.totalPrice)) {
       oq.currentValue = cart.totalPrice
       if (Number.isFinite(Number(oq.requiredValue))) {
