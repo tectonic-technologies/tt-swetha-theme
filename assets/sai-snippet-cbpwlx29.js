@@ -418,7 +418,10 @@
   }
 
   // ── Icon SVGs ────────────────────────────────────────────────────────
-  const DISCOUNT_BADGE_SVG = '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M5.5 5.5l5 5M5.5 5.5h.01M10.5 10.5h.01" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>'
+  // Scalloped coupon-stamp badge with a centered % glyph. Fill is the badge
+  // background (set via .sai-cbpwlx29__icon background-color via fill="currentColor");
+  // the % is punched out (uses bg as paint to look like a knockout).
+  const DISCOUNT_BADGE_SVG = '<svg viewBox="0 0 32 32" aria-hidden="true" focusable="false"><path d="M16 1.5 18.1 0l1.5 2.3 2.6-.6.6 2.6 2.6.6-.6 2.6 2.3 1.5L25.4 11l1.7 2.1-2.1 1.7 1.7 2.1-2.1 1.7 1.7 2.1-2.3 1.5.6 2.6-2.6.6-.6 2.6-2.6-.6L18.1 32 16 30.5 13.9 32l-1.5-2.3-2.6.6-.6-2.6-2.6-.6.6-2.6-2.3-1.5L6.6 21l-1.7-2.1 2.1-1.7-1.7-2.1 2.1-1.7-1.7-2.1 2.3-1.5-.6-2.6 2.6-.6.6-2.6 2.6.6L13.9 0Z" fill="currentColor"/><path d="M11.6 11.6h2.2v2.2h-2.2zM18.2 18.2h2.2v2.2h-2.2zM20.5 11.5l-9 9" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" fill="none"/></svg>'
   const SHIPPING_TRUCK_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 6h11v9H3zM14 9h4l3 3v3h-7zM7 18.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM17 18.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>'
   const CHECKMARK_SVG = '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'
 
