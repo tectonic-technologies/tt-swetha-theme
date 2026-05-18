@@ -412,13 +412,31 @@
       ? ` sai-c1mzmpkz__card--potential sai-c1mzmpkz__card--treatment-${config.potentialVisualTreatment || 'subtle'}`
       : ''
 
-    const card = el('article', `sai-c1mzmpkz__card${treatmentClass}`, {
+    // Image-leading layout (Vaaree-style): big image on the left, all
+    // other content in a right column. Triggered when card_icon_position
+    // is 'left' AND coupon_icon_url is set. Otherwise the legacy layout
+    // (icon top-right or absent) is used and `body` === `card`.
+    const iconPosition = config.cardIconPosition || 'top_right'
+    const useImageLeading = iconPosition === 'left' && config.showCouponIcon && config.couponIconUrl
+
+    const card = el('article', `sai-c1mzmpkz__card${treatmentClass}${useImageLeading ? ' sai-c1mzmpkz__card--image-leading' : ''}`, {
       'data-discount-id': d.id || '',
       'data-applicability': (d.qualification && d.qualification.applicability) || '',
     })
 
-    // Coupon icon (top-right, optional)
-    if (config.showCouponIcon && config.couponIconUrl) {
+    let body = card
+    if (useImageLeading) {
+      const imgCol = el('div', 'sai-c1mzmpkz__card-image-col')
+      imgCol.appendChild(el('img', 'sai-c1mzmpkz__card-image', {
+        src: config.couponIconUrl,
+        alt: '',
+        loading: 'lazy',
+      }))
+      card.appendChild(imgCol)
+      body = el('div', 'sai-c1mzmpkz__card-body')
+      card.appendChild(body)
+    } else if (config.showCouponIcon && config.couponIconUrl && iconPosition !== 'none') {
+      // Legacy top-right icon (default).
       card.appendChild(el('img', 'sai-c1mzmpkz__icon', {
         src: config.couponIconUrl,
         alt: '',
@@ -435,7 +453,7 @@
       const badgeLabel = isCurrent
         ? (labels.applicableStatusLabel || 'Available now')
         : (labels.potentialStatusLabel || 'Almost there')
-      card.appendChild(el('span', `sai-c1mzmpkz__status-badge sai-c1mzmpkz__status-badge--${isCurrent ? 'current' : 'potential'}`, {
+      body.appendChild(el('span', `sai-c1mzmpkz__status-badge sai-c1mzmpkz__status-badge--${isCurrent ? 'current' : 'potential'}`, {
         text: badgeLabel,
       }))
     }
@@ -446,40 +464,56 @@
       remainingText = formatRemaining(d, config.remainingAmountTemplate, config.currencyCode)
     }
     if (remainingText && config.nearMissPosition === 'badge') {
-      card.appendChild(el('span', 'sai-c1mzmpkz__remaining sai-c1mzmpkz__remaining--badge', { text: remainingText }))
+      body.appendChild(el('span', 'sai-c1mzmpkz__remaining sai-c1mzmpkz__remaining--badge', { text: remainingText }))
     }
 
     // Discount type label
     if (config.showTypeLabel) {
-      card.appendChild(el('h3', 'sai-c1mzmpkz__type-label', { text: formatTypeLabel(d, config.currencyCode) }))
+      body.appendChild(el('h3', 'sai-c1mzmpkz__type-label', { text: formatTypeLabel(d, config.currencyCode) }))
     }
 
     // Savings callout
     if (config.showSavingsCallout) {
       const savings = formatSavings(d, config.savingsDisplayMode, config.currencyCode)
-      if (savings) card.appendChild(el('span', 'sai-c1mzmpkz__savings', { text: savings }))
+      if (savings) body.appendChild(el('span', 'sai-c1mzmpkz__savings', { text: savings }))
     }
 
-    // Description
+    // Description — with optional inline "see details" link that opens the
+    // T&C modal. On mobile the link sits inline at the end of the truncated
+    // text (Vaaree-style "...see details"); on desktop it stays inline too,
+    // and the standalone Terms button below is only shown when not using
+    // inline mode.
+    const wantsInlineTermsLink = config.showTerms
     if (config.showDescription && (d.summary || d.shortSummary)) {
-      card.appendChild(el('p', 'sai-c1mzmpkz__description', { text: d.summary || d.shortSummary }))
+      const descWrap = el('p', 'sai-c1mzmpkz__description')
+      descWrap.appendChild(document.createTextNode(d.summary || d.shortSummary))
+      if (wantsInlineTermsLink) {
+        descWrap.appendChild(document.createTextNode(' '))
+        descWrap.appendChild(el('button', 'sai-c1mzmpkz__description-link', {
+          type: 'button',
+          'data-sai-tc-trigger': '',
+          'data-discount-id': d.id || '',
+          text: labels.termsLabel || 'see details',
+        }))
+      }
+      body.appendChild(descWrap)
     }
 
     // Min order line
     if (config.showMinOrderThreshold) {
       const minOrderText = formatMinOrder(d, labels.minOrderTemplate, config.currencyCode)
-      if (minOrderText) card.appendChild(el('p', 'sai-c1mzmpkz__min-order', { text: minOrderText }))
+      if (minOrderText) body.appendChild(el('p', 'sai-c1mzmpkz__min-order', { text: minOrderText }))
     }
 
     // Expiry display
     if (config.showExpiry) {
       const expiryText = formatExpiry(d, config.expiryFormat)
-      if (expiryText) card.appendChild(el('p', 'sai-c1mzmpkz__expiry', { text: expiryText }))
+      if (expiryText) body.appendChild(el('p', 'sai-c1mzmpkz__expiry', { text: expiryText }))
     }
 
     // Near-miss in flow (below description)
     if (remainingText && config.nearMissPosition === 'below_description') {
-      card.appendChild(el('p', 'sai-c1mzmpkz__remaining', { text: remainingText }))
+      body.appendChild(el('p', 'sai-c1mzmpkz__remaining', { text: remainingText }))
     }
 
     // Progress bar (potential only)
@@ -490,7 +524,7 @@
       const fill = el('div', 'sai-c1mzmpkz__progress-fill')
       fill.style.transform = `scaleX(${pct})`
       bar.appendChild(fill)
-      card.appendChild(bar)
+      body.appendChild(bar)
     }
 
     // Code chip + copy button row
@@ -507,19 +541,21 @@
           text: labels.copyCtaLabel,
         }))
       }
-      card.appendChild(row)
+      body.appendChild(row)
     }
 
     // CTA — automatic pill OR near-miss-replace-cta
     if (isAutomatic) {
-      card.appendChild(el('span', 'sai-c1mzmpkz__card-cta', { text: labels.automaticPillLabel }))
+      body.appendChild(el('span', 'sai-c1mzmpkz__card-cta', { text: labels.automaticPillLabel }))
     } else if (remainingText && config.nearMissPosition === 'replace_cta') {
-      card.appendChild(el('span', 'sai-c1mzmpkz__card-cta', { text: remainingText }))
+      body.appendChild(el('span', 'sai-c1mzmpkz__card-cta', { text: remainingText }))
     }
 
-    // Terms toggle
-    if (config.showTerms) {
-      card.appendChild(el('button', 'sai-c1mzmpkz__terms-toggle', {
+    // Standalone Terms toggle — only when description is hidden (and thus
+    // no inline link surfaces it). When the description is visible we surface
+    // T&C via the inline link instead of a duplicate button.
+    if (config.showTerms && !config.showDescription) {
+      body.appendChild(el('button', 'sai-c1mzmpkz__terms-toggle', {
         type: 'button',
         'data-sai-tc-trigger': '',
         'data-discount-id': d.id || '',
