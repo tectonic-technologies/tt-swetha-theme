@@ -595,6 +595,8 @@
       } catch (_) { /* fall through with empty data */ }
     }
 
+    console.log('[z0q31ww1] subtotal:', subtotal, 'appliedCodes:', appliedCodes, 'sectionOrder:', config.sectionDisplayOrder)
+
     const raw = collectDiscounts(discountsByVariant)
     const recomputed = raw.map((d) => recompute(d, subtotal))
 
