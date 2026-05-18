@@ -803,18 +803,17 @@
     if (!expandable) return
     const descs = host.querySelectorAll('.sai-c1mzmpkz__description')
     descs.forEach((desc) => {
-      // Skip when description text fits within the clamp.
       if (desc.scrollHeight - desc.clientHeight <= 2) return
-      // Wrap description in a relative-positioned container and overlay
-      // the toggle at the bottom-right with a fade. This makes "Read more"
-      // visually inline with the last visible line of the clamped text.
       desc.classList.add('sai-c1mzmpkz__description--has-toggle')
       const toggle = el('button', 'sai-c1mzmpkz__description-toggle', {
         type: 'button',
         text: 'Read more',
         'aria-expanded': 'false',
       })
-      desc.insertAdjacentElement('afterend', toggle)
+      // Append INSIDE the description so absolute positioning anchors to
+      // the description's box. The toggle sits at the bottom-right of the
+      // clamped area, visually inline with the last visible line.
+      desc.appendChild(toggle)
       toggle.addEventListener('click', (e) => {
         e.stopPropagation()
         const expanded = desc.classList.toggle('sai-c1mzmpkz__description--expanded')

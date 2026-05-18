@@ -582,31 +582,20 @@
   position: relative;
 }
 
-.sai-c1mzmpkz__description--has-toggle + .sai-c1mzmpkz__description-toggle {
-  /* Anchor "Read more" at the bottom-right corner of the clamped
-   * description, visually appearing inline with the last visible line.
-   * The toggle is a sibling, positioned relative to the description's
-   * own .sai-c1mzmpkz__description--has-toggle box via wrapping below. */
-}
-
+/* When toggle is present inside the clamped description, reserve trailing
+ * space on the last line and overlay the toggle at the bottom-right. */
 .sai-c1mzmpkz__description--has-toggle {
-  /* Reserve trailing space on the last line for the inline toggle so
-   * the description text doesn't visually collide with "Read more". */
-  padding-right: 4.5rem;
+  padding-right: 5rem;
 }
 
-.sai-c1mzmpkz__description--has-toggle ~ .sai-c1mzmpkz__description-toggle {
-  /* Pull the standalone toggle button up onto the description's last
-   * visible line and right-align it. Negative top margin sits it on the
-   * preceding line's baseline; right margin keeps it on the right edge. */
-  margin-top: calc(-1 * 1.35em - 0.2em);
-  margin-left: auto;
-  align-self: flex-end;
-  background: var(--sai-c1mzmpkz-card-bg, #fff);
-  padding-left: 0.5rem;
-  position: relative;
+.sai-c1mzmpkz__description--has-toggle .sai-c1mzmpkz__description-toggle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(to right, transparent, var(--sai-c1mzmpkz-card-bg, #fff) 0.75rem);
+  padding-left: 1.25rem;
+  padding-right: 0;
   z-index: 1;
-  float: right;
 }
 
 .sai-c1mzmpkz__description--expanded {
@@ -616,10 +605,12 @@
   padding-right: 0;
 }
 
-.sai-c1mzmpkz__description--expanded ~ .sai-c1mzmpkz__description-toggle {
-  margin-top: 0.125rem;
-  float: none;
-  align-self: flex-start;
+.sai-c1mzmpkz__description--expanded .sai-c1mzmpkz__description-toggle {
+  position: static;
+  background: none;
+  padding-left: 0;
+  display: inline-block;
+  margin-top: 0.25rem;
 }
 
 /* ── Inline image next to the type-label heading ─────────────────── */
