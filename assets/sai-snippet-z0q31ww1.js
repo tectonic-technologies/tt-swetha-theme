@@ -558,23 +558,30 @@
       .filter(Boolean)
 
     // Fetch the section-rendered discounts blob via Shopify's Section
-    // Rendering API. The section is registered in templates/cart.json with
-    // instance id `sai_z0q_data`, so /cart?sections=sai_z0q_data returns
-    // just that section's HTML — the cart.items iteration runs in isolation
-    // and can't break the host snippet.
+    // Rendering API.
     let discountsByVariant = {}
     try {
+      console.log('[z0q31ww1] fetching /cart?sections=sai_z0q_data')
       const r = await fetch('/cart?sections=sai_z0q_data', { headers: { Accept: 'application/json' } })
+      console.log('[z0q31ww1] section response status:', r.status)
       if (r.ok) {
         const sectionMap = await r.json()
+        console.log('[z0q31ww1] section keys:', Object.keys(sectionMap))
         const html = sectionMap.sai_z0q_data || ''
+        console.log('[z0q31ww1] sai_z0q_data html length:', html.length)
+        console.log('[z0q31ww1] sai_z0q_data html (first 600):', html.slice(0, 600))
         const match = html.match(/<script[^>]*data-sai-cart-data[^>]*>([\s\S]*?)<\/script>/)
+        console.log('[z0q31ww1] script tag matched:', !!match)
         if (match) {
           const cd = JSON.parse(match[1])
+          console.log('[z0q31ww1] parsed cart data:', cd)
           discountsByVariant = cd.discountsByVariant || {}
         }
       }
-    } catch (_) { /* skip */ }
+    } catch (err) {
+      console.error('[z0q31ww1] section fetch failed:', err)
+    }
+    console.log('[z0q31ww1] final discountsByVariant keys:', Object.keys(discountsByVariant))
 
     const raw = collectDiscounts(discountsByVariant)
     const recomputed = raw.map((d) => recompute(d, subtotal))
