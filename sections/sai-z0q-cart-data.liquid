@@ -1,0 +1,19 @@
+{%- comment -%}Cart discounts JSON emitter for z0q31ww1 (fetched via Section Rendering API).{%- endcomment -%}
+<script type="application/json" data-sai-cart-data>
+{
+  "discountsByVariant": {
+    {%- assign sai_first = true -%}
+    {%- for item in cart.items -%}
+      {%- assign v_raw = item.variant.metafields.spectrum.discounts.value -%}
+      {%- if v_raw != blank -%}
+        {%- unless sai_first -%},{%- endunless -%}
+        {{ item.variant.id | append: '' | json }}: {{ v_raw | json }}
+        {%- assign sai_first = false -%}
+      {%- endif -%}
+    {%- endfor -%}
+  }
+}
+</script>
+{% schema %}
+{ "name": "Z0Q cart data" }
+{% endschema %}

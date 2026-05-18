@@ -550,30 +550,30 @@
     try { payload = JSON.parse(payloadScript.textContent || '{}') } catch (_) { return }
 
     const config = payload.config || {}
-    // Prefer the adjacent section-emitted JSON for variant discounts +
-    // applied codes (server-side, real metafield read). Fall back to live
-    // /cart.js if the section isn't present.
+    // Hydrate cart from /cart.js (subtotal + applied codes).
+    const liveCart = await fetchCart()
+    const subtotal = Number(liveCart.total_price) > 0 ? Number(liveCart.total_price) / 100 : 0
+    const appliedCodes = (liveCart.discount_codes || [])
+      .map((d) => String(d && (d.code || d)).toUpperCase())
+      .filter(Boolean)
+
+    // Fetch the section-rendered discounts blob via the Section Rendering
+    // API — this is a tiny dedicated section that emits JSON only, so its
+    // Liquid runs in isolation from the main page and any cart-iteration
+    // quirk can't break the host snippet.
     let discountsByVariant = {}
-    let subtotal = 0
-    let appliedCodes = []
-    const cartDataNode = document.getElementById('sai-z0q31ww1-cart-discounts')
-    if (cartDataNode) {
-      try {
-        const cd = JSON.parse(cartDataNode.textContent || '{}')
-        discountsByVariant = cd.discountsByVariant || {}
-        subtotal = Number(cd.cart && cd.cart.subtotal) || 0
-        appliedCodes = ((cd.cart && cd.cart.appliedCodes) || []).map((c) => String(c).toUpperCase())
-      } catch (_) { /* fall through */ }
-    }
-    if (!subtotal) {
-      const liveCart = await fetchCart()
-      subtotal = Number(liveCart.total_price) > 0 ? Number(liveCart.total_price) / 100 : 0
-      if (appliedCodes.length === 0) {
-        appliedCodes = (liveCart.discount_codes || [])
-          .map((d) => String(d && (d.code || d)).toUpperCase())
-          .filter(Boolean)
+    try {
+      const r = await fetch('/?sections=sai-z0q-cart-data', { headers: { Accept: 'application/json' } })
+      if (r.ok) {
+        const sectionMap = await r.json()
+        const html = sectionMap['sai-z0q-cart-data'] || ''
+        const match = html.match(/<script[^>]*data-sai-cart-data[^>]*>([\s\S]*?)<\/script>/)
+        if (match) {
+          const cd = JSON.parse(match[1])
+          discountsByVariant = cd.discountsByVariant || {}
+        }
       }
-    }
+    } catch (_) { /* skip */ }
 
     const raw = collectDiscounts(discountsByVariant)
     const recomputed = raw.map((d) => recompute(d, subtotal))
