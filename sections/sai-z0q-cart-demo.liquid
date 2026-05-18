@@ -1,27 +1,5 @@
-{%- comment -%}z0q31ww1 demo entry — exposes cart-variant discounts to the snippet via a sibling <script> tag.{%- endcomment -%}
-
-<script type="application/json" id="sai-z0q31ww1-cart-discounts">
-{
-  "discountsByVariant": {
-    {%- assign sai_first = true -%}
-    {%- for item in cart.items -%}
-      {%- assign v_raw = item.variant.metafields.spectrum.discounts.value -%}
-      {%- if v_raw != blank -%}
-        {%- unless sai_first -%},{%- endunless -%}
-        {{ item.variant.id | append: '' | json }}: {{ v_raw | json }}
-        {%- assign sai_first = false -%}
-      {%- endif -%}
-    {%- endfor -%}
-  },
-  "cart": {
-    "subtotal": {{ cart.items_subtotal_price | divided_by: 100.0 | json }},
-    "appliedCodes": [{%- for d in cart.discount_codes -%}{{ d.code | upcase | json }}{%- unless forloop.last -%},{%- endunless -%}{%- endfor -%}]
-  }
-}
-</script>
-
+{%- comment -%}z0q31ww1 demo entry — snippet only, no cart iteration.{%- endcomment -%}
 {% render '_sai-snippet-z0q31ww1', mutation_handle: 'mut-9wbjxpgqa9', experience_handle: '_system-196419092640' %}
-
 {% schema %}
 { "name": "Z0Q demo", "presets": [{ "name": "Z0Q demo" }] }
 {% endschema %}
