@@ -1,0 +1,28 @@
+{%- comment -%}AUTO-GENERATED — z0q31ww1 demo instance. Programmatic install, not Studio-managed.{%- endcomment -%}
+
+{%- if sai_state != 'draft' and sai_state != 'live' -%}{%- assign sai_state = 'live' -%}{%- endif -%}
+{%- assign sai_vis = 'on' -%}
+
+{%- assign sai_handle = 'spectrum_snippet_z0q31ww1_9wbjxpgqa9_live' -%}
+{%- assign sai_mo = metaobjects.spectrum_snippet_instance[sai_handle] -%}
+{%- unless sai_mo -%}
+  {%- paginate metaobjects.spectrum_snippet_instance.values by 250 -%}
+    {%- for sai_entry in metaobjects.spectrum_snippet_instance.values -%}
+      {%- if sai_entry.system.handle == sai_handle -%}
+        {%- assign sai_mo = sai_entry -%}{%- break -%}
+      {%- endif -%}
+    {%- endfor -%}
+  {%- endpaginate -%}
+{%- endunless -%}
+
+{%- if sai_mo -%}
+  {%- assign sai_default = nil -%}
+  {%- for sai_v in sai_mo.variants.value.variants -%}
+    {%- if sai_v.isDefault -%}{%- assign sai_default = sai_v -%}{%- break -%}{%- endif -%}
+  {%- endfor -%}
+  {%- if sai_default -%}
+    <div data-spectrum-instance-id="9wbjxpgqa9" data-spectrum-snippet-id="z0q31ww1" data-spectrum-variant-id="{{ sai_default.variantId }}" data-spectrum-vis="{{ sai_vis }}" data-spectrum-lq-snippet="mut-9wbjxpgqa9" data-spectrum-experience="_system-196419092640" data-spectrum-feature-slug="view_all_offers">
+      {% render '_sai-snippet-z0q31ww1', variant: sai_default, mo: sai_mo, mutation_handle: 'mut-9wbjxpgqa9', experience_handle: '_system-196419092640' %}
+    </div>
+  {%- endif -%}
+{%- endif -%}
