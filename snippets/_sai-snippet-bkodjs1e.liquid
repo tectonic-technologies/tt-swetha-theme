@@ -650,6 +650,8 @@
  * scalloped notches on the side edges right above the code chip (the
  * "perforation" line). */
 .sai-bkodjs1e-popup__section {
+  --sai-bkodjs1e-perf-bottom: 3rem;
+  --sai-bkodjs1e-notch-r: 7px;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -665,15 +667,39 @@
   border-color: rgba(20, 128, 58, 0.35);
 }
 
-/* Dashed horizontal perforation between content and code chip. Edge-to-edge
- * dashed line; no scalloped notches (they relied on the parent background
- * matching the notch fill, which doesn't hold when the card lives outside
- * the popup body). */
+/* Only sections with a perforation get the semicircle bites. mask-image
+ * carves semicircles out of the card edges at the perforation y-coordinate;
+ * works on any parent background colour. Replacing the border with
+ * inset box-shadow because borders survive a mask cut (they outline the
+ * full rectangle even when the fill is masked away). */
+.sai-bkodjs1e-popup__section:has(.sai-bkodjs1e-popup__perforation) {
+  border: 0;
+  box-shadow: inset 0 0 0 1px var(--sai-bkodjs1e-card-border);
+  -webkit-mask:
+    radial-gradient(circle var(--sai-bkodjs1e-notch-r) at 0 calc(100% - var(--sai-bkodjs1e-perf-bottom)), transparent 99%, #000 100%),
+    radial-gradient(circle var(--sai-bkodjs1e-notch-r) at 100% calc(100% - var(--sai-bkodjs1e-perf-bottom)), transparent 99%, #000 100%);
+  -webkit-mask-composite: source-in;
+          mask:
+    radial-gradient(circle var(--sai-bkodjs1e-notch-r) at 0 calc(100% - var(--sai-bkodjs1e-perf-bottom)), transparent 99%, #000 100%),
+    radial-gradient(circle var(--sai-bkodjs1e-notch-r) at 100% calc(100% - var(--sai-bkodjs1e-perf-bottom)), transparent 99%, #000 100%);
+          mask-composite: intersect;
+}
+
+.sai-bkodjs1e-popup__section--primary:has(.sai-bkodjs1e-popup__perforation) {
+  box-shadow: inset 0 0 0 1px rgba(20, 128, 58, 0.35);
+}
+
+/* Dashed horizontal perforation aligned with the notch centres. Absolutely
+ * positioned so it sits flush with the notch line regardless of content
+ * height variation above the code chip. */
 .sai-bkodjs1e-popup__perforation {
-  position: relative;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: var(--sai-bkodjs1e-perf-bottom);
   height: 1px;
   background: repeating-linear-gradient(to right, rgba(0, 0, 0, 0.28) 0 4px, transparent 4px 8px);
-  margin: 0.5rem 0 0.375rem;
+  pointer-events: none;
 }
 
 .sai-bkodjs1e-popup__divider {
