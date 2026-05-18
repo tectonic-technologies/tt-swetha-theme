@@ -655,7 +655,7 @@
     let messageText = ''
     if ((mode === 'applied' || mode === 'auto-applied') && hasMonetary) {
       messageText = buildAppliedMessage(d, cart.totalPrice, config, labels, money)
-    } else if (mode === 'applicable' && hasMonetary) {
+    } else if ((mode === 'applicable' || mode === 'near-miss') && hasMonetary) {
       messageText = buildApplicableMessage(d, cart.totalPrice, config, labels, money)
     } else {
       messageText = d.title || d.shortSummary || ''
@@ -687,9 +687,33 @@
         text: labels.applyButtonText || 'Apply',
       })
       trailing.appendChild(applyBtn)
+    } else if (mode === 'near-miss' && code) {
+      const applyBtn = el('button', 'sai-cbpwlx29__apply', {
+        type: 'button',
+        disabled: true,
+        'aria-disabled': 'true',
+        text: labels.applyButtonText || 'Apply',
+      })
+      trailing.appendChild(applyBtn)
     }
     row.appendChild(trailing)
     body.appendChild(row)
+
+    // Near-miss hint: "Add $X more to unlock $Y Off" in muted red.
+    if (mode === 'near-miss') {
+      const remaining = Number(d.qualification && d.qualification.remainingValue)
+      const savings = abs
+      if (Number.isFinite(remaining) && remaining > 0) {
+        const tpl = labels.nearMissHintTemplate || 'Add {remaining} more to unlock {savings} Off'
+        const hint = el('p', 'sai-cbpwlx29__near-miss-hint', {
+          text: fillTemplate(tpl, {
+            remaining: money.format(remaining),
+            savings: savings > 0 ? money.format(savings) : '',
+          }),
+        })
+        body.appendChild(hint)
+      }
+    }
 
     // "Best Offer For You" pill under the message on the highlighted card.
     if (isBestOffer && mode === 'applicable' && code) {
@@ -1004,10 +1028,18 @@
     const appliedList = []
     const autoAppliedList = []
     const applicableList = []
+    const nearMissList = []
+    const nearMissThreshold = Math.max(0, Number(config.nextApplicableRemainingThreshold) || 0)
     for (const d of visible) {
       if (isApplied(d, cart.appliedDiscountCodes)) appliedList.push(d)
       else if (isAutoApplied(d)) autoAppliedList.push(d)
       else if (isApplicable(d)) applicableList.push(d)
+      else if (isPotential(d) && nearMissThreshold > 0) {
+        const remaining = Number(d.qualification && d.qualification.remainingValue)
+        if (Number.isFinite(remaining) && remaining > 0 && remaining <= nearMissThreshold) {
+          nearMissList.push(d)
+        }
+      }
     }
     // If any manual coupon is already applied, only surface "next" suggestions
     // that beat the *highest* applied savings — never pitch a smaller coupon
@@ -1043,6 +1075,15 @@
       const c = buildCard(d, 'applicable', ctx)
       slot.appendChild(c)
       rendered.push({ d, mode: 'applicable', el: c })
+    }
+    // Near-miss potentials: coupons within nextApplicableRemainingThreshold
+    // of qualifying. Rendered compact with disabled Apply + "Add $X more to
+    // unlock $Y Off" hint, sorted by closest-to-qualify first.
+    nearMissList.sort((a, b) => remainingOf(a) - remainingOf(b))
+    for (const d of nearMissList) {
+      const c = buildCard(d, 'near-miss', ctx)
+      slot.appendChild(c)
+      rendered.push({ d, mode: 'near-miss', el: c })
     }
     for (const d of autoAppliedList) {
       const c = buildCard(d, 'auto-applied', ctx)

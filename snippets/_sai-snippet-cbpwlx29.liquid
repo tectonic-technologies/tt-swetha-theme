@@ -39,6 +39,7 @@
   assign heading = content.heading | default: ''
   assign display_mode = content.display_mode | default: 'default'
   assign max_coupons_displayed = content.max_coupons_displayed | default: 3
+  assign next_applicable_remaining_threshold = content.next_applicable_remaining_threshold | default: 500
   assign within_tier_sort = content.within_tier_sort | default: 'highest_savings'
 
   if content.enable_auto_apply == nil
@@ -513,16 +514,34 @@
 }
 
 /* Non-best-offer applicable rows (FLAT500, FLAT250 underneath the
- * highlighted FLAT750) render compact with an Apply CTA. */
-.sai-cbpwlx29__card[data-sai-card-state='applicable']:not([data-best-offer='true']) {
+ * highlighted FLAT750) and near-miss rows render compact with an Apply CTA
+ * (active for applicable, disabled for near-miss). */
+.sai-cbpwlx29__card[data-sai-card-state='applicable']:not([data-best-offer='true']),
+.sai-cbpwlx29__card[data-sai-card-state='near-miss'] {
   background: transparent;
   border: 0;
   box-shadow: none;
 }
 
-.sai-cbpwlx29__card[data-sai-card-state='applicable']:not([data-best-offer='true']) .sai-cbpwlx29__body {
+.sai-cbpwlx29__card[data-sai-card-state='applicable']:not([data-best-offer='true']) .sai-cbpwlx29__body,
+.sai-cbpwlx29__card[data-sai-card-state='near-miss'] .sai-cbpwlx29__body {
   padding: 0.75rem var(--sai-cbpwlx29-card-pad);
-  gap: 0;
+  gap: 0.125rem;
+}
+
+.sai-cbpwlx29__near-miss-hint {
+  margin: 0;
+  padding-left: 2.375rem; /* icon (1.75rem) + row gap (0.625rem) */
+  font-size: 0.8125rem;
+  color: var(--sai-cbpwlx29-remove-fg);
+}
+
+.sai-cbpwlx29__apply[disabled],
+.sai-cbpwlx29__apply[aria-disabled='true'] {
+  background: var(--sai-cbpwlx29-progress-fill);
+  color: var(--sai-cbpwlx29-apply-fg);
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .sai-cbpwlx29__subrow {
@@ -879,6 +898,7 @@
     "visibilityScope": {{ visibility_scope | json }},
     "displayMode": {{ display_mode | json }},
     "maxCouponsDisplayed": {{ max_coupons_displayed | json }},
+    "nextApplicableRemainingThreshold": {{ next_applicable_remaining_threshold | json }},
     "withinTierSort": {{ within_tier_sort | json }},
     "enableAutoApply": {{ enable_auto_apply | json }},
     "autoApplyTrigger": {{ auto_apply_trigger | json }},
