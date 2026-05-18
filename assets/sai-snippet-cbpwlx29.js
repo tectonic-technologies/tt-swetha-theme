@@ -128,13 +128,11 @@
     return Number.isFinite(t) ? t : null
   }
 
-  // Savings at the discount's threshold qualification context. For cart we
-  // prefer qualification.matchedSubtotalAmount when present (server-evaluated
-  // cart savings); fall back to discountValue projection over cart subtotal.
+  // Savings at the live cart subtotal. Always projected from discountValue —
+  // matchedSubtotalAmount is the cart subtotal the discount qualified against,
+  // not the savings amount, so it can't be used here.
   function savingsAtCart(d, cartTotal) {
     if (!d) return 0
-    const q = d.qualification || {}
-    if (Number.isFinite(Number(q.matchedSubtotalAmount))) return Number(q.matchedSubtotalAmount)
     const dv = d.discountValue
     if (!dv) return 0
     switch (dv.type) {
