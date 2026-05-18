@@ -728,6 +728,9 @@
       _renderInlineCallout(evaluated) {
         this._renderBullets(evaluated, this.querySelector('[data-sai-bullets]'))
         this._renderUnlock(evaluated, this.querySelector('[data-sai-unlock]'))
+        // Inline mode mirrors Myntra-style copy: no separate "You save"
+        // chip — the savings are already in the bullets.
+        this._setHidden('[data-sai-savings]', true)
         // Alternatives shown directly when showAlternatives is on in this mode.
         if (this._state.config.showAlternatives) {
           this._renderAlternatives(evaluated, this.querySelector('[data-sai-alt-list]'))

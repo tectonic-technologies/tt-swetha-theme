@@ -242,6 +242,8 @@
   padding-inline: 0;
   background: var(--sai-bkodjs1e-badge-bg);
   color: var(--sai-bkodjs1e-badge-fg);
+  flex-direction: row-reverse;
+  justify-content: flex-end;
 }
 
 .sai-bkodjs1e__heading {
@@ -916,35 +918,23 @@
   flex-direction: column;
 }
 
-/* Inline-mode alternative rows — vertical stack per row: name on top,
- * unlock/savings meta beneath. No chevron (non-interactive in inline
- * mode). Hairline dividers between rows for visual rhythm without card
- * chrome. */
+/* Inline-mode alternative rows — Myntra-style clean text list. No borders,
+ * no cards, just text with comfortable vertical rhythm. */
+.sai-bkodjs1e__alt-list {
+  gap: 0.75rem;
+  padding-block-start: 0.25rem;
+}
+
 .sai-bkodjs1e__alt-item {
   display: flex;
   flex-direction: column;
-  gap: 0.1875rem;
-  padding: 0.625rem 0;
-  border-block-start: 1px solid var(--sai-bkodjs1e-card-border);
-}
-
-.sai-bkodjs1e__alt-item:first-child {
-  border-block-start: 0;
+  gap: 0.125rem;
+  padding: 0;
+  border: 0;
 }
 
 .sai-bkodjs1e__alt-item--current {
   position: relative;
-  padding-inline-start: 0.625rem;
-}
-
-.sai-bkodjs1e__alt-item--current::before {
-  content: '';
-  position: absolute;
-  inset-block: 0.625rem;
-  inset-inline-start: 0;
-  inline-size: 3px;
-  border-radius: 2px;
-  background: var(--sai-bkodjs1e-accent-fg);
 }
 
 .sai-bkodjs1e__alt-group-label,
@@ -955,10 +945,6 @@
   letter-spacing: 0.06em;
   color: var(--sai-bkodjs1e-muted-fg);
   padding: 0.5rem 0 0.25rem;
-}
-
-.sai-bkodjs1e__alt-heading {
-  margin-block-start: 0.5rem;
 }
 
 .sai-bkodjs1e__alt-name {
@@ -976,7 +962,7 @@
 
 .sai-bkodjs1e__alt-item--current .sai-bkodjs1e__alt-value {
   color: var(--sai-bkodjs1e-accent-fg);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 /* ── Sticky mobile bar (additive) ─────────────────────────────────────────── */
