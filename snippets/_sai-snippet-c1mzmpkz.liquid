@@ -188,11 +188,12 @@
   assign terms_template = content.terms_template | default: '{summary}. Minimum order {min_order}. {stacking_note}. Use code {code} at checkout.'
 
   if content.show_coupon_icon == nil
-    assign show_coupon_icon = false
+    assign show_coupon_icon = true
   else
     assign show_coupon_icon = content.show_coupon_icon
   endif
   assign coupon_icon_url = content.coupon_icon_url | default: ''
+  assign card_icon_position = content.card_icon_position | default: 'left'
 
   if content.show_min_order_threshold == nil
     assign show_min_order_threshold = false
@@ -576,6 +577,15 @@
   -webkit-box-orient: vertical;
   -webkit-line-clamp: var(--sai-c1mzmpkz-desc-lines, 2);
   overflow: hidden;
+}
+
+/* When the inline "see details" link is rendered inside the description,
+ * disable line-clamp so the trailing link isn't truncated. The link itself
+ * is the disclosure surface — full T&C content opens in the modal/drawer. */
+.sai-c1mzmpkz__description:has(.sai-c1mzmpkz__description-link) {
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow: visible;
 }
 
 .sai-c1mzmpkz__description--expanded {
@@ -1176,7 +1186,7 @@
     "termsTemplate": {{ terms_template | json }},
     "showCouponIcon": {{ show_coupon_icon | json }},
     "couponIconUrl": {{ coupon_icon_url | json }},
-    "cardIconPosition": {{ card_icon_position | default: 'top_right' | json }},
+    "cardIconPosition": {{ card_icon_position | default: 'left' | json }},
     "showMinOrderThreshold": {{ show_min_order_threshold | json }},
     "currencyCode": {{ currency_code | json }},
     "variantPrice": {%- if sai_active_variant.price -%}{{ sai_active_variant.price | divided_by: 100.0 | json }}{%- else -%}null{%- endif -%}
