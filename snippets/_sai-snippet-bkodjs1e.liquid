@@ -665,36 +665,15 @@
   border-color: rgba(20, 128, 58, 0.35);
 }
 
-/* Dashed horizontal perforation between content and code chip. */
+/* Dashed horizontal perforation between content and code chip. Edge-to-edge
+ * dashed line; no scalloped notches (they relied on the parent background
+ * matching the notch fill, which doesn't hold when the card lives outside
+ * the popup body). */
 .sai-bkodjs1e-popup__perforation {
   position: relative;
   height: 1px;
   background: repeating-linear-gradient(to right, rgba(0, 0, 0, 0.28) 0 4px, transparent 4px 8px);
-  margin: 0.375rem -1rem 0.25rem;
-}
-
-/* Scalloped notches on left/right edges at the perforation line. The dots
- * are the card's parent (popup body) background, masking out small
- * semicircles from the card's edges to create the ticket look. */
-.sai-bkodjs1e-popup__perforation::before,
-.sai-bkodjs1e-popup__perforation::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #ffffff;
-  border: 1px solid var(--sai-bkodjs1e-card-border);
-  transform: translateY(-50%);
-}
-
-.sai-bkodjs1e-popup__perforation::before { left: -9px; }
-.sai-bkodjs1e-popup__perforation::after { right: -9px; }
-
-.sai-bkodjs1e-popup__section--primary .sai-bkodjs1e-popup__perforation::before,
-.sai-bkodjs1e-popup__section--primary .sai-bkodjs1e-popup__perforation::after {
-  border-color: rgba(20, 128, 58, 0.35);
+  margin: 0.5rem 0 0.375rem;
 }
 
 .sai-bkodjs1e-popup__divider {
