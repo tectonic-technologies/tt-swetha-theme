@@ -480,27 +480,21 @@
   height: 1rem;
 }
 
-/* Highlighted best-offer card. Mint background lives in a pseudo-element
- * inset from the card edges so the card itself can keep full width without
- * fighting the container's flow. */
+/* Highlighted best-offer card. Constrain width explicitly so margin-inline:auto
+ * actually inserts left/right gutters (flex/full-width parents otherwise eat
+ * margins and let the bg bleed edge to edge). */
 .sai-cbpwlx29__card[data-best-offer='true'] {
-  position: relative;
-  z-index: 0;
-  padding-block: 0.5rem;
-}
-
-.sai-cbpwlx29__card[data-best-offer='true']::before {
-  content: '';
-  position: absolute;
-  inset: 0.5rem var(--sai-cbpwlx29-card-pad);
+  width: calc(100% - 2 * var(--sai-cbpwlx29-card-pad));
+  max-width: calc(100% - 2 * var(--sai-cbpwlx29-card-pad));
+  margin-inline: auto;
+  margin-block: 0.5rem;
+  align-self: center;
   background: var(--sai-cbpwlx29-best-offer-bg);
   border-radius: var(--sai-cbpwlx29-card-radius);
-  z-index: -1;
-  pointer-events: none;
 }
 
 .sai-cbpwlx29__card[data-best-offer='true'] .sai-cbpwlx29__body {
-  padding: 0.75rem calc(var(--sai-cbpwlx29-card-pad) + 0.875rem);
+  padding: 0.875rem 1rem;
 }
 
 .sai-cbpwlx29__subrow {
