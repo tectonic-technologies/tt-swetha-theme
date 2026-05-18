@@ -550,11 +550,15 @@
     try { payload = JSON.parse(payloadScript.textContent || '{}') } catch (_) { return }
 
     const config = payload.config || {}
-    // Hydrate cart from /cart.js (subtotal + applied codes).
+    // Hydrate cart from /cart.js. Shopify's discount_codes list includes
+    // every code the shopper has tried; only entries with applicable=true
+    // are actually live, so filter on that flag — otherwise stale rejected
+    // codes get rendered as APPLIED.
     const liveCart = await fetchCart()
     const subtotal = Number(liveCart.total_price) > 0 ? Number(liveCart.total_price) / 100 : 0
     const appliedCodes = (liveCart.discount_codes || [])
-      .map((d) => String(d && (d.code || d)).toUpperCase())
+      .filter((d) => d && d.applicable === true)
+      .map((d) => String(d.code).toUpperCase())
       .filter(Boolean)
 
     // Read cart-discounts data emitted inline by the host section. Shopify's
