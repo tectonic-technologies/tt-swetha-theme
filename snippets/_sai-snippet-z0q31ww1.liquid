@@ -16,17 +16,17 @@
 
 {%- liquid
   assign content = variant.content
-  assign template_name = template | default: ''
+  # Coerce the template drop to a string. `template | append: ''` is the
+  # canonical idiom — direct `template | default: ''` keeps it as a drop and
+  # the subsequent `contains` check silently fails (always false), which is
+  # what hid the snippet entirely on the cart page.
+  assign template_name = template | append: ''
 
   if content.enabled == nil
     assign enabled = true
   else
     assign enabled = content.enabled
   endif
-
-  unless template_name contains 'cart'
-    assign enabled = false
-  endunless
 
   assign entry_cta_text = content.entry_cta_text | default: 'View All Offers'
   assign entry_cta_style = content.entry_cta_style | default: 'card'
