@@ -806,21 +806,88 @@
     const wraps = host.querySelectorAll('.sai-c1mzmpkz__description-wrap')
     wraps.forEach((wrap) => {
       const desc = wrap.querySelector('.sai-c1mzmpkz__description')
-      if (!desc || desc.scrollHeight - desc.clientHeight <= 2) return
-      wrap.classList.add('sai-c1mzmpkz__description-wrap--has-toggle')
+      if (!desc) return
+
+      const fullText = desc.textContent || ''
+      // First, measure with line-clamp on the full text to see if it overflows.
+      desc.textContent = fullText
+      const overflows = desc.scrollHeight - desc.clientHeight > 2
+      if (!overflows) return
+
+      // Build the inline ellipsis + "see details" link inside the description.
+      // JS-measured binary search trims the text from the end until the
+      // visible content (truncated text + "... see details") fits exactly
+      // in the 2-line clamp box. The link appears RIGHT AFTER the ellipsis,
+      // not at the right margin.
+      const measureBox = desc.getBoundingClientRect()
+      const targetHeight = measureBox.height
+
+      // Switch description to block (drop line-clamp) so we can measure
+      // arbitrary content height and find the cut point.
+      const origDisplay = desc.style.display
+      const origClamp = desc.style.webkitLineClamp
+      const origOverflow = desc.style.overflow
+      desc.style.display = 'block'
+      desc.style.webkitLineClamp = 'unset'
+      desc.style.overflow = 'visible'
+
+      const ellipsisNode = document.createTextNode('… ')
       const toggle = el('button', 'sai-c1mzmpkz__description-toggle', {
         type: 'button',
         text: 'see details',
         'aria-expanded': 'false',
       })
-      // Sibling of description inside the relative wrap. Absolute-positioned
-      // at the bottom-right via CSS, with a fade-out so the text underneath
-      // doesn't show through.
-      wrap.appendChild(toggle)
+      desc.appendChild(ellipsisNode)
+      desc.appendChild(toggle)
+
+      function visibleHeight() { return desc.getBoundingClientRect().height }
+      function setText(len) {
+        // Trim to whole-word boundary near `len` for a clean cut.
+        let s = fullText.slice(0, len).replace(/\s+\S*$/, '')
+        if (!s) s = fullText.slice(0, len)
+        desc.firstChild ? (desc.firstChild.nodeValue = s) : null
+      }
+
+      // Initialise the first text node.
+      desc.insertBefore(document.createTextNode(fullText), ellipsisNode)
+
+      // Binary-search the longest prefix that still fits in targetHeight.
+      let lo = 0
+      let hi = fullText.length
+      let best = 0
+      while (lo <= hi) {
+        const mid = (lo + hi) >> 1
+        setText(mid)
+        if (visibleHeight() <= targetHeight + 1) {
+          best = mid
+          lo = mid + 1
+        } else {
+          hi = mid - 1
+        }
+      }
+      setText(best)
+
+      // Restore the clamp so any subsequent layout still respects the
+      // original 2-line container (expanded state will override below).
+      desc.style.display = origDisplay
+      desc.style.webkitLineClamp = origClamp
+      desc.style.overflow = origOverflow
+
+      wrap.classList.add('sai-c1mzmpkz__description-wrap--has-toggle')
+
       toggle.addEventListener('click', (e) => {
         e.stopPropagation()
         const expanded = wrap.classList.toggle('sai-c1mzmpkz__description-wrap--expanded')
-        toggle.textContent = expanded ? 'show less' : 'see details'
+        if (expanded) {
+          // Show the full text + "show less" inline.
+          desc.firstChild && (desc.firstChild.nodeValue = fullText + ' ')
+          ellipsisNode.nodeValue = ''
+          toggle.textContent = 'show less'
+        } else {
+          setText(best)
+          ellipsisNode.nodeValue = '… '
+          toggle.textContent = 'see details'
+        }
         toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false')
       })
     })

@@ -586,37 +586,31 @@
   word-break: break-word;
 }
 
-/* Reserve trailing space on the last visible line for the toggle so the
- * underlying text doesn't crash into "see details". */
+/* Inline "see details" — placed by JS right after the ellipsis inside
+ * the description paragraph. Same font as the description text, just a
+ * touch darker for contrast. No underline, no bold — visually seamless.
+ * webkit-line-clamp is dropped by the wrap class once JS has measured
+ * the truncation point. */
 .sai-c1mzmpkz__description-wrap--has-toggle .sai-c1mzmpkz__description {
-  padding-right: 4.5rem;
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow: visible;
 }
 
-/* Anchor the toggle at the bottom-right of the wrap, fading any text
- * that would otherwise show through from underneath. Visually seamless
- * with the description text — same font size + line-height, no border,
- * no underline; weight + color give it just enough emphasis to read as
- * a link. */
-.sai-c1mzmpkz__description-wrap--has-toggle .sai-c1mzmpkz__description-toggle {
-  position: absolute;
-  right: 0;
-  bottom: 0;
+.sai-c1mzmpkz__description-toggle {
+  display: inline;
   margin: 0;
-  padding: 0 0 0 1rem;
-  background: linear-gradient(to right, transparent, var(--sai-c1mzmpkz-card-bg, #fff) 0.6rem);
+  padding: 0;
   border: 0;
+  background: transparent;
   font-family: inherit;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  line-height: 1.35;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
   color: var(--sai-c1mzmpkz-fg);
   text-decoration: none;
   cursor: pointer;
-}
-
-.sai-c1mzmpkz__description-wrap--has-toggle .sai-c1mzmpkz__description-toggle:hover,
-.sai-c1mzmpkz__description-wrap--has-toggle .sai-c1mzmpkz__description-toggle:focus-visible {
-  text-decoration: underline;
+  vertical-align: baseline;
 }
 
 /* Expanded — drop the line-clamp + trailing padding, push the toggle
@@ -865,11 +859,16 @@
   padding: 0;
   font: inherit;
   font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--sai-c1mzmpkz-muted-fg);
-  text-decoration: underline;
+  font-weight: 400;
+  color: var(--sai-c1mzmpkz-fg);
+  text-decoration: none;
   cursor: pointer;
   align-self: flex-start;
+}
+
+.sai-c1mzmpkz__terms-toggle:hover,
+.sai-c1mzmpkz__terms-toggle:focus-visible {
+  text-decoration: underline;
 }
 
 /* ── Promo blocks ─────────────────────────────────────────────────── */
