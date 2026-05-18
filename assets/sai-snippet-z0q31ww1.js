@@ -204,11 +204,10 @@
   }
 
   function maybeHideEntry(host, ctx) {
-    const { applicable, applied, autoApplied, config } = ctx
-    const total = applicable.length + applied.length + autoApplied.length
-    const min = Math.max(0, Number(config.entryCtaMinCoupons) || 0)
-    if (total < min) host.classList.add(`${TAG}--hidden`)
-    else host.classList.remove(`${TAG}--hidden`)
+    // Always show the entry CTA — count-based hiding was unreliable once we
+    // moved variant-discount hydration to the client, because /products/x.js
+    // does not expose metafields on all themes.
+    host.classList.remove(`${TAG}--hidden`)
   }
 
   // ── Page ─────────────────────────────────────────────────────────────
