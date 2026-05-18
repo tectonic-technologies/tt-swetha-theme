@@ -691,12 +691,11 @@
  * shape. The dashed line + 1px-thick solid breaks at each end visually
  * separate the content / code-chip zones without trying to mask cuts. */
 
-/* Dashed horizontal perforation across the card. Spans the full content
- * width (inside the card's padding) — no notches to clear. */
+/* Dashed horizontal perforation spans edge-to-edge across the card. */
 .sai-bkodjs1e-popup__perforation {
   position: absolute;
-  left: 1rem;
-  right: 1rem;
+  left: 0;
+  right: 0;
   bottom: var(--sai-bkodjs1e-perf-bottom);
   height: 1px;
   background: repeating-linear-gradient(to right, rgba(0, 0, 0, 0.28) 0 4px, transparent 4px 8px);
