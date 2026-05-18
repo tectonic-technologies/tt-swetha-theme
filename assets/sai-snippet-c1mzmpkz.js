@@ -803,20 +803,18 @@
     if (!expandable) return
     const descs = host.querySelectorAll('.sai-c1mzmpkz__description')
     descs.forEach((desc) => {
-      // Only add the toggle when the description text actually overflows
-      // its line-clamp box.
+      // Skip when description text fits within the clamp.
       if (desc.scrollHeight - desc.clientHeight <= 2) return
+      // Wrap description in a relative-positioned container and overlay
+      // the toggle at the bottom-right with a fade. This makes "Read more"
+      // visually inline with the last visible line of the clamped text.
+      desc.classList.add('sai-c1mzmpkz__description--has-toggle')
       const toggle = el('button', 'sai-c1mzmpkz__description-toggle', {
         type: 'button',
         text: 'Read more',
         'aria-expanded': 'false',
       })
-      // INLINE placement: append the toggle inside the description so the
-      // browser's webkit-line-clamp truncates both text + toggle together.
-      // The toggle ends up at the truncation point on the last visible line
-      // (Vaaree-style "...Read more").
-      desc.appendChild(document.createTextNode(' '))
-      desc.appendChild(toggle)
+      desc.insertAdjacentElement('afterend', toggle)
       toggle.addEventListener('click', (e) => {
         e.stopPropagation()
         const expanded = desc.classList.toggle('sai-c1mzmpkz__description--expanded')
