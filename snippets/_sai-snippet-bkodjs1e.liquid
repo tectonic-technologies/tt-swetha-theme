@@ -200,12 +200,18 @@
   inline-size: 100%;
   max-width: 1200px;
   margin-inline: auto;
-  padding-inline: 0;
+  padding-inline: 1rem;
   font-family: var(--sai-font-body);
   font-size: 0.9375rem;
   line-height: 1.4;
   color: var(--sai-bkodjs1e-fg);
   margin-block: var(--sai-size-3, 0.75rem);
+}
+
+@media (min-width: 768px) {
+  .sai-bkodjs1e {
+    padding-inline: 1.5rem;
+  }
 }
 
 .sai-bkodjs1e *,
@@ -647,6 +653,38 @@
   inline-size: 1.125rem;
   block-size: 1.125rem;
   color: var(--sai-bkodjs1e-success-fg, #14803a);
+}
+
+.sai-bkodjs1e-popup__status {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 0.3125rem;
+  padding: 0.125rem 0.5rem 0.125rem 0.4375rem;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 0.125rem;
+}
+
+.sai-bkodjs1e-popup__status::before {
+  content: '';
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.sai-bkodjs1e-popup__status--current {
+  background: rgba(20, 128, 58, 0.12);
+  color: #14803a;
+}
+
+.sai-bkodjs1e-popup__status--potential {
+  background: rgba(0, 0, 0, 0.06);
+  color: rgba(0, 0, 0, 0.6);
 }
 
 .sai-bkodjs1e-popup__desc {

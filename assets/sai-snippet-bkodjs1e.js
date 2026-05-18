@@ -958,6 +958,29 @@
         const section = document.createElement('div')
         section.className = 'sai-bkodjs1e-popup__section' + (isPrimary ? ' sai-bkodjs1e-popup__section--primary' : '')
 
+        // Status badge — instant visual marker of applicable vs potential.
+        const badge = document.createElement('span')
+        if (isPrimary) {
+          badge.className = 'sai-bkodjs1e-popup__status sai-bkodjs1e-popup__status--current'
+          badge.textContent = 'Available now'
+        } else {
+          badge.className = 'sai-bkodjs1e-popup__status sai-bkodjs1e-popup__status--potential'
+          const q = d?.qualification
+          const remaining = q && Number(q.remainingValue)
+          if (Number.isFinite(remaining) && remaining > 0) {
+            if (q.progressMetric === 'cart_value' || q.progressMetric === 'subtotal') {
+              badge.textContent = `Spend ${money(remaining)} more to unlock`
+            } else if (q.progressMetric === 'quantity') {
+              badge.textContent = `Add ${remaining} more to unlock`
+            } else {
+              badge.textContent = 'Not yet eligible'
+            }
+          } else {
+            badge.textContent = 'Not yet eligible'
+          }
+        }
+        section.appendChild(badge)
+
         if (d.summary || d.shortSummary) {
           // Shopify discount summaries cram multiple facts onto one line with
           // ` • ` separators ("$50.00 off … • Minimum purchase of $500.00 •
