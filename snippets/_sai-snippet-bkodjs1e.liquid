@@ -466,6 +466,23 @@
   font-size: 0.9375rem;
 }
 
+/* Countdown chip lives inside the green callout in dropdown-pill mode.
+ * Right-aligned, transparent background so it blends with the callout
+ * strip (no separate grey banner row). */
+.sai-bkodjs1e__callout .sai-bkodjs1e__countdown--in-callout {
+  margin-inline-start: auto;
+  background: transparent;
+  padding: 0;
+  color: var(--sai-bkodjs1e-success-fg, #14803a);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.sai-bkodjs1e__callout .sai-bkodjs1e__countdown--in-callout .sai-bkodjs1e__countdown-icon {
+  color: var(--sai-bkodjs1e-success-fg, #14803a);
+}
+
 .sai-bkodjs1e__callout-icon {
   inline-size: 1.125rem;
   block-size: 1.125rem;

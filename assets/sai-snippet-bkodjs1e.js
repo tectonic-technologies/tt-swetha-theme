@@ -801,12 +801,15 @@
         }
 
         // Countdown is rendered inside [data-sai-price-row] which is hidden
-        // in dropdown mode. Detach + re-mount it inside the trigger stack
-        // so the urgency timer still surfaces above the dropdown pill.
+        // in dropdown mode. Detach + re-mount it INSIDE the green callout
+        // (right-aligned) so the urgency timer sits on the same row as the
+        // "Get it at $X" text instead of taking up a heavy banner of its own.
         if (this._state.config.showCountdown) {
           const countdownEl = this.querySelector('[data-sai-countdown]')
-          if (countdownEl && trigger && !trigger.contains(countdownEl)) {
-            trigger.insertBefore(countdownEl, trigger.firstChild)
+          const calloutEl = this.querySelector('[data-sai-callout]')
+          if (countdownEl && calloutEl && !calloutEl.contains(countdownEl)) {
+            countdownEl.classList.add('sai-bkodjs1e__countdown--in-callout')
+            calloutEl.appendChild(countdownEl)
           }
         }
 
