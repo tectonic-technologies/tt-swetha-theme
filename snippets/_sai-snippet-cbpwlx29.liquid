@@ -514,33 +514,49 @@
 }
 
 /* Non-best-offer applicable rows (FLAT500, FLAT250 underneath the
- * highlighted FLAT750) and near-miss rows render compact with an Apply CTA
- * (active for applicable, disabled for near-miss). */
-.sai-cbpwlx29__card[data-sai-card-state='applicable']:not([data-best-offer='true']),
-.sai-cbpwlx29__card[data-sai-card-state='near-miss'] {
+ * highlighted FLAT750) render compact with an active Apply CTA. */
+.sai-cbpwlx29__card[data-sai-card-state='applicable']:not([data-best-offer='true']) {
   background: transparent;
   border: 0;
   box-shadow: none;
 }
 
-.sai-cbpwlx29__card[data-sai-card-state='applicable']:not([data-best-offer='true']) .sai-cbpwlx29__body,
-.sai-cbpwlx29__card[data-sai-card-state='near-miss'] .sai-cbpwlx29__body {
+.sai-cbpwlx29__card[data-sai-card-state='applicable']:not([data-best-offer='true']) .sai-cbpwlx29__body {
   padding: 0.75rem var(--sai-cbpwlx29-card-pad);
   gap: 0.125rem;
 }
 
+/* Near-miss card mirrors the best-offer highlight: mint bg on the body,
+ * card padding-inline for the gutter, no coupon icon (clean text + hint),
+ * disabled Apply button. */
+.sai-cbpwlx29__card[data-sai-card-state='near-miss'] {
+  background: transparent;
+  padding-block: 0.5rem;
+  padding-inline: var(--sai-cbpwlx29-card-pad);
+}
+
+.sai-cbpwlx29__card[data-sai-card-state='near-miss'] .sai-cbpwlx29__body {
+  background: var(--sai-cbpwlx29-best-offer-bg);
+  border-radius: var(--sai-cbpwlx29-card-radius);
+  padding: 0.875rem 1rem;
+  gap: 0.25rem;
+}
+
+.sai-cbpwlx29__card[data-sai-card-state='near-miss'] .sai-cbpwlx29__icon {
+  display: none;
+}
+
 .sai-cbpwlx29__near-miss-hint {
   margin: 0;
-  padding-left: 2.375rem; /* icon (1.75rem) + row gap (0.625rem) */
   font-size: 0.8125rem;
   color: var(--sai-cbpwlx29-remove-fg);
 }
 
 .sai-cbpwlx29__apply[disabled],
 .sai-cbpwlx29__apply[aria-disabled='true'] {
-  background: var(--sai-cbpwlx29-progress-fill);
+  background: var(--sai-cbpwlx29-pill-bg);
   color: var(--sai-cbpwlx29-apply-fg);
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
