@@ -1120,9 +1120,13 @@
       for (const t of ctx._timers) clearInterval(t)
     }
     ctx._timers = []
-    const cards = ctx.slot.querySelectorAll('.sai-cbpwlx29__card')
-    visibleDiscounts.forEach((d, i) => {
-      const card = cards[i]
+    visibleDiscounts.forEach((d) => {
+      // Match by data-discount-id so card order (applied / best-offer /
+      // applicable / auto-applied) doesn't matter — index pairing breaks the
+      // moment we render more than just the best-offer card.
+      const card = d && d.id != null
+        ? ctx.slot.querySelector(`.sai-cbpwlx29__card[data-discount-id="${CSS.escape(String(d.id))}"]`)
+        : null
       if (!card) return
       const textEl = card.querySelector('[data-sai-countdown-text]')
       if (!textEl) return

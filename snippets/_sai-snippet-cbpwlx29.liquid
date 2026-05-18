@@ -274,6 +274,13 @@
   gap: 0.25rem;
 }
 
+/* Hide the countdown header if no text was populated — prevents an empty
+ * mint strip when timer setup hasn't run or there's no source. */
+.sai-cbpwlx29__countdown-text:empty,
+.sai-cbpwlx29__countdown-header:has(.sai-cbpwlx29__countdown-text:empty) {
+  display: none;
+}
+
 .sai-cbpwlx29__countdown-time {
   font-variant-numeric: tabular-nums;
 }
