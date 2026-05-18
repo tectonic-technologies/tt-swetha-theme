@@ -678,18 +678,35 @@
   align-self: flex-start;
 }
 
-/* Alt-section code box uses muted grey — primary stays strong black. */
-.sai-bkodjs1e-popup__section:not(.sai-bkodjs1e-popup__section--primary) .sai-bkodjs1e-popup__code-row {
-  border-color: rgba(0, 0, 0, 0.22);
-  background: rgba(0, 0, 0, 0.02);
+/* For potential (non-applicable) alt offers, the savings amount is grey —
+ * it's not money the shopper has actually saved yet. Primary stays green. */
+.sai-bkodjs1e-popup__section:not(.sai-bkodjs1e-popup__section--primary) .sai-bkodjs1e-popup__saving-amount {
+  color: var(--sai-bkodjs1e-muted-fg);
 }
 
-.sai-bkodjs1e-popup__section:not(.sai-bkodjs1e-popup__section--primary) .sai-bkodjs1e-popup__code {
-  color: rgba(0, 0, 0, 0.5);
+/* Copy button is interactive — give it a hover treatment so it's obviously
+ * clickable, and a visible "copied" state. */
+.sai-bkodjs1e-popup__copy {
+  border-radius: 4px;
+  transition: background-color 160ms ease, color 160ms ease;
 }
 
-.sai-bkodjs1e-popup__section:not(.sai-bkodjs1e-popup__section--primary) .sai-bkodjs1e-popup__copy {
-  color: rgba(0, 0, 0, 0.4);
+.sai-bkodjs1e-popup__copy:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--sai-bkodjs1e-fg);
+}
+
+.sai-bkodjs1e-popup__copy[aria-pressed='true'] {
+  color: var(--sai-bkodjs1e-success-fg, #14803a);
+  background: rgba(20, 128, 58, 0.1);
+}
+
+.sai-bkodjs1e-popup__code-row {
+  cursor: pointer;
+}
+
+.sai-bkodjs1e-popup__code-row:hover .sai-bkodjs1e-popup__copy {
+  background: rgba(0, 0, 0, 0.06);
 }
 
 .sai-bkodjs1e-popup__code {

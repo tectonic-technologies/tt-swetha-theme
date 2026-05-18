@@ -894,16 +894,55 @@
         })
         document.addEventListener('keydown', onKey, true)
 
-        // Wire copy buttons inside the popup.
-        root.addEventListener('click', async (e) => {
+        // Wire copy chips inside the popup. The whole code-row is a role="button"
+        // — click + Enter/Space activate. Swap the clipboard icon to a
+        // checkmark on success for ~1.2s.
+        async function doCopy(btn) {
+          const code = btn.getAttribute('data-sai-popup-copy') || ''
+          if (!code) return
+          let ok = false
+          try {
+            await navigator.clipboard.writeText(code)
+            ok = true
+          } catch (_) {
+            try {
+              const tmp = document.createElement('textarea')
+              tmp.value = code
+              tmp.style.position = 'absolute'
+              tmp.style.left = '-9999px'
+              document.body.appendChild(tmp)
+              tmp.select()
+              ok = document.execCommand('copy')
+              document.body.removeChild(tmp)
+            } catch (__) { /* swallow */ }
+          }
+          if (!ok) return
+          btn.setAttribute('aria-pressed', 'true')
+          const copyIcon = btn.querySelector('.sai-bkodjs1e-popup__copy-icon--copy')
+          const okIcon = btn.querySelector('.sai-bkodjs1e-popup__copy-icon--ok')
+          if (copyIcon) copyIcon.style.display = 'none'
+          if (okIcon) okIcon.style.display = ''
+          setTimeout(() => {
+            btn.setAttribute('aria-pressed', 'false')
+            if (copyIcon) copyIcon.style.display = ''
+            if (okIcon) okIcon.style.display = 'none'
+          }, 1500)
+        }
+        root.addEventListener('click', (e) => {
           const t = e.target
           if (!(t instanceof Element)) return
           const btn = t.closest('[data-sai-popup-copy]')
           if (!btn) return
-          const code = btn.getAttribute('data-sai-popup-copy') || ''
-          try { await navigator.clipboard.writeText(code) } catch (_) {}
-          btn.setAttribute('aria-pressed', 'true')
-          setTimeout(() => btn.setAttribute('aria-pressed', 'false'), 1200)
+          doCopy(btn)
+        })
+        root.addEventListener('keydown', (e) => {
+          if (e.key !== 'Enter' && e.key !== ' ') return
+          const t = e.target
+          if (!(t instanceof Element)) return
+          const btn = t.closest('[data-sai-popup-copy]')
+          if (!btn) return
+          e.preventDefault()
+          doCopy(btn)
         })
 
         // Force reflow + double rAF so the transition has a clean from-state.
@@ -940,14 +979,23 @@
         if (code) {
           const row = document.createElement('div')
           row.className = 'sai-bkodjs1e-popup__code-row'
+          // Whole row is the click target so the icon-sized button isn't a
+          // fiddly tap target on mobile.
+          row.setAttribute('data-sai-popup-copy', code)
+          row.setAttribute('role', 'button')
+          row.setAttribute('tabindex', '0')
+          row.setAttribute('aria-label', 'Copy code ' + code)
           row.innerHTML = `
             <span class="sai-bkodjs1e-popup__code">${escapeHtml(code)}</span>
-            <button type="button" class="sai-bkodjs1e-popup__copy" data-sai-popup-copy="${escapeHtml(code)}" aria-pressed="false" aria-label="Copy code">
-              <svg class="sai-bkodjs1e-popup__copy-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+            <span class="sai-bkodjs1e-popup__copy" aria-hidden="true">
+              <svg class="sai-bkodjs1e-popup__copy-icon sai-bkodjs1e-popup__copy-icon--copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
                 <rect x="4" y="4" width="9" height="9" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/>
                 <path d="M3 11.5V3.5A1.5 1.5 0 0 1 4.5 2H11" fill="none" stroke="currentColor" stroke-width="1.4"/>
               </svg>
-            </button>
+              <svg class="sai-bkodjs1e-popup__copy-icon sai-bkodjs1e-popup__copy-icon--ok" viewBox="0 0 16 16" aria-hidden="true" focusable="false" style="display:none">
+                <path d="m3 8 3.5 3.5L13 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
           `
           section.appendChild(row)
         }
