@@ -715,7 +715,8 @@
 }
 
 .sai-bkodjs1e-popup__divider {
-  /* Full-width grey banner — body has no inline padding now, so no margin pull needed. */
+  /* Full-width grey banner — used inside the modal/drawer popup body where
+   * the surrounding bg is pure white. */
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -726,6 +727,15 @@
   font-size: 0.8125rem;
   font-weight: 700;
   color: var(--sai-bkodjs1e-fg);
+}
+
+/* When the divider lives inside the inline-callout alternatives list,
+ * strip the banner — the surrounding shell may have its own background
+ * colour and the grey/borders look out of place. */
+.sai-bkodjs1e__alt-list .sai-bkodjs1e-popup__divider {
+  background: transparent;
+  border: 0;
+  padding: 0.5rem 0 0.25rem;
 }
 
 .sai-bkodjs1e-popup__divider .sai-bkodjs1e-popup__divider-icon {
@@ -902,7 +912,7 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.625rem;
 }
 
 .sai-bkodjs1e__alt-item {
