@@ -897,6 +897,7 @@
         // Wire copy chips inside the popup. The whole code-row is a role="button"
         // — click + Enter/Space activate. Swap the clipboard icon to a
         // checkmark on success for ~1.2s.
+        const track = this._track
         async function doCopy(btn) {
           const code = btn.getAttribute('data-sai-popup-copy') || ''
           if (!code) return
@@ -916,6 +917,7 @@
               document.body.removeChild(tmp)
             } catch (__) { /* swallow */ }
           }
+          track(`${FEATURE_SLUG}:copy_code`, { discount_code: code, copied: ok })
           if (!ok) return
           btn.setAttribute('aria-pressed', 'true')
           const copyIcon = btn.querySelector('.sai-bkodjs1e-popup__copy-icon--copy')
@@ -952,6 +954,18 @@
           const firstFocusable = root.querySelector('button, [href], [tabindex]:not([tabindex="-1"])')
           if (firstFocusable instanceof HTMLElement) firstFocusable.focus()
         }))
+
+        const headlineCode = Array.isArray(evaluated.best.d.codes) && evaluated.best.d.codes.length > 0
+          ? (typeof evaluated.best.d.codes[0] === 'string'
+              ? evaluated.best.d.codes[0]
+              : evaluated.best.d.codes[0]?.code)
+          : null
+        this._track(`${FEATURE_SLUG}:popup_opened`, {
+          surface: isMobile ? 'drawer' : 'modal',
+          discount_id: evaluated.best.d?.id || null,
+          discount_code: headlineCode,
+          alternatives_count: evaluated.alternatives.length,
+        })
       }
 
       _buildPopupSection(d, productPrice, money, isPrimary) {
@@ -1599,33 +1613,51 @@
   }
 
   // ── Bind to Spectrum analytics envelope ─────────────────────────────────
-  function bindAllContainers() {
+  function bindContainer(node) {
     const api = window.__spectrumAi?.snippet
-    const containers = document.querySelectorAll(
-      `[data-spectrum-instance-id][data-spectrum-snippet-id="${SNIPPET_ID}"]`,
-    )
-
-    for (const node of containers) {
-      const root = node.querySelector(TAG)
-      if (!root) continue
-
-      if (api?.bind) {
-        const handles = api.bind(node, ({ currentVariantId } = {}) => {
-          // Variant-resolution callback — re-evaluate against the new variant.
-          if (currentVariantId && typeof root.onVariantChange === 'function') {
-            root.onVariantChange(currentVariantId)
-          }
-        })
-        if (handles && typeof root.setAnalytics === 'function') {
-          root.setAnalytics(handles.track, handles.emit)
+    const root = node.querySelector(TAG)
+    if (!root) return
+    if (api?.bind) {
+      const handles = api.bind(node, ({ currentVariantId } = {}) => {
+        if (currentVariantId && typeof root.onVariantChange === 'function') {
+          root.onVariantChange(currentVariantId)
         }
+      })
+      if (handles && typeof root.setAnalytics === 'function') {
+        root.setAnalytics(handles.track, handles.emit)
       }
     }
   }
 
+  // Snippet library JS contract: read data-spectrum-vis before any meaningful
+  // work. Live wrappers SSR with vis="off" — bootstrap flips to "on" only when
+  // the owning experience wins targeting + conflict resolution. Draft (editor
+  // preview) wrappers SSR with vis="on".
+  function waitForVis(node) {
+    const wrapper = node.closest('[data-spectrum-lq-snippet]') || node
+    if (!wrapper || wrapper.getAttribute('data-spectrum-vis') === 'on' || !wrapper.hasAttribute('data-spectrum-vis')) {
+      bindContainer(node)
+      return
+    }
+    const observer = new MutationObserver(() => {
+      if (wrapper.getAttribute('data-spectrum-vis') === 'on') {
+        observer.disconnect()
+        bindContainer(node)
+      }
+    })
+    observer.observe(wrapper, { attributes: true, attributeFilter: ['data-spectrum-vis'] })
+  }
+
+  function bootAll() {
+    const containers = document.querySelectorAll(
+      `[data-spectrum-instance-id][data-spectrum-snippet-id="${SNIPPET_ID}"]`,
+    )
+    for (const node of containers) waitForVis(node)
+  }
+
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', bindAllContainers, { once: true })
+    document.addEventListener('DOMContentLoaded', bootAll, { once: true })
   } else {
-    bindAllContainers()
+    bootAll()
   }
 })()

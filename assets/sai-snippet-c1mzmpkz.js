@@ -938,7 +938,32 @@
 
     const config = payload.config
     const labels = payload.labels || {}
-    const baseDiscounts = (payload.discounts && payload.discounts.discounts) || []
+    const variantsById = payload.variants || {}
+    let activeVariantId = payload.currentVariantId != null ? String(payload.currentVariantId) : null
+
+    // Extract a variant's discounts blob into an array. Server emits either
+    // `{ discounts: [...] }` or `null`; either form maps to `[]` on absence.
+    function extractDiscounts(blob) {
+      if (!blob) return []
+      if (Array.isArray(blob)) return blob
+      if (Array.isArray(blob.discounts)) return blob.discounts
+      return []
+    }
+    function discountsForVariant(variantId) {
+      if (variantId != null && variantsById[String(variantId)]) {
+        return extractDiscounts(variantsById[String(variantId)].discounts)
+      }
+      return (payload.discounts && payload.discounts.discounts) || []
+    }
+    function priceForVariant(variantId) {
+      if (variantId != null && variantsById[String(variantId)]) {
+        const p = variantsById[String(variantId)].price
+        if (p != null) return p
+      }
+      return config.variantPrice
+    }
+
+    let baseDiscounts = discountsForVariant(activeVariantId)
     const promoBlocks = payload.promoBlocks || []
 
     // Bind analytics. The Spectrum SDK auto-attaches the standard envelope
@@ -952,9 +977,19 @@
     let emitFn = noop
     if (api && typeof api.bind === 'function') {
       try {
-        const handles = api.bind(wrapper, () => {
-          // No variant-driven re-render — content is read from product metafield.
-          // Keeping the bind so the analytics envelope is attached to our events.
+        const handles = api.bind(wrapper, ({ currentVariantId } = {}) => {
+          // Variant resolution — swap the per-variant discount snapshot and
+          // re-render. Cart-driven recompute (subscribeToCartChanges) still
+          // mutates `baseDiscounts` between variant swaps; switching variant
+          // resets back to the server snapshot for the new variant id.
+          if (currentVariantId == null) return
+          const nextId = String(currentVariantId)
+          if (nextId === activeVariantId) return
+          activeVariantId = nextId
+          baseDiscounts = discountsForVariant(nextId)
+          config.variantPrice = priceForVariant(nextId)
+          lastRendered = baseDiscounts
+          render(baseDiscounts)
         })
         if (handles) {
           if (typeof handles.track === 'function') trackFn = safeFn(handles.track)

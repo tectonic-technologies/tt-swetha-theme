@@ -1135,6 +1135,16 @@
     "minOrderTemplate": "Min order {amount}",
     "stackingNote": "Cannot be combined with other discounts unless stated"
   },
+  "variants": {
+    {%- for v in product.variants -%}
+      {%- assign v_raw = v.metafields.spectrum.discounts.value -%}
+      {{ v.id | json }}: {
+        "discounts": {%- if v_raw != blank -%}{{ v_raw | json }}{%- else -%}{"discounts":[]}{%- endif -%},
+        "price": {%- if v.price -%}{{ v.price | divided_by: 100.0 | json }}{%- else -%}null{%- endif -%}
+      }{%- unless forloop.last -%},{%- endunless -%}
+    {%- endfor -%}
+  },
+  "currentVariantId": {{ sai_active_variant.id | json }},
   "promoBlocks": [
     {
       "type": {{ content.promo_block_1_type | default: 'image_banner' | json }},
@@ -1159,6 +1169,6 @@
 </script>
 </sai-c1mzmpkz>
 
-<script src="{{ 'sai-snippet-c1mzmpkz.js' | asset_url }}" defer></script>
+<script src="{{ 'sai-snippet-c1mzmpkz.js' | asset_url }}" async></script>
 
 {%- endif -%}
