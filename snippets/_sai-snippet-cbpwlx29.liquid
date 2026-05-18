@@ -1,0 +1,764 @@
+{% doc %}
+  Best Applicable Coupons Widget — cart drawer + cart page.
+
+  Reads the per-variant spectrum.discounts metafield across every cart line
+  item, dedupes by discount id, and emits the union as a JSON payload. The
+  runtime JS recomputes qualification against cart.total_price /
+  cart.item_count, applies the configured state hierarchy
+  (Applied > Applicable > Potentially Applicable), and renders either a
+  single best coupon or a stack of up to N.
+
+  Metaobject-backed wrapper — same configuration everywhere it's placed; the
+  per-cart data comes from the cart globals.
+
+  @param {string} mutation_handle  - Mutation handle for DOM scoping (infrastructure)
+  @param {string} experience_handle - Experience handle for attribution (infrastructure)
+  @param {object} variant - Resolved snippet-instance variant; user-configurable values live on `variant.content`
+  @param {object} mo - spectrum_snippet_instance metaobject drop (unused by this snippet)
+
+  @example
+  {% render '_sai-snippet-cbpwlx29',
+    variant: variant,
+    mo: mo,
+    mutation_handle: 'mut-cbpwlx29abcd1234',
+    experience_handle: 'cart-best-coupons'
+  %}
+{% enddoc %}
+
+{%- liquid
+  assign content = variant.content
+
+  if content.enabled == nil
+    assign enabled = true
+  else
+    assign enabled = content.enabled
+  endif
+
+  assign visibility_scope = content.visibility_scope | default: 'both'
+
+  assign heading = content.heading | default: ''
+  assign display_mode = content.display_mode | default: 'default'
+  assign max_coupons_displayed = content.max_coupons_displayed | default: 3
+  assign within_tier_sort = content.within_tier_sort | default: 'highest_savings'
+
+  if content.enable_auto_apply == nil
+    assign enable_auto_apply = false
+  else
+    assign enable_auto_apply = content.enable_auto_apply
+  endif
+  assign auto_apply_trigger = content.auto_apply_trigger | default: 'threshold_met'
+
+  if content.show_progress_bar == nil
+    assign show_progress_bar = true
+  else
+    assign show_progress_bar = content.show_progress_bar
+  endif
+  assign threshold_message_template = content.threshold_message_template | default: 'Add {remaining} more to unlock'
+  assign threshold_met_message = content.threshold_met_message | default: 'Eligible — applies at checkout'
+  if content.show_amounts_on_bar_ends == nil
+    assign show_amounts_on_bar_ends = true
+  else
+    assign show_amounts_on_bar_ends = content.show_amounts_on_bar_ends
+  endif
+
+  if content.show_countdown_timer == nil
+    assign show_countdown_timer = true
+  else
+    assign show_countdown_timer = content.show_countdown_timer
+  endif
+  assign timer_source = content.timer_source | default: 'coupon_expiry'
+  assign session_window_duration_minutes = content.session_window_duration_minutes | default: 30
+  if content.countdown_show_seconds == nil
+    assign countdown_show_seconds = true
+  else
+    assign countdown_show_seconds = content.countdown_show_seconds
+  endif
+  assign countdown_format_template = content.countdown_format_template | default: 'Offer ends in {countdown}'
+  assign countdown_expired_behavior = content.countdown_expired_behavior | default: 'show_next_coupon'
+  assign countdown_expired_message = content.countdown_expired_message | default: 'This offer has ended'
+
+  if content.show_manual_code_entry == nil
+    assign show_manual_code_entry = false
+  else
+    assign show_manual_code_entry = content.show_manual_code_entry
+  endif
+  assign manual_input_placeholder = content.manual_input_placeholder | default: 'Enter coupon code'
+  assign manual_apply_button_text = content.manual_apply_button_text | default: 'Apply'
+  assign manual_error_message = content.manual_error_message | default: 'Invalid coupon code'
+  assign manual_success_message = content.manual_success_message | default: 'Coupon applied'
+
+  if content.show_code_chip == nil
+    assign show_code_chip = true
+  else
+    assign show_code_chip = content.show_code_chip
+  endif
+  if content.show_copy_code_button == nil
+    assign show_copy_code_button = false
+  else
+    assign show_copy_code_button = content.show_copy_code_button
+  endif
+  if content.show_discount_type_label == nil
+    assign show_discount_type_label = false
+  else
+    assign show_discount_type_label = content.show_discount_type_label
+  endif
+  if content.show_description == nil
+    assign show_description = false
+  else
+    assign show_description = content.show_description
+  endif
+  assign description_max_lines = content.description_max_lines | default: 2
+  if content.description_expandable == nil
+    assign description_expandable = true
+  else
+    assign description_expandable = content.description_expandable
+  endif
+  if content.show_savings_callout == nil
+    assign show_savings_callout = true
+  else
+    assign show_savings_callout = content.show_savings_callout
+  endif
+  assign savings_format = content.savings_format | default: 'absolute'
+  assign applied_state_message_template = content.applied_state_message_template | default: "Saved {amount} with '{code}'"
+  assign applicable_state_message_template = content.applicable_state_message_template | default: "Save {amount} with '{code}'"
+  if content.show_remaining_amount == nil
+    assign show_remaining_amount = true
+  else
+    assign show_remaining_amount = content.show_remaining_amount
+  endif
+  assign remaining_amount_template = content.remaining_amount_template | default: 'Add {remaining} more to unlock'
+  if content.show_expiry_display == nil
+    assign show_expiry_display = false
+  else
+    assign show_expiry_display = content.show_expiry_display
+  endif
+  assign expiry_format = content.expiry_format | default: 'relative'
+  assign apply_button_text = content.apply_button_text | default: 'APPLY'
+  assign remove_link_text = content.remove_link_text | default: 'REMOVE'
+  assign apply_loading_text = content.apply_loading_text | default: 'Applying...'
+  if content.show_terms == nil
+    assign show_terms = false
+  else
+    assign show_terms = content.show_terms
+  endif
+  assign terms_label = content.terms_label | default: 'Terms & Conditions'
+  if content.show_coupon_icon == nil
+    assign show_coupon_icon = true
+  else
+    assign show_coupon_icon = content.show_coupon_icon
+  endif
+  if content.show_min_order_threshold == nil
+    assign show_min_order_threshold = false
+  else
+    assign show_min_order_threshold = content.show_min_order_threshold
+  endif
+
+  if content.show_view_all_coupons == nil
+    assign show_view_all_coupons = true
+  else
+    assign show_view_all_coupons = content.show_view_all_coupons
+  endif
+  assign view_all_coupons_label = content.view_all_coupons_label | default: 'View All Coupons'
+  assign view_all_coupons_drawer_handle = content.view_all_coupons_drawer_handle | default: ''
+
+  if content.show_empty_state == nil
+    assign show_empty_state = false
+  else
+    assign show_empty_state = content.show_empty_state
+  endif
+  assign empty_state_heading = content.empty_state_heading | default: 'No coupons available'
+  assign empty_state_body = content.empty_state_body | default: 'Check back soon for new offers.'
+
+  assign currency_code = shop.currency | default: 'USD'
+-%}
+
+{% stylesheet %}
+/* =============================================================================
+ * Best Applicable Coupons Widget (cbpwlx29) — cart drawer + cart page.
+ *
+ * Reference: green countdown header strip, white card body with badge +
+ * 'Saved X with CODE' message, REMOVE link on the right, 'View All Coupons'
+ * footer link. Single-class author selectors at (0,1,0) so per-instance
+ * baked rules always win.
+ * ============================================================================= */
+
+.sai-cbpwlx29 {
+  --sai-cbpwlx29-card-bg: #ffffff;
+  --sai-cbpwlx29-card-border: rgba(0, 0, 0, 0.08);
+  --sai-cbpwlx29-card-radius: 0.625rem;
+  --sai-cbpwlx29-card-pad: 0.875rem;
+  --sai-cbpwlx29-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --sai-cbpwlx29-countdown-bg: #e8f5ec;
+  --sai-cbpwlx29-countdown-fg: #1f7a3a;
+  --sai-cbpwlx29-icon-bg: #1f7a3a;
+  --sai-cbpwlx29-icon-fg: #ffffff;
+  --sai-cbpwlx29-message-fg: #1a1a1a;
+  --sai-cbpwlx29-code-fg: #1a1a1a;
+  --sai-cbpwlx29-code-bg: rgba(0, 0, 0, 0.04);
+  --sai-cbpwlx29-code-border: rgba(0, 0, 0, 0.08);
+  --sai-cbpwlx29-remove-fg: #b45a1f;
+  --sai-cbpwlx29-apply-bg: #1a1a1a;
+  --sai-cbpwlx29-apply-fg: #ffffff;
+  --sai-cbpwlx29-muted-fg: rgba(0, 0, 0, 0.55);
+  --sai-cbpwlx29-view-all-fg: rgba(0, 0, 0, 0.65);
+  --sai-cbpwlx29-progress-track: rgba(0, 0, 0, 0.08);
+  --sai-cbpwlx29-progress-fill: #1f7a3a;
+  --sai-cbpwlx29-error-fg: #b00020;
+  --sai-cbpwlx29-success-fg: #1f7a3a;
+
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  margin-block: var(--sai-size-4, 1rem);
+  font-family: var(--sai-font-body, inherit);
+  color: var(--sai-cbpwlx29-message-fg);
+}
+
+.sai-cbpwlx29 *,
+.sai-cbpwlx29 *::before,
+.sai-cbpwlx29 *::after {
+  box-sizing: border-box;
+}
+
+.sai-cbpwlx29--hidden {
+  display: none;
+}
+
+.sai-cbpwlx29__heading {
+  font-family: var(--sai-font-heading, var(--sai-font-body, inherit));
+  font-size: 0.875rem;
+  font-weight: 700;
+  margin: 0 0 var(--sai-size-2, 0.5rem) 0;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--sai-cbpwlx29-muted-fg);
+}
+
+.sai-cbpwlx29__card {
+  display: flex;
+  flex-direction: column;
+  background: var(--sai-cbpwlx29-card-bg);
+  border: 1px solid var(--sai-cbpwlx29-card-border);
+  border-radius: var(--sai-cbpwlx29-card-radius);
+  box-shadow: var(--sai-cbpwlx29-card-shadow);
+  overflow: hidden;
+}
+
+.sai-cbpwlx29__card + .sai-cbpwlx29__card {
+  margin-top: var(--sai-size-2, 0.5rem);
+}
+
+.sai-cbpwlx29__countdown-header {
+  background: var(--sai-cbpwlx29-countdown-bg);
+  color: var(--sai-cbpwlx29-countdown-fg);
+  padding: 0.5rem 0.875rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.sai-cbpwlx29__countdown-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.sai-cbpwlx29__countdown-time {
+  font-variant-numeric: tabular-nums;
+}
+
+.sai-cbpwlx29__body {
+  display: flex;
+  flex-direction: column;
+  padding: var(--sai-cbpwlx29-card-pad);
+  gap: 0.5rem;
+}
+
+.sai-cbpwlx29__row {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.sai-cbpwlx29__row-main {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.sai-cbpwlx29__icon {
+  flex: 0 0 auto;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  background: var(--sai-cbpwlx29-icon-bg);
+  color: var(--sai-cbpwlx29-icon-fg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sai-cbpwlx29__icon svg {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.sai-cbpwlx29__message {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--sai-cbpwlx29-message-fg);
+  line-height: 1.3;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow-wrap: anywhere;
+}
+
+.sai-cbpwlx29__message-code {
+  font-weight: 700;
+}
+
+.sai-cbpwlx29__type-label {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--sai-cbpwlx29-muted-fg);
+  margin: 0;
+}
+
+.sai-cbpwlx29__description {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--sai-cbpwlx29-muted-fg);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--sai-cbpwlx29-desc-lines, 2);
+  overflow: hidden;
+}
+
+.sai-cbpwlx29__description--expanded {
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
+
+.sai-cbpwlx29__description-toggle {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+  color: var(--sai-cbpwlx29-message-fg);
+  align-self: flex-start;
+}
+
+.sai-cbpwlx29__code-chip {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--sai-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-weight: 700;
+  font-size: 0.8125rem;
+  letter-spacing: 0.04em;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  background: var(--sai-cbpwlx29-code-bg);
+  border: 1px dashed var(--sai-cbpwlx29-code-border);
+  color: var(--sai-cbpwlx29-code-fg);
+}
+
+.sai-cbpwlx29__copy-btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  border: 1px solid var(--sai-cbpwlx29-code-border);
+  background: transparent;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--sai-cbpwlx29-code-fg);
+}
+
+.sai-cbpwlx29__copy-btn[aria-pressed='true'] {
+  background: var(--sai-cbpwlx29-progress-fill);
+  color: #ffffff;
+  border-color: transparent;
+}
+
+.sai-cbpwlx29__savings {
+  font-weight: 700;
+}
+
+.sai-cbpwlx29__remaining {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--sai-cbpwlx29-muted-fg);
+}
+
+.sai-cbpwlx29__expiry,
+.sai-cbpwlx29__min-order {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--sai-cbpwlx29-muted-fg);
+}
+
+.sai-cbpwlx29__row-trailing {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 0 0 auto;
+}
+
+.sai-cbpwlx29__remove {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-decoration: underline;
+  cursor: pointer;
+  color: var(--sai-cbpwlx29-remove-fg);
+}
+
+.sai-cbpwlx29__apply {
+  appearance: none;
+  background: var(--sai-cbpwlx29-apply-bg);
+  color: var(--sai-cbpwlx29-apply-fg);
+  border: 0;
+  border-radius: 999px;
+  padding: 0.4375rem 0.875rem;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.sai-cbpwlx29__apply[disabled] {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.sai-cbpwlx29__view-all {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin-top: 0.125rem;
+  font: inherit;
+  font-size: 0.8125rem;
+  color: var(--sai-cbpwlx29-view-all-fg);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  align-self: flex-start;
+}
+
+.sai-cbpwlx29__view-all::after {
+  content: '';
+  display: inline-block;
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  margin-left: 0.125rem;
+}
+
+.sai-cbpwlx29__terms-toggle {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--sai-cbpwlx29-muted-fg);
+  text-decoration: underline;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+.sai-cbpwlx29__progress {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.25rem;
+}
+
+.sai-cbpwlx29__progress-track {
+  position: relative;
+  height: 0.375rem;
+  border-radius: 999px;
+  background: var(--sai-cbpwlx29-progress-track);
+  overflow: hidden;
+}
+
+.sai-cbpwlx29__progress-fill {
+  position: absolute;
+  inset: 0;
+  background: var(--sai-cbpwlx29-progress-fill);
+  transform-origin: left center;
+  transform: scaleX(var(--sai-cbpwlx29-progress-pct, 0));
+  transition: transform 220ms ease;
+}
+
+.sai-cbpwlx29__progress-ends {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.6875rem;
+  color: var(--sai-cbpwlx29-muted-fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.sai-cbpwlx29__progress-end {
+  font-weight: 600;
+}
+
+.sai-cbpwlx29__manual {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin-top: 0.5rem;
+}
+
+.sai-cbpwlx29__manual-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sai-cbpwlx29__manual-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0.5rem 0.625rem;
+  border-radius: 0.375rem;
+  border: 1px solid var(--sai-cbpwlx29-card-border);
+  background: #ffffff;
+  font: inherit;
+  font-size: 0.875rem;
+  color: var(--sai-cbpwlx29-message-fg);
+}
+
+.sai-cbpwlx29__manual-button {
+  appearance: none;
+  background: var(--sai-cbpwlx29-apply-bg);
+  color: var(--sai-cbpwlx29-apply-fg);
+  border: 0;
+  border-radius: 0.375rem;
+  padding: 0.5rem 0.875rem;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.sai-cbpwlx29__manual-feedback {
+  margin: 0;
+  font-size: 0.75rem;
+}
+
+.sai-cbpwlx29__manual-feedback--error {
+  color: var(--sai-cbpwlx29-error-fg);
+}
+
+.sai-cbpwlx29__manual-feedback--success {
+  color: var(--sai-cbpwlx29-success-fg);
+}
+
+.sai-cbpwlx29__next-coupons {
+  margin-top: 0.5rem;
+  border-top: 1px solid var(--sai-cbpwlx29-card-border);
+  padding-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.sai-cbpwlx29__next-coupon {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0;
+  font-size: 0.8125rem;
+}
+
+.sai-cbpwlx29__next-coupon-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sai-cbpwlx29__next-coupon-meta {
+  color: var(--sai-cbpwlx29-muted-fg);
+  font-size: 0.75rem;
+}
+
+.sai-cbpwlx29__next-coupon-apply {
+  appearance: none;
+  background: transparent;
+  color: var(--sai-cbpwlx29-message-fg);
+  border: 1px solid var(--sai-cbpwlx29-card-border);
+  border-radius: 999px;
+  padding: 0.25rem 0.625rem;
+  font: inherit;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.sai-cbpwlx29__empty {
+  padding: var(--sai-cbpwlx29-card-pad);
+  border: 1px dashed var(--sai-cbpwlx29-card-border);
+  border-radius: var(--sai-cbpwlx29-card-radius);
+  color: var(--sai-cbpwlx29-muted-fg);
+}
+
+.sai-cbpwlx29__empty-heading {
+  margin: 0 0 0.25rem 0;
+  font-weight: 600;
+  color: var(--sai-cbpwlx29-message-fg);
+}
+
+.sai-cbpwlx29__empty-body {
+  margin: 0;
+  font-size: 0.8125rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sai-cbpwlx29__progress-fill {
+    transition: none;
+  }
+}
+{% endstylesheet %}
+
+{%- if enabled -%}
+<sai-cbpwlx29
+  class="sai-cbpwlx29"
+  data-mutation-handle="{{ mutation_handle }}"
+  data-template-name="{{ template.name | default: '' }}"
+  style="--sai-cbpwlx29-desc-lines: {{ description_max_lines }};"
+>
+  {%- if heading != blank -%}
+    <h3 class="sai-cbpwlx29__heading" data-sai-heading>{{ heading | escape }}</h3>
+  {%- endif -%}
+
+  {%- comment -%}
+    SSR shell — JS hydrates the card / next-coupons list / manual-entry from the JSON payload.
+    The shell is hidden until JS runs so the empty container doesn't flash.
+  {%- endcomment -%}
+  <div class="sai-cbpwlx29__body-slot" data-sai-body hidden></div>
+
+  <script type="application/json" data-sai-payload>
+{
+  "cart": {
+    "totalPrice": {%- if cart.total_price -%}{{ cart.total_price | divided_by: 100.0 | json }}{%- else -%}0{%- endif -%},
+    "itemCount": {{ cart.item_count | default: 0 | json }},
+    "currency": {{ currency_code | json }},
+    "appliedDiscountCodes": [
+      {%- for dc in cart.discount_codes -%}
+        {%- if dc.applicable -%}{{ dc.code | upcase | json }}{%- unless forloop.last -%},{%- endunless -%}{%- endif -%}
+      {%- endfor -%}
+    ],
+    "cartLevelDiscountTitles": [
+      {%- for app in cart.cart_level_discount_applications -%}
+        {{ app.title | json }}{%- unless forloop.last -%},{%- endunless -%}
+      {%- endfor -%}
+    ]
+  },
+  "discounts": {
+    {%- assign sai_first = true -%}
+    {%- for item in cart.items -%}
+      {%- assign v_raw = item.variant.metafields.spectrum.discounts.value -%}
+      {%- if v_raw != blank -%}
+        {%- unless sai_first -%},{%- endunless -%}
+        {{ item.variant.id | json }}: {{ v_raw | json }}
+        {%- assign sai_first = false -%}
+      {%- endif -%}
+    {%- endfor -%}
+  },
+  "config": {
+    "snippetId": {{ 'cbpwlx29' | json }},
+    "mutationHandle": {{ mutation_handle | json }},
+    "experienceHandle": {{ experience_handle | json }},
+    "visibilityScope": {{ visibility_scope | json }},
+    "displayMode": {{ display_mode | json }},
+    "maxCouponsDisplayed": {{ max_coupons_displayed | json }},
+    "withinTierSort": {{ within_tier_sort | json }},
+    "enableAutoApply": {{ enable_auto_apply | json }},
+    "autoApplyTrigger": {{ auto_apply_trigger | json }},
+    "showProgressBar": {{ show_progress_bar | json }},
+    "showAmountsOnBarEnds": {{ show_amounts_on_bar_ends | json }},
+    "showCountdownTimer": {{ show_countdown_timer | json }},
+    "timerSource": {{ timer_source | json }},
+    "sessionWindowDurationMinutes": {{ session_window_duration_minutes | json }},
+    "countdownShowSeconds": {{ countdown_show_seconds | json }},
+    "countdownExpiredBehavior": {{ countdown_expired_behavior | json }},
+    "showManualCodeEntry": {{ show_manual_code_entry | json }},
+    "showCodeChip": {{ show_code_chip | json }},
+    "showCopyCodeButton": {{ show_copy_code_button | json }},
+    "showDiscountTypeLabel": {{ show_discount_type_label | json }},
+    "showDescription": {{ show_description | json }},
+    "descriptionMaxLines": {{ description_max_lines | json }},
+    "descriptionExpandable": {{ description_expandable | json }},
+    "showSavingsCallout": {{ show_savings_callout | json }},
+    "savingsFormat": {{ savings_format | json }},
+    "showRemainingAmount": {{ show_remaining_amount | json }},
+    "showExpiryDisplay": {{ show_expiry_display | json }},
+    "expiryFormat": {{ expiry_format | json }},
+    "showTerms": {{ show_terms | json }},
+    "showCouponIcon": {{ show_coupon_icon | json }},
+    "showMinOrderThreshold": {{ show_min_order_threshold | json }},
+    "showViewAllCoupons": {{ show_view_all_coupons | json }},
+    "viewAllCouponsDrawerHandle": {{ view_all_coupons_drawer_handle | json }},
+    "showEmptyState": {{ show_empty_state | json }}
+  },
+  "labels": {
+    "thresholdMessageTemplate": {{ threshold_message_template | json }},
+    "thresholdMetMessage": {{ threshold_met_message | json }},
+    "countdownFormatTemplate": {{ countdown_format_template | json }},
+    "countdownExpiredMessage": {{ countdown_expired_message | json }},
+    "manualInputPlaceholder": {{ manual_input_placeholder | json }},
+    "manualApplyButtonText": {{ manual_apply_button_text | json }},
+    "manualErrorMessage": {{ manual_error_message | json }},
+    "manualSuccessMessage": {{ manual_success_message | json }},
+    "appliedStateMessageTemplate": {{ applied_state_message_template | json }},
+    "applicableStateMessageTemplate": {{ applicable_state_message_template | json }},
+    "remainingAmountTemplate": {{ remaining_amount_template | json }},
+    "applyButtonText": {{ apply_button_text | json }},
+    "removeLinkText": {{ remove_link_text | json }},
+    "applyLoadingText": {{ apply_loading_text | json }},
+    "termsLabel": {{ terms_label | json }},
+    "viewAllCouponsLabel": {{ view_all_coupons_label | json }},
+    "emptyStateHeading": {{ empty_state_heading | json }},
+    "emptyStateBody": {{ empty_state_body | json }},
+    "copyCtaLabel": "Copy",
+    "copySuccessLabel": "Copied!"
+  }
+}
+</script>
+</sai-cbpwlx29>
+
+<script src="{{ 'sai-snippet-cbpwlx29.js' | asset_url }}" async></script>
+{%- endif -%}
