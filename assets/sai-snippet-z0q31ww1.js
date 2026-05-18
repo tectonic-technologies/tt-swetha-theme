@@ -465,10 +465,18 @@
     panel.appendChild(scroll)
     page.appendChild(panel)
 
-    // Append + scroll lock.
+    // Append + scroll lock. Append first (in initial off-screen state per
+    // CSS), then on next animation frame add `--open` so the transition
+    // plays. Without the rAF, the browser may collapse the two states and
+    // skip the animation entirely.
     document.body.appendChild(page)
     const prevOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
+    // Force a layout read, then add open class on next frame.
+    void page.offsetWidth
+    requestAnimationFrame(() => {
+      page.classList.add(`${TAG}-page--open`)
+    })
 
     // Card-level Apply.
     scroll.addEventListener('click', (e) => {
@@ -489,17 +497,17 @@
       host._pageClosing = true
       document.removeEventListener('keydown', onEsc)
       ctx.track(`${FEATURE_SLUG}:page_closed`, {})
-      // Swap enter classes for exit classes — CSS keyframes run the
-      // reverse animation, then we strip the DOM after the duration.
-      page.classList.remove(`${TAG}-page--enter-${config.pageEntryAnimation}`)
-      page.classList.add(`${TAG}-page--exit`, `${TAG}-page--exit-${config.pageEntryAnimation}`)
-      const duration = config.pageEntryAnimation === 'fade' ? 200 : 260
+      // Removing --open reverses the transition (panel slides back out,
+      // backdrop fades). Unmount after the transition duration.
+      page.classList.remove(`${TAG}-page--open`)
+      page.style.pointerEvents = 'none'
+      const duration = config.pageEntryAnimation === 'fade' ? 200 : 280
       window.setTimeout(() => {
         host._pageOpen = false
         host._pageClosing = false
         document.body.style.overflow = prevOverflow
         page.remove()
-      }, duration)
+      }, duration + 20)
     }
     function onEsc(e) { if (e.key === 'Escape') closePage() }
     document.addEventListener('keydown', onEsc)
