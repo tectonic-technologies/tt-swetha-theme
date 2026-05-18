@@ -564,21 +564,31 @@
     // /cart.js and returns the cart object.
     let discountsByVariant = {}
     try {
+      console.log('[z0q31ww1] POST /cart/update.js?sections=sai_z0q_data')
       const r = await fetch('/cart/update.js?sections=sai_z0q_data', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({ attributes: {} }),
       })
-      if (r.ok) {
-        const body = await r.json()
-        const html = (body.sections && body.sections.sai_z0q_data) || ''
-        const match = html.match(/<script[^>]*data-sai-cart-data[^>]*>([\s\S]*?)<\/script>/)
-        if (match) {
-          const cd = JSON.parse(match[1])
-          discountsByVariant = cd.discountsByVariant || {}
-        }
+      console.log('[z0q31ww1] response status:', r.status)
+      const body = await r.json()
+      console.log('[z0q31ww1] response keys:', Object.keys(body))
+      console.log('[z0q31ww1] sections key present:', !!body.sections)
+      if (body.sections) console.log('[z0q31ww1] sections keys:', Object.keys(body.sections))
+      const html = (body.sections && body.sections.sai_z0q_data) || ''
+      console.log('[z0q31ww1] section html length:', html.length)
+      console.log('[z0q31ww1] section html (first 800):', html.slice(0, 800))
+      const match = html.match(/<script[^>]*data-sai-cart-data[^>]*>([\s\S]*?)<\/script>/)
+      console.log('[z0q31ww1] script tag matched:', !!match)
+      if (match) {
+        const cd = JSON.parse(match[1])
+        console.log('[z0q31ww1] parsed cart data:', cd)
+        discountsByVariant = cd.discountsByVariant || {}
       }
-    } catch (_) { /* skip */ }
+    } catch (err) {
+      console.error('[z0q31ww1] section fetch failed:', err)
+    }
+    console.log('[z0q31ww1] final discountsByVariant keys:', Object.keys(discountsByVariant))
 
     const raw = collectDiscounts(discountsByVariant)
     const recomputed = raw.map((d) => recompute(d, subtotal))
