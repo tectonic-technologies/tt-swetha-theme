@@ -687,30 +687,16 @@
   border-color: rgba(20, 128, 58, 0.35);
 }
 
-/* Sections with a perforation get semicircular notches carved into their
- * left + right edges via mask-image. The card keeps its border for a
- * crisp 1px outline on the four straight edges; the mask clips both the
- * fill AND the border at the notch positions, so the result reads as a
- * ticket-shape with clean edges. */
-.sai-bkodjs1e-popup__section:has(.sai-bkodjs1e-popup__perforation) {
-  -webkit-mask:
-    radial-gradient(circle var(--sai-bkodjs1e-notch-r) at 0 calc(100% - var(--sai-bkodjs1e-perf-bottom)), transparent 99%, #000 100%),
-    radial-gradient(circle var(--sai-bkodjs1e-notch-r) at 100% calc(100% - var(--sai-bkodjs1e-perf-bottom)), transparent 99%, #000 100%);
-  -webkit-mask-composite: source-in;
-          mask:
-    radial-gradient(circle var(--sai-bkodjs1e-notch-r) at 0 calc(100% - var(--sai-bkodjs1e-perf-bottom)), transparent 99%, #000 100%),
-    radial-gradient(circle var(--sai-bkodjs1e-notch-r) at 100% calc(100% - var(--sai-bkodjs1e-perf-bottom)), transparent 99%, #000 100%);
-          mask-composite: intersect;
-}
+/* Cards with a perforation keep their crisp bordered rounded-rectangle
+ * shape. The dashed line + 1px-thick solid breaks at each end visually
+ * separate the content / code-chip zones without trying to mask cuts. */
 
-/* Dashed horizontal perforation centred on the notch line. Inset on both
- * sides by the notch radius so the dashes start at the inner edge of each
- * semicircle, not at the card's bounding-box edge (which the mask has
- * already cut away). */
+/* Dashed horizontal perforation across the card. Spans the full content
+ * width (inside the card's padding) — no notches to clear. */
 .sai-bkodjs1e-popup__perforation {
   position: absolute;
-  left: var(--sai-bkodjs1e-notch-r);
-  right: var(--sai-bkodjs1e-notch-r);
+  left: 1rem;
+  right: 1rem;
   bottom: var(--sai-bkodjs1e-perf-bottom);
   height: 1px;
   background: repeating-linear-gradient(to right, rgba(0, 0, 0, 0.28) 0 4px, transparent 4px 8px);
