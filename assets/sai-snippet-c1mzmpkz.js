@@ -1341,7 +1341,24 @@
       let pShown = 0
       let aHidden = 0
       let pHidden = 0
+      // Insert an inline section divider between applicable and potential
+      // card groups so the merchant can tell the two sections apart even
+      // after the AVAILABLE NOW per-card badge was dropped. Carousel
+      // layout skips the divider — the carousel expects each list child
+      // to be a slide and would treat the divider as a card.
+      const showDivider =
+        config.listLayout !== 'carousel' && applicable.length > 0 && potential.length > 0
+      let dividerInserted = false
       for (const d of combined) {
+        if (showDivider && !dividerInserted && !isApplicable(d)) {
+          listInner.appendChild(
+            el('div', 'sai-c1mzmpkz__section-divider', {
+              text: labels.potentialSectionLabel || 'Almost there',
+              role: 'separator',
+            }),
+          )
+          dividerInserted = true
+        }
         const card = buildCard(d, ctx)
         if (isApplicable(d)) {
           if (aShown >= maxApplicable) {

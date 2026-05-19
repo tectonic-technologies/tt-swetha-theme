@@ -554,6 +554,38 @@
   position: relative;
 }
 
+/* Subtle = muted card background + dashed border so potential cards
+ * read as "not quite there" without a pill badge. Default visual when
+ * potential_visual_treatment is left at its default. */
+.sai-c1mzmpkz__card--potential.sai-c1mzmpkz__card--treatment-subtle {
+  background: var(--sai-c1mzmpkz-card-bg-muted, rgba(0, 0, 0, 0.02));
+  border-style: dashed;
+  border-color: rgba(0, 0, 0, 0.18);
+}
+
+/* Lightweight section divider rendered between applicable and potential
+ * groups. Inline, not a pill. Inherits text color from the card. */
+.sai-c1mzmpkz__section-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  align-self: stretch;
+  margin: 0.5rem 0 0;
+  padding: 0.25rem 0;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--sai-c1mzmpkz-muted-fg, rgba(0, 0, 0, 0.6));
+}
+
+.sai-c1mzmpkz__section-divider::before,
+.sai-c1mzmpkz__section-divider::after {
+  content: '';
+  flex: 1 1 auto;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
 .sai-c1mzmpkz__icon {
   position: absolute;
   top: 0.5rem;
