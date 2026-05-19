@@ -52,6 +52,25 @@
   assign empty_state_heading = content.empty_state_heading | default: 'No active offers'
   assign empty_state_body = content.empty_state_body | default: 'Check back soon for new promotions.'
 
+  # ── Pool configuration (Phase 2) ────────────────────────────────────────
+  assign pool_mode = content.pool_mode | default: 'dynamic'
+  assign pool_filter = content.pool_filter | default: 'product_plus_storewide'
+  assign manual_coupon_list = content.manual_coupon_list | default: ''
+  assign manual_sort = content.manual_sort | default: 'merchant_defined'
+  if content.promote_product_specific_above_storewide == nil
+    assign promote_product_specific_above_storewide = true
+  else
+    assign promote_product_specific_above_storewide = content.promote_product_specific_above_storewide
+  endif
+
+  # ── User-specific coupons (Phase 2) ─────────────────────────────────────
+  if content.enable_user_specific_coupons == nil
+    assign enable_user_specific_coupons = false
+  else
+    assign enable_user_specific_coupons = content.enable_user_specific_coupons
+  endif
+  assign user_section_badge_text = content.user_section_badge_text | default: 'Just for you ({count})'
+
   assign list_layout = content.list_layout | default: 'carousel'
 
   # Numeric props are interpolated into inline `style="--var: N"` strings
@@ -1141,6 +1160,13 @@
     "snippetId": {{ 'c1mzmpkz' | json }},
     "mutationHandle": {{ mutation_handle | json }},
     "experienceHandle": {{ experience_handle | json }},
+    "poolMode": {{ pool_mode | json }},
+    "poolFilter": {{ pool_filter | json }},
+    "manualCouponList": {{ manual_coupon_list | json }},
+    "manualSort": {{ manual_sort | json }},
+    "promoteProductSpecificAboveStorewide": {{ promote_product_specific_above_storewide | json }},
+    "enableUserSpecificCoupons": {{ enable_user_specific_coupons | json }},
+    "userSectionBadgeText": {{ user_section_badge_text | json }},
     "listLayout": {{ list_layout | json }},
     "gridColumnsDesktop": {{ grid_columns_desktop | json }},
     "gridColumnsMobile": {{ grid_columns_mobile | json }},

@@ -129,6 +129,83 @@
     return { applicable, potential }
   }
 
+  // ── Pool mode + targeting helpers (Phase 3) ──────────────────────────
+  // Whether a discount is product-specific (vs store-wide / order-level).
+  // Used by promote_product_specific_above_storewide to bubble these
+  // discounts up within their section.
+  function isProductSpecific(d) {
+    const t = d?.targetConfig?.__typename
+    return t === 'DiscountProducts' || t === 'DiscountCollections'
+  }
+
+  // Manual pool: parse comma/newline-separated codes from the merchant
+  // textarea, normalise to uppercase, drop blanks/duplicates.
+  function parseManualCouponList(raw) {
+    if (!raw || typeof raw !== 'string') return []
+    const seen = new Set()
+    const out = []
+    for (const tok of raw.split(/[\s,]+/)) {
+      const code = tok.trim().toUpperCase()
+      if (!code || seen.has(code)) continue
+      seen.add(code)
+      out.push(code)
+    }
+    return out
+  }
+
+  function discountHasCode(d, code) {
+    const codes = d?.codes
+    if (!Array.isArray(codes)) return false
+    const upper = code.toUpperCase()
+    for (const c of codes) {
+      if (typeof c === 'string' && c.toUpperCase() === upper) return true
+    }
+    return false
+  }
+
+  // Apply pool mode + filter to the per-variant discounts list. Returns a
+  // (possibly reordered) subset.
+  function applyPoolMode(discounts, config) {
+    const list = Array.isArray(discounts) ? discounts.slice() : []
+    if (config.poolMode === 'manual') {
+      const codes = parseManualCouponList(config.manualCouponList)
+      if (codes.length === 0) return []
+      // Index by first matching code → preserve merchant order.
+      const ordered = []
+      for (const code of codes) {
+        const match = list.find((d) => discountHasCode(d, code))
+        if (match) ordered.push(match)
+      }
+      // Optional sort override.
+      if (config.manualSort === 'threshold_asc') {
+        ordered.sort((a, b) => thresholdOf(a) - thresholdOf(b))
+      } else if (config.manualSort === 'threshold_desc') {
+        ordered.sort((a, b) => thresholdOf(b) - thresholdOf(a))
+      }
+      return ordered
+    }
+    // Dynamic mode — filter by relevance class.
+    switch (config.poolFilter) {
+      case 'product_applicable_only':
+        return list.filter(isProductSpecific)
+      default:
+        return list
+    }
+  }
+
+  // After section-sort, optionally bubble product-specific discounts to
+  // the top of each section. Stable within the existing sort.
+  function applyPromoteProductSpecific(list, enabled) {
+    if (!enabled) return list
+    const productSpecific = []
+    const storewide = []
+    for (const d of list) {
+      if (isProductSpecific(d)) productSpecific.push(d)
+      else storewide.push(d)
+    }
+    return productSpecific.concat(storewide)
+  }
+
   function estimatedSavingsAmount(d) {
     const v = d.discountValue || {}
     if (v.type === 'FIXED' && typeof v.amount === 'number') return v.amount
@@ -1169,9 +1246,27 @@
     function render(discounts) {
       body.innerHTML = ''
 
-      const { applicable, potential } = partition(discounts)
+      // Pool mode + filter come first — narrow the candidate set before
+      // partitioning. In manual mode this also fixes the order if
+      // manual_sort = 'merchant_defined'; the in-section comparator
+      // below preserves that order under stable-sort semantics.
+      const pooled = applyPoolMode(discounts, config)
+
+      const { applicable, potential } = partition(pooled)
       applicable.sort(applicableComparator(config.applicableSort))
       potential.sort(potentialComparator(config.potentialSort))
+
+      // Promote product-specific discounts to the top of each section
+      // when the merchant has the toggle on (default true). Runs after
+      // the chosen sort to preserve relative order within each class.
+      const promote = config.promoteProductSpecificAboveStorewide
+      const applicableOrdered = applyPromoteProductSpecific(applicable, promote)
+      const potentialOrdered = applyPromoteProductSpecific(potential, promote)
+      // Mutate in-place so the rest of render() reads the promoted order.
+      applicable.length = 0
+      potential.length = 0
+      applicable.push(...applicableOrdered)
+      potential.push(...potentialOrdered)
 
       const totalCount = applicable.length + potential.length
 
