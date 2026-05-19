@@ -1,41 +1,5 @@
-{%- comment -%}AUTO-GENERATED — bkodjs1e demo preset. Programmatic install, not Studio-managed.{%- endcomment -%}
-
-{%- if sai_state != 'draft' and sai_state != 'live' -%}
-  {%- assign sai_state = 'live' -%}
-{%- endif -%}
-
-{%- if sai_state == 'draft' -%}
-  {%- assign sai_vis = 'on' -%}
-{%- else -%}
-  {%- assign sai_vis = 'on' -%}
-{%- endif -%}
-
-{%- assign sai_handle = 'spectrum_snippet_bkodjs1e_ib8zpxj0ibutdun5bxr9eq31_live' -%}
-
-{%- assign sai_mo = metaobjects.spectrum_snippet_instance[sai_handle] -%}
-{%- unless sai_mo -%}
-  {%- paginate metaobjects.spectrum_snippet_instance.values by 250 -%}
-    {%- for sai_entry in metaobjects.spectrum_snippet_instance.values -%}
-      {%- if sai_entry.system.handle == sai_handle -%}
-        {%- assign sai_mo = sai_entry -%}
-        {%- break -%}
-      {%- endif -%}
-    {%- endfor -%}
-  {%- endpaginate -%}
-{%- endunless -%}
-
-{%- if sai_mo and sai_mo.meta.value.status == 'active' -%}
-  {%- assign sai_default = nil -%}
-  {%- for sai_v in sai_mo.variants.value.variants -%}
-    {%- if sai_v.isDefault -%}
-      {%- assign sai_default = sai_v -%}
-      {%- break -%}
-    {%- endif -%}
-  {%- endfor -%}
-
-  {%- if sai_default -%}
-    <div data-spectrum-instance-id="ib8zpxj0ibutdun5bxr9eq31" data-spectrum-snippet-id="bkodjs1e" data-spectrum-variant-id="{{ sai_default.variantId }}" data-spectrum-vis="{{ sai_vis }}" data-spectrum-lq-snippet="mut-ib8zpxj0ibutdun5bxr9eq31" data-spectrum-experience="_system-196419092640" data-spectrum-feature-slug="best_price">
-      {% render '_sai-snippet-bkodjs1e', variant: sai_default, mo: sai_mo, mutation_handle: 'mut-ib8zpxj0ibutdun5bxr9eq31', experience_handle: '_system-196419092640' %}
-    </div>
-  {%- endif -%}
-{%- endif -%}
+{%- comment -%}
+  Demo leftover. Original Studio mutation row was deleted from the DB but
+  this wrapper file was orphaned on the theme. Replaced with an empty
+  no-op to suppress rendering without breaking section render calls.
+{%- endcomment -%}
