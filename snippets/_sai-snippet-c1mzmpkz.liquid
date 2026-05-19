@@ -52,25 +52,6 @@
   assign empty_state_heading = content.empty_state_heading | default: 'No active offers'
   assign empty_state_body = content.empty_state_body | default: 'Check back soon for new promotions.'
 
-  # ── Pool configuration (Phase 2) ────────────────────────────────────────
-  assign pool_mode = content.pool_mode | default: 'dynamic'
-  assign pool_filter = content.pool_filter | default: 'product_plus_storewide'
-  assign manual_coupon_list = content.manual_coupon_list | default: ''
-  assign manual_sort = content.manual_sort | default: 'merchant_defined'
-  if content.promote_product_specific_above_storewide == nil
-    assign promote_product_specific_above_storewide = true
-  else
-    assign promote_product_specific_above_storewide = content.promote_product_specific_above_storewide
-  endif
-
-  # ── User-specific coupons (Phase 2) ─────────────────────────────────────
-  if content.enable_user_specific_coupons == nil
-    assign enable_user_specific_coupons = false
-  else
-    assign enable_user_specific_coupons = content.enable_user_specific_coupons
-  endif
-  assign user_section_badge_text = content.user_section_badge_text | default: 'Just for you ({count})'
-
   assign list_layout = content.list_layout | default: 'carousel'
 
   # Numeric props are interpolated into inline `style="--var: N"` strings
@@ -141,6 +122,14 @@
   else
     assign enable_promo_blocks = content.enable_promo_blocks
   endif
+
+  if content.show_status_badge == nil
+    assign show_status_badge = true
+  else
+    assign show_status_badge = content.show_status_badge
+  endif
+  assign applicable_status_label = content.applicable_status_label | default: 'Available now'
+  assign potential_status_label = content.potential_status_label | default: 'Almost there'
 
   if content.show_code_chip == nil
     assign show_code_chip = true
@@ -245,13 +234,12 @@
 
 .sai-c1mzmpkz {
   --sai-c1mzmpkz-card-bg: #ffffff;
-  --sai-c1mzmpkz-card-bg-muted: #ffffff;
   --sai-c1mzmpkz-card-border: rgba(0, 0, 0, 0.12);
   --sai-c1mzmpkz-card-radius: 0.75rem;
   --sai-c1mzmpkz-card-pad: 0.875rem;
   --sai-c1mzmpkz-card-min-w: 16rem;
   --sai-c1mzmpkz-card-gap: 0.75rem;
-  --sai-c1mzmpkz-code-bg: #f3f4f6;
+  --sai-c1mzmpkz-code-bg: #ffffff;
   --sai-c1mzmpkz-code-border: rgba(0, 0, 0, 0.12);
   --sai-c1mzmpkz-code-fg: #121212;
   --sai-c1mzmpkz-copy-bg: transparent;
@@ -555,38 +543,6 @@
   position: relative;
 }
 
-/* Subtle = muted card background + dashed border so potential cards
- * read as "not quite there" without a pill badge. Default visual when
- * potential_visual_treatment is left at its default. */
-.sai-c1mzmpkz__card--potential.sai-c1mzmpkz__card--treatment-subtle {
-  background: var(--sai-c1mzmpkz-card-bg-muted, rgba(0, 0, 0, 0.02));
-  border-style: dashed;
-  border-color: rgba(0, 0, 0, 0.18);
-}
-
-/* Lightweight section divider rendered between applicable and potential
- * groups. Inline, not a pill. Inherits text color from the card. */
-.sai-c1mzmpkz__section-divider {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  align-self: stretch;
-  margin: 0.5rem 0 0;
-  padding: 0.25rem 0;
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--sai-c1mzmpkz-muted-fg, rgba(0, 0, 0, 0.6));
-}
-
-.sai-c1mzmpkz__section-divider::before,
-.sai-c1mzmpkz__section-divider::after {
-  content: '';
-  flex: 1 1 auto;
-  border-top: 1px solid rgba(0, 0, 0, 0.1);
-}
-
 .sai-c1mzmpkz__icon {
   position: absolute;
   top: 0.5rem;
@@ -806,6 +762,37 @@
   letter-spacing: 0.02em;
 }
 
+.sai-c1mzmpkz__status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  align-self: flex-start;
+  padding: 0.125rem 0.5rem 0.125rem 0.4375rem;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.sai-c1mzmpkz__status-badge::before {
+  content: '';
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.sai-c1mzmpkz__status-badge--current {
+  background: rgba(22, 163, 74, 0.12);
+  color: #14803a;
+}
+
+.sai-c1mzmpkz__status-badge--potential {
+  background: rgba(0, 0, 0, 0.06);
+  color: rgba(0, 0, 0, 0.7);
+}
+
 .sai-c1mzmpkz__min-order {
   margin: 0;
   font-size: 0.75rem;
@@ -834,6 +821,23 @@
   font-size: 0.6875rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+.sai-c1mzmpkz__progress {
+  position: relative;
+  height: 0.375rem;
+  border-radius: 999px;
+  background: var(--sai-c1mzmpkz-progress-track);
+  overflow: hidden;
+}
+
+.sai-c1mzmpkz__progress-fill {
+  position: absolute;
+  inset: 0;
+  background: var(--sai-c1mzmpkz-progress-fill);
+  transform-origin: left center;
+  transform: scaleX(var(--sai-c1mzmpkz-progress-pct, 0));
+  transition: transform 220ms ease;
 }
 
 .sai-c1mzmpkz__card-cta {
@@ -1133,7 +1137,8 @@
 @media (prefers-reduced-motion: reduce) {
   .sai-c1mzmpkz-tc__backdrop,
   .sai-c1mzmpkz-tc__panel--modal,
-  .sai-c1mzmpkz-tc__panel--drawer {
+  .sai-c1mzmpkz-tc__panel--drawer,
+  .sai-c1mzmpkz__progress-fill {
     transition: none;
   }
 }
@@ -1193,13 +1198,6 @@
     "snippetId": {{ 'c1mzmpkz' | json }},
     "mutationHandle": {{ mutation_handle | json }},
     "experienceHandle": {{ experience_handle | json }},
-    "poolMode": {{ pool_mode | json }},
-    "poolFilter": {{ pool_filter | json }},
-    "manualCouponList": {{ manual_coupon_list | json }},
-    "manualSort": {{ manual_sort | json }},
-    "promoteProductSpecificAboveStorewide": {{ promote_product_specific_above_storewide | json }},
-    "enableUserSpecificCoupons": {{ enable_user_specific_coupons | json }},
-    "userSectionBadgeText": {{ user_section_badge_text | json }},
     "listLayout": {{ list_layout | json }},
     "gridColumnsDesktop": {{ grid_columns_desktop | json }},
     "gridColumnsMobile": {{ grid_columns_mobile | json }},
@@ -1220,6 +1218,7 @@
     "lockIconStyle": {{ lock_icon_style | json }},
     "enableCopyOnPotential": {{ enable_copy_on_potential | json }},
     "enablePromoBlocks": {{ enable_promo_blocks | json }},
+    "showStatusBadge": {{ show_status_badge | json }},
     "showCodeChip": {{ show_code_chip | json }},
     "showCopyButton": {{ show_copy_button | json }},
     "copySuccessDurationMs": {{ copy_success_duration_ms | json }},
@@ -1244,6 +1243,8 @@
     "variantPrice": {%- if sai_active_variant.price -%}{{ sai_active_variant.price | divided_by: 100.0 | json }}{%- else -%}null{%- endif -%}
   },
   "labels": {
+    "applicableStatusLabel": {{ applicable_status_label | json }},
+    "potentialStatusLabel": {{ potential_status_label | json }},
     "termsLabel": {{ terms_label | json }},
     "copyCtaLabel": {{ copy_cta_label | json }},
     "copySuccessLabel": {{ copy_success_label | json }},
