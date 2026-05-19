@@ -2,22 +2,23 @@
  * Best Price Widget (bkodjs1e) — PDP discount surface.
  *
  * Reads the JSON payload emitted by the Liquid shell, evaluates the
- * StorefrontDiscount[] list against merchant priority/fallback/visibility
- * rules, and renders one of three display modes (inline callout / expandable
- * card / dropdown). Optional countdown to the discount's expiry, optional
- * alternative-discount list, optional sticky mobile bar (additive).
+ * StorefrontDiscount[] list against the merchant's priority rule at the
+ * selected variant's price (qty 1), and renders a dropdown pill that opens
+ * a popup (modal on desktop, bottom-drawer on mobile) listing the headline
+ * discount plus alternatives.
  *
- * Cart-live-sync: patches window.fetch + XMLHttpRequest once per page so
- * threshold-based discounts re-evaluate as the cart total / quantity
- * changes. Theme cart:updated / cart:refresh events are listened to as a
- * backup. Debounced 120ms.
+ * The host is SSR-hidden. JS reveals it only when at least one discount
+ * (headline OR alternative) is available for the current variant. When the
+ * pool becomes empty (e.g., after a variant switch) the host hides again.
+ *
+ * Cart-live-sync: subscribes to Spectrum.events (cart:added / updated /
+ * removed / refresh / change) plus theme-emitted DOM events. Each
+ * subscription returns an unsubscribe handle that disconnectedCallback runs
+ * at teardown — no global side effects on load, no fetch/XHR
+ * monkey-patching, no leaks across instances. Debounced 120ms.
  *
  * Variant-aware: variants ship their per-variant discount blob in the
  * payload, so option swaps recompute instantly without a server round-trip.
- *
- * No-bind fallback: if window.__spectrumAi is absent the widget still
- * functions — render, countdown, sticky bar, cart sync. Analytics become
- * a noop.
  * ============================================================================= */
 
 ;(() => {
@@ -26,22 +27,19 @@
 
   const SNIPPET_ID = 'bkodjs1e'
   const TAG = 'sai-bkodjs1e'
-  const FEATURE_SLUG = 'best_price'
+  // featureSlug is also exposed by the wrapper as data-spectrum-feature-slug.
+  // Each instance prefers that runtime value if present; this literal is the
+  // default kept in sync with meta.json's `featureSlug`.
+  const FEATURE_SLUG_DEFAULT = 'best_price'
+  function getFeatureSlug(host) {
+    const fs = host?.getAttribute?.('data-spectrum-feature-slug')
+    return fs || FEATURE_SLUG_DEFAULT
+  }
   const CART_SYNC_DEBOUNCE_MS = 120
-  const CART_MUTATION_PATHS = ['/cart/add', '/cart/change', '/cart/update', '/cart/clear']
 
   // ── Analytics helpers ────────────────────────────────────────────────────
   function noop() {}
 
-  function escapeHtml(str) {
-    if (str == null) return ''
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;')
-  }
   function safe(fn) {
     return (name, payload) => {
       try {
@@ -53,10 +51,9 @@
   }
 
   // ── Currency formatting ──────────────────────────────────────────────────
-  // Discount payloads ship monetary values as decimals in store currency
-  // (StorefrontDiscount.discountValue.amount, qualification.remainingValue,
-  // etc.). Product price/compareAtPrice from Shopify Liquid arrive as cents.
-  // We coerce both at consumption sites.
+  // Discount payloads ship monetary values as decimals in store currency.
+  // Product price/compareAtPrice from Shopify Liquid arrive as cents. We
+  // coerce both at consumption sites.
 
   function formatMoney(amount, currency, locale) {
     if (amount == null || !Number.isFinite(Number(amount))) return ''
@@ -80,7 +77,6 @@
     }
   }
 
-  // Cents-to-decimal — Shopify Liquid `product.price` is integer cents.
   function centsToDecimal(cents) {
     if (cents == null) return null
     const n = Number(cents)
@@ -89,13 +85,12 @@
 
   // ── Template interpolation ───────────────────────────────────────────────
   // Single-brace placeholders so Liquid doesn't pre-interpolate them at
-  // template render. Replacing {x} only when the value is present so empty
-  // values leave a clean residual rather than literal "{x}".
+  // template render time.
 
   function fillTemplate(tpl, vars) {
     if (!tpl) return ''
     return String(tpl)
-      .replace(/\{(\w+)\}/g, (match, key) => {
+      .replace(/\{(\w+)\}/g, (_match, key) => {
         const v = vars[key]
         return v == null || v === '' ? '' : String(v)
       })
@@ -104,41 +99,16 @@
   }
 
   // ── Discount evaluation ──────────────────────────────────────────────────
-  // Spectrum's StorefrontDiscount carries everything we need:
+  // StorefrontDiscount carries:
   //   qualification.applicability ∈ 'current' | 'potential' | 'never'
   //   qualification.isSatisfied / progressMetric / progressPercent
   //   qualification.remainingValue / requiredValue / currentValue
   //   applicationType ∈ 'manual' | 'automatic'
   //   discountValue.{ type, amount, percentage, currencyCode }
-  //   stackConfig — used as a stacked-discount signal
-  //   visibilityConfig — used for member gating + expiry
-  //   customerGetsConfig — member-only signal fallback
+  //   visibilityConfig — used for expiry windows
   //
-  // None of the fields are individually required — we treat absent fields
-  // as the permissive option (e.g., no visibilityConfig means not
-  // member-gated, no expiry).
-
-  function isMemberOnly(d) {
-    // Best-effort signal — exact path depends on server contract. Check the
-    // two most likely places before falling back to false.
-    const vc = d?.visibilityConfig
-    if (vc) {
-      if (vc.memberOnly === true) return true
-      if (vc.customerSelection === 'members' || vc.audience === 'members') return true
-      if (Array.isArray(vc.customerSegments) && vc.customerSegments.length > 0) return true
-    }
-    const cg = d?.customerGetsConfig
-    if (cg && cg.requiresCustomer === true) return true
-    return false
-  }
-
-  function isStackable(d) {
-    const sc = d?.stackConfig
-    if (!sc) return false
-    if (sc.canStack === true) return true
-    if (Array.isArray(sc.stacksWith) && sc.stacksWith.length > 0) return true
-    return false
-  }
+  // None of the fields are individually required — absent fields are treated
+  // as the permissive option (no visibilityConfig means no expiry window).
 
   function endsAtMs(d) {
     const vc = d?.visibilityConfig
@@ -156,10 +126,9 @@
     return Number.isFinite(t) ? t : null
   }
 
-  // Discount savings vs the product's regular price at qty 1. Returns an
-  // object with absolute (store currency decimal) and percentage. Returns
-  // null when we can't compute — e.g., FREE_SHIPPING, or DISCOUNTED_QUANTITY
-  // we can't reduce to a per-item value without the cart context.
+  // Savings vs the product's regular price at qty 1. Returns absolute (store
+  // currency decimal) and percentage. Returns null for FREE_SHIPPING or
+  // DISCOUNTED_QUANTITY without a per-item effect.
   function savingsAtQty1(d, productPriceDecimal) {
     if (productPriceDecimal == null) return null
     const dv = d?.discountValue
@@ -183,7 +152,6 @@
         }
       }
       case 'DISCOUNTED_QUANTITY': {
-        // Effect-on-Nth-item — at qty 1 we approximate the per-item savings.
         const eff = dv.effect
         if (!eff) return null
         if (eff.type === 'PERCENTAGE') {
@@ -218,8 +186,6 @@
     return result < 0 ? 0 : result
   }
 
-  // remainingValue per StorefrontDiscount may be in store currency or in
-  // qty units. progressMetric tells us which.
   function thresholdGap(d) {
     const q = d?.qualification
     if (!q) return null
@@ -232,174 +198,75 @@
     return d?.qualification?.applicability || 'never'
   }
 
-  function filterByVisibility(discounts, config) {
-    const minSavings = Number(config.minSavingsToShow) || 0
-    const maxGap = Number(config.maxThresholdGapToShow) || 0
-    return discounts
-      .filter((d) => {
-        if (applicability(d) === 'never') return false
-        if (!config.considerMemberDiscounts && isMemberOnly(d)) return false
-        if (!config.considerStackedDiscounts && isStackable(d)) return false
-        // Drop expired discounts unless the merchant explicitly chose to keep them.
-        const ends = endsAtMs(d)
-        if (ends != null && ends <= Date.now()) return false
-        const starts = startsAtMs(d)
-        if (starts != null && starts > Date.now()) return false
-        return true
-      })
-      .filter((d) => {
-        // Min-savings floor — only applies once we know the savings (i.e. we
-        // need productPrice context downstream; this filter runs in
-        // evaluate() where it has price).
-        if (minSavings <= 0 && maxGap <= 0) return true
-        if (maxGap > 0 && applicability(d) === 'potential') {
-          const gap = thresholdGap(d)
-          if (gap != null && gap > maxGap) return false
-        }
-        return true
-      })
+  function filterByVisibility(discounts) {
+    const now = Date.now()
+    return discounts.filter((d) => {
+      if (applicability(d) === 'never') return false
+      const ends = endsAtMs(d)
+      if (ends != null && ends <= now) return false
+      const starts = startsAtMs(d)
+      if (starts != null && starts > now) return false
+      return true
+    })
   }
 
-  function pickBest(discounts, config, productPriceDecimal) {
-    if (discounts.length === 0) return null
-    const minSavings = Number(config.minSavingsToShow) || 0
-
-    const withSignals = discounts
-      .map((d) => {
-        const s = savingsAtQty1(d, productPriceDecimal)
-        const gap = thresholdGap(d)
-        const required = Number(d?.qualification?.requiredValue) || 0
-        return {
-          d,
-          savingsAbs: s?.absolute ?? 0,
-          savingsPct: s?.percentage ?? 0,
-          gap: gap ?? Number.POSITIVE_INFINITY,
-          gapRatio:
-            required > 0 ? (gap ?? Number.POSITIVE_INFINITY) / required : Number.POSITIVE_INFINITY,
-          isCurrent: applicability(d) === 'current',
-        }
-      })
-      .filter((x) => x.savingsAbs >= minSavings || minSavings === 0)
-
-    if (withSignals.length === 0) return null
-
-    const currents = withSignals.filter((x) => x.isCurrent)
-    const potentials = withSignals.filter((x) => !x.isCurrent)
-
-    function bestOf(list) {
-      if (list.length === 0) return null
-      const sorted = [...list]
-      switch (config.priorityLogic) {
-        case 'highest_percentage':
-          sorted.sort((a, b) => b.savingsPct - a.savingsPct)
-          break
-        case 'easiest_to_unlock':
-          sorted.sort((a, b) => a.gapRatio - b.gapRatio || b.savingsAbs - a.savingsAbs)
-          break
-        case 'merchant_order':
-          // Preserve original order — no sort.
-          break
-        default:
-          // highest_savings (default)
-          sorted.sort((a, b) => b.savingsAbs - a.savingsAbs)
-      }
-      return sorted[0]
+  // Sort a list of {d, signals...} entries by the merchant's chosen rule.
+  // `applicability` prefers current over potential, then highest savings.
+  // `highest_savings` prefers absolute savings regardless of applicability.
+  // `easiest_to_unlock` prefers the smallest unlock gap (current discounts
+  // count as zero gap).
+  function sortBy(entries, rule) {
+    const list = [...entries]
+    switch (rule) {
+      case 'highest_savings':
+        list.sort((a, b) => b.savingsAbs - a.savingsAbs)
+        break
+      case 'easiest_to_unlock':
+        list.sort((a, b) => a.unlockGap - b.unlockGap || b.savingsAbs - a.savingsAbs)
+        break
+      default:
+        // applicability (default)
+        list.sort(
+          (a, b) => Number(b.isCurrent) - Number(a.isCurrent) || b.savingsAbs - a.savingsAbs,
+        )
     }
-
-    // Prefer current; fall through to potential, applying fallbackLogic.
-    if (currents.length > 0) return bestOf(currents)
-
-    switch (config.fallbackLogic) {
-      case 'maximum_savings':
-        return bestOf(potentials)
-      case 'none':
-        return null
-      default: {
-        // nearest_threshold (default)
-        if (potentials.length === 0) return null
-        const sorted = [...potentials].sort((a, b) => a.gap - b.gap)
-        return sorted[0]
-      }
-    }
+    return list
   }
 
-  function evaluate(state) {
-    const productPrice = centsToDecimal(state.product.price) // store-currency decimal
-    const visible = filterByVisibility(state.discounts, state.config)
-    const best = pickBest(visible, state.config, productPrice)
-    if (!best) {
-      return { best: null, alternatives: [], productPrice }
-    }
-    // Alternatives: everything visible minus the headline, sorted by the
-    // same priority logic, capped at maxAlternatives.
-    const others = visible.filter((d) => d !== best.d)
-    const ranked = pickAlternatives(others, state.config, productPrice)
-    const cap = Math.max(0, Math.min(Number(state.config.maxAlternatives) || 0, 50))
-    return {
-      best,
-      alternatives: ranked.slice(0, cap),
-      productPrice,
-    }
-  }
-
-  function pickAlternatives(discounts, config, productPriceDecimal) {
-    const withSignals = discounts.map((d) => {
+  function annotate(discounts, productPriceDecimal) {
+    return discounts.map((d) => {
       const s = savingsAtQty1(d, productPriceDecimal)
       const gap = thresholdGap(d)
+      const isCurrent = applicability(d) === 'current'
       return {
         d,
         savingsAbs: s?.absolute ?? 0,
         savingsPct: s?.percentage ?? 0,
-        gap: gap ?? Number.POSITIVE_INFINITY,
-        isCurrent: applicability(d) === 'current',
+        // current discounts have no "gap" — set to 0 so they sort first when
+        // ranking by easiest_to_unlock.
+        unlockGap: isCurrent ? 0 : (gap ?? Number.POSITIVE_INFINITY),
+        isCurrent,
       }
     })
-    switch (config.priorityLogic) {
-      case 'highest_percentage':
-        withSignals.sort(
-          (a, b) => Number(b.isCurrent) - Number(a.isCurrent) || b.savingsPct - a.savingsPct,
-        )
-        break
-      case 'easiest_to_unlock':
-        withSignals.sort((a, b) => Number(b.isCurrent) - Number(a.isCurrent) || a.gap - b.gap)
-        break
-      case 'merchant_order':
-        break
-      default:
-        // highest_savings (default)
-        withSignals.sort(
-          (a, b) => Number(b.isCurrent) - Number(a.isCurrent) || b.savingsAbs - a.savingsAbs,
-        )
-    }
-    return withSignals
   }
 
-  // ── Threshold display rendering ──────────────────────────────────────────
-  function thresholdSummary(d, mode, money) {
-    const q = d?.qualification
-    if (!q) return null
-    const metric = q.progressMetric
-    const required = q.requiredValue
-    const useCart =
-      mode === 'cart_value_only' || mode === 'both' || (mode === 'smart' && metric === 'cart_value')
-    const useQty =
-      mode === 'quantity_only' || mode === 'both' || (mode === 'smart' && metric === 'quantity')
-    const parts = []
-    if (
-      useCart &&
-      required != null &&
-      (metric === 'cart_value' || mode === 'cart_value_only' || mode === 'both')
-    ) {
-      parts.push(`Orders ${money(required, true)}+`)
+  function evaluate(state) {
+    const productPrice = centsToDecimal(state.product.price)
+    const visible = filterByVisibility(state.discounts)
+    const annotated = annotate(visible, productPrice)
+    const sortedForBest = sortBy(annotated, state.config.priorityLogic)
+    const best = sortedForBest[0] || null
+
+    let alternatives = []
+    if (best) {
+      const others = annotated.filter((x) => x.d !== best.d)
+      const sortRule = state.config.dropdownSortBy || state.config.priorityLogic
+      const ranked = sortBy(others, sortRule)
+      const cap = Math.max(0, Math.min(Number(state.config.maxAlternatives) || 0, 50))
+      alternatives = ranked.slice(0, cap)
     }
-    if (
-      useQty &&
-      required != null &&
-      (metric === 'quantity' || mode === 'quantity_only' || mode === 'both')
-    ) {
-      parts.push(`${required}+ items`)
-    }
-    return parts.length > 0 ? parts.join(' · ') : null
+
+    return { best, alternatives, productPrice }
   }
 
   // ── Countdown ────────────────────────────────────────────────────────────
@@ -448,59 +315,6 @@
   }
 
   // ── Cart-live-sync ───────────────────────────────────────────────────────
-  // One global patch per page; instances subscribe to a shared event. The
-  // patch detects cart-mutation responses (200 + a known URL), then fires
-  // the event after the response has been parsed by the theme so any
-  // cart-state DOM updates are already in place.
-
-  const CART_SYNC_EVENT = '__sai_bkodjs1e_cart_changed__'
-
-  function installGlobalCartSync() {
-    if (window.__sai_bkodjs1e_cart_patched__) return
-    window.__sai_bkodjs1e_cart_patched__ = true
-
-    const fire = debounce(() => {
-      window.dispatchEvent(new CustomEvent(CART_SYNC_EVENT))
-    }, CART_SYNC_DEBOUNCE_MS)
-
-    const origFetch = window.fetch
-    if (typeof origFetch === 'function') {
-      window.fetch = function patchedFetch(input, ...rest) {
-        const url = typeof input === 'string' ? input : input?.url || ''
-        const isMutation = CART_MUTATION_PATHS.some((p) => url.includes(p))
-        const result = origFetch.call(this, input, ...rest)
-        if (isMutation) {
-          result.then(() => fire()).catch(() => {})
-        }
-        return result
-      }
-    }
-
-    if (typeof XMLHttpRequest !== 'undefined' && XMLHttpRequest.prototype) {
-      const origOpen = XMLHttpRequest.prototype.open
-      const origSend = XMLHttpRequest.prototype.send
-      XMLHttpRequest.prototype.open = function patchedOpen(method, url, ...rest) {
-        this.__saiBpwUrl = url
-        return origOpen.call(this, method, url, ...rest)
-      }
-      XMLHttpRequest.prototype.send = function patchedSend(...rest) {
-        const url = this.__saiBpwUrl || ''
-        const isMutation = CART_MUTATION_PATHS.some((p) => String(url).includes(p))
-        if (isMutation) {
-          this.addEventListener('load', () => fire())
-        }
-        return origSend.call(this, ...rest)
-      }
-    }
-
-    // Backup: theme-emitted events. Different themes use different names —
-    // listen to the common ones; duplicate fires are no-op (debounced).
-    const events = ['cart:updated', 'cart:refresh', 'cart:change', 'cart:item-added']
-    for (const evt of events) {
-      document.addEventListener(evt, fire)
-    }
-  }
-
   function debounce(fn, ms) {
     let t = null
     return (...args) => {
@@ -533,9 +347,7 @@
         this._track = noop
         this._emit = noop
         this._countdownTimer = null
-        this._cartListener = null
-        this._docClickListener = null
-        this._modalKeyListener = null
+        this._cartUnsubs = null
 
         const payload = this._readPayload()
         if (!payload) return
@@ -547,7 +359,6 @@
           labels: payload.labels,
           cart: { total: null, itemCount: null },
         }
-        // Variant id → variant — for fast lookup on variant change.
         this._variantsById = new Map()
         for (const v of payload.product.variants || []) {
           this._variantsById.set(String(v.id), v)
@@ -555,26 +366,25 @@
         this._currentVariantId = String(payload.product.currentVariantId)
 
         this._render()
-        this._bindModeInteractions()
-        this._bindStickyInteractions()
+        this._bindDropdownInteractions()
         this._bindCartSync()
         this._bindVariantChange()
       }
 
       disconnectedCallback() {
         this._teardownCountdown()
-        if (this._cartListener) {
-          window.removeEventListener(CART_SYNC_EVENT, this._cartListener)
-          this._cartListener = null
+        if (Array.isArray(this._cartUnsubs)) {
+          for (const off of this._cartUnsubs) {
+            try {
+              off()
+            } catch (_) {
+              /* listener already gone */
+            }
+          }
+          this._cartUnsubs = null
         }
-        if (this._docClickListener) {
-          document.removeEventListener('click', this._docClickListener)
-          this._docClickListener = null
-        }
-        if (this._modalKeyListener) {
-          document.removeEventListener('keydown', this._modalKeyListener)
-          this._modalKeyListener = null
-        }
+        // Close any open popup we own + restore body overflow if we set it.
+        if (typeof this._closeOpenPopup === 'function') this._closeOpenPopup()
       }
 
       setAnalytics(track, emit) {
@@ -593,7 +403,6 @@
         }
         this._state.product.price = next.price
         this._state.product.compareAtPrice = next.compareAtPrice
-        this._playPriceAnimation()
         this._render()
       }
 
@@ -602,7 +411,8 @@
         if (!node) return null
         try {
           return JSON.parse(node.textContent || '{}')
-        } catch (_) {
+        } catch (err) {
+          console.warn('[bkodjs1e] failed to parse payload:', err)
           return null
         }
       }
@@ -621,202 +431,25 @@
       }
 
       _render() {
-        const { config, labels } = this._state
         const evaluated = evaluate(this._state)
         this._lastEvaluated = evaluated
 
-        if (!evaluated.best) {
-          if (config.hideWhenNoDiscounts) {
-            this.classList.add('sai-bkodjs1e--hidden')
-            this._teardownCountdown()
-            return
-          }
-        }
-        this.classList.remove('sai-bkodjs1e--hidden')
-
-        const mode = config.displayMode
-        // Headline price-row is shared by all three modes.
-        this._renderHeadline(evaluated)
-        this._renderBadge(labels.heading)
-
-        // Mode-specific body — unlock/bullets/alternatives placement varies.
-        if (mode === 'dropdown') {
-          this._renderDropdown(evaluated)
-        } else if (mode === 'expandable-card') {
-          this._renderExpandable(evaluated)
-        } else {
-          this._renderInlineCallout(evaluated)
-        }
-
-        // Sticky mobile bar is additive — renders alongside the inline body.
-        // When sticky is on we hide ONLY the alternatives list (the bar's
-        // popup already surfaces them on tap), keeping the inline callout's
-        // headline / bullets / unlock messaging intact.
-        if (config.stickyMobileBar) {
-          this.classList.add('sai-bkodjs1e--sticky-on')
-          this._setHidden('[data-sai-alt-list]', true)
-          this._renderSticky(evaluated)
-        } else {
-          this.classList.remove('sai-bkodjs1e--sticky-on')
-        }
-
-        this._setupCountdown(evaluated)
-      }
-
-      _renderBadge(text) {
-        const badge = this.querySelector('[data-sai-badge]')
-        const heading = this.querySelector('[data-sai-heading]')
-        if (!badge || !heading) return
-        if (this._state.config.displayMode === 'default') {
-          heading.textContent = text || 'Best offers'
-          badge.hidden = false
-        } else {
-          badge.hidden = true
-        }
-      }
-
-      _renderHeadline(evaluated) {
-        const row = this.querySelector('[data-sai-price-row]')
-        const priceEl = this.querySelector('[data-sai-price]')
-        const savingsEl = this.querySelector('[data-sai-savings]')
-        const prefixEl = this.querySelector('[data-sai-prefix]')
-        if (!row || !priceEl) return
-
-        const money = this._moneyFn()
-        const product = this._state.product
-        const productPriceDecimal = centsToDecimal(product.price)
-
-        if (!evaluated.best) {
-          row.hidden = true
+        // Hide widget entirely when there is no headline AND no alternative.
+        // Per the PDP refactor brief: "when no bestprice alternative is
+        // available drop the widget for all."
+        const hasContent = !!evaluated.best || evaluated.alternatives.length > 0
+        if (!hasContent) {
+          this.hidden = true
+          this._teardownCountdown()
           return
         }
-        row.hidden = false
+        this.hidden = false
 
-        // Headline displays the price *with* the best discount applied at qty 1.
-        // For potential (near-miss) discounts the value is still useful — it
-        // shows the price the customer *would* pay once they unlock it.
-        const finalPrice = discountedPrice(evaluated.best.d, productPriceDecimal)
-        priceEl.textContent = money(finalPrice)
-
-        // Prefix label.
-        if (prefixEl) {
-          prefixEl.textContent = this._state.labels.bestPricePrefix || ''
-          prefixEl.hidden = !this._state.labels.bestPricePrefix
-        }
-
-        // Savings delta.
-        if (savingsEl) {
-          if (this._state.config.showSavingsDelta && productPriceDecimal != null) {
-            const saving = productPriceDecimal - finalPrice
-            const format = this._state.config.savingsDeltaFormat
-            const pct =
-              productPriceDecimal > 0 ? Math.round((saving / productPriceDecimal) * 100) : 0
-            let text = ''
-            if (saving > 0) {
-              if (format === 'percentage') text = `${pct}% off`
-              else if (format === 'absolute') text = `You save ${money(saving)}`
-              else text = `You save ${money(saving)} (${pct}% off)`
-            }
-            savingsEl.textContent = text
-            savingsEl.hidden = !text
-          } else {
-            savingsEl.hidden = true
-          }
-        }
-      }
-
-      _renderInlineCallout(evaluated) {
-        this._renderBullets(evaluated, this.querySelector('[data-sai-bullets]'))
-        this._renderUnlock(evaluated, this.querySelector('[data-sai-unlock]'))
-        // Inline mode mirrors Myntra-style copy: no separate "You save"
-        // chip — the savings are already in the bullets.
-        this._setHidden('[data-sai-savings]', true)
-        // Alternatives shown directly when showAlternatives is on in this mode.
-        if (this._state.config.showAlternatives) {
-          this._renderAlternatives(evaluated, this.querySelector('[data-sai-alt-list]'))
-        } else {
-          const alt = this.querySelector('[data-sai-alt-list]')
-          if (alt) alt.hidden = true
-        }
-        this._setHidden('[data-sai-expand-trigger]', true)
-        this._setHidden('[data-sai-dropdown-trigger]', true)
-        this._setHidden('[data-sai-dropdown-panel]', true)
-      }
-
-      _renderExpandable(evaluated) {
-        this._renderBullets(evaluated, this.querySelector('[data-sai-bullets]'))
-        this._renderUnlock(evaluated, this.querySelector('[data-sai-unlock]'))
-
-        const trigger = this.querySelector('[data-sai-expand-trigger]')
-        const triggerLabel = this.querySelector('[data-sai-expand-label]')
-        const body = this.querySelector('[data-sai-expand-body-inner]')
-
-        this._setHidden('[data-sai-dropdown-trigger]', true)
-        this._setHidden('[data-sai-dropdown-panel]', true)
-
-        if (!trigger || !body) return
-        trigger.hidden = false
-        const expanded = this.getAttribute('data-expanded') === 'true'
-        if (triggerLabel) {
-          triggerLabel.textContent = expanded
-            ? this._state.labels.collapseTriggerText
-            : this._state.labels.expandTriggerText
-        }
-        // Body content: alternatives when configured + countdown is already
-        // in the headline. We populate the body so the grid-template-rows
-        // animation has something to grow into.
-        body.innerHTML = ''
-        if (this._state.config.expandedShowAlternatives && this._state.config.showAlternatives) {
-          const list = document.createElement('ul')
-          list.className = 'sai-bkodjs1e__alt-list'
-          this._renderAlternatives(evaluated, list, /* alreadyAttached */ true)
-          body.appendChild(list)
-        }
-
-        // Hide the top-level inline alt list since the expanded body owns it.
-        const topAlt = this.querySelector('[data-sai-alt-list]')
-        if (topAlt) topAlt.hidden = true
-      }
-
-      _renderDropdown(evaluated) {
-        const trigger = this.querySelector('[data-sai-dropdown-trigger]')
-        const triggerLabel = this.querySelector('[data-sai-dropdown-label]')
         const calloutLabel = this.querySelector('[data-sai-callout-label]')
-
-        // Dropdown mode hides every other inline region — the modal owns
-        // all detail content.
-        this._setHidden('[data-sai-expand-trigger]', true)
-        this._setHidden('[data-sai-bullets]', true)
-        this._setHidden('[data-sai-unlock]', true)
-        this._setHidden('[data-sai-alt-list]', true)
-        this._setHidden('[data-sai-price-row]', true)
-        this._setHidden('[data-sai-badge]', true)
-        this._setHidden('[data-sai-heading]', true)
-        this._setHidden('[data-sai-dropdown-panel]', true)
-
-        if (!trigger) return
-        trigger.hidden = false
-        if (triggerLabel) {
-          triggerLabel.textContent = this._state.labels.dropdownTriggerText || 'View other offers'
-        }
         if (calloutLabel) {
           calloutLabel.textContent = this._buildCalloutText(evaluated)
         }
-
-        // Countdown is rendered inside [data-sai-price-row] which is hidden
-        // in dropdown mode. Detach + re-mount it INSIDE the green callout
-        // (right-aligned) so the urgency timer sits on the same row as the
-        // "Get it at $X" text instead of taking up a heavy banner of its own.
-        if (this._state.config.showCountdown) {
-          const countdownEl = this.querySelector('[data-sai-countdown]')
-          const calloutEl = this.querySelector('[data-sai-callout]')
-          if (countdownEl && calloutEl && !calloutEl.contains(countdownEl)) {
-            countdownEl.classList.add('sai-bkodjs1e__countdown--in-callout')
-            calloutEl.appendChild(countdownEl)
-          }
-        }
-
-        this._wireDropdownPopup(evaluated)
+        this._setupCountdown(evaluated)
       }
 
       _buildCalloutText(evaluated) {
@@ -827,22 +460,22 @@
         return `Get it at ${money(finalPrice)}`
       }
 
-      _wireDropdownPopup(evaluated) {
+      _bindDropdownInteractions() {
         const triggerBtn = this.querySelector('[data-sai-popup-trigger]')
         if (!triggerBtn) return
-        // Idempotent — replace any prior handler bound to a stale evaluator.
-        if (this._popupClickHandler) triggerBtn.removeEventListener('click', this._popupClickHandler)
-        this._popupClickHandler = () => this._openDropdownPopup(this._lastEvaluated || evaluated)
-        triggerBtn.addEventListener('click', this._popupClickHandler)
+        triggerBtn.addEventListener('click', () => {
+          this._openDropdownPopup(this._lastEvaluated || evaluate(this._state))
+        })
       }
 
       _openDropdownPopup(evaluated) {
-        if (!evaluated || !evaluated.best) return
+        if (!evaluated || (!evaluated.best && evaluated.alternatives.length === 0)) return
         const money = this._moneyFn()
         const productPrice = centsToDecimal(this._state.product.price)
         const labels = this._state.labels
 
-        const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null
+        const previouslyFocused =
+          document.activeElement instanceof HTMLElement ? document.activeElement : null
 
         // Mobile = bottom-anchored drawer, desktop = centered modal.
         // matchMedia evaluated per-open so a resized window picks the right
@@ -857,70 +490,130 @@
         root.setAttribute('data-state', 'closed')
         root.setAttribute('data-surface', isMobile ? 'drawer' : 'modal')
 
-        const TAG_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m15 9-6 6"/><circle cx="9.5" cy="9.5" r=".75" fill="currentColor"/><circle cx="14.5" cy="14.5" r=".75" fill="currentColor"/></svg>'
+        const TAG_SVG =
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m15 9-6 6"/><circle cx="9.5" cy="9.5" r=".75" fill="currentColor"/><circle cx="14.5" cy="14.5" r=".75" fill="currentColor"/></svg>'
 
         const panelClass = `sai-bkodjs1e-popup__panel sai-bkodjs1e-popup__panel--${isMobile ? 'drawer' : 'modal'}`
-        const handleHtml = isMobile ? '<div class="sai-bkodjs1e-popup__handle" aria-hidden="true"></div>' : ''
+        const handleHtml = isMobile
+          ? '<div class="sai-bkodjs1e-popup__handle" aria-hidden="true"></div>'
+          : ''
+        const highlightText = evaluated.best
+          ? this._buildCalloutText(evaluated)
+          : labels.bestPricePrefix || 'Best offers'
 
         root.innerHTML = `
           <div class="sai-bkodjs1e-popup__backdrop" data-sai-popup-dismiss></div>
           <div class="${panelClass}" data-sai-popup-panel>
             ${handleHtml}
             <div class="sai-bkodjs1e-popup__header">
-              <span class="sai-bkodjs1e-popup__title" id="sai-bkodjs1e-popup-title">${escapeHtml(labels.heading || 'Best offers').toUpperCase()}</span>
+              <span class="sai-bkodjs1e-popup__title" id="sai-bkodjs1e-popup-title">${String(labels.heading || 'Best offers').toUpperCase()}</span>
               <button type="button" class="sai-bkodjs1e-popup__close" aria-label="Close" data-sai-popup-dismiss>&times;</button>
             </div>
             <div class="sai-bkodjs1e-popup__highlight">
               <span class="sai-bkodjs1e__callout-icon">${TAG_SVG.replace('<svg ', '<svg class="sai-bkodjs1e__callout-icon" ')}</span>
-              <span>${escapeHtml(this._buildCalloutText(evaluated))}</span>
+              <span>${highlightText}</span>
             </div>
             <div class="sai-bkodjs1e-popup__body" data-sai-popup-body></div>
           </div>
         `
 
         const body = root.querySelector('[data-sai-popup-body]')
-        body.appendChild(this._buildPopupSection(evaluated.best.d, productPrice, money, /* primary */ true))
+        if (evaluated.best) {
+          body.appendChild(
+            this._buildPopupSection(evaluated.best.d, productPrice, money, /* primary */ true),
+          )
+        }
 
         if (this._state.config.showAlternatives && evaluated.alternatives.length > 0) {
-          // Divider + alternative sections live INSIDE the body so they
-          // share the body's padding and scroll with it. The divider has
-          // negative inline margins to span the body's padding for the
-          // full-width grey strip look.
           const divider = document.createElement('div')
           divider.className = 'sai-bkodjs1e-popup__divider'
           divider.innerHTML = `<span class="sai-bkodjs1e-popup__divider-icon">${TAG_SVG.replace('<svg ', '<svg class="sai-bkodjs1e-popup__divider-icon" ')}</span><span>Other Offers</span>`
           body.appendChild(divider)
-          for (const item of evaluated.alternatives.slice(0, this._state.config.dropdownMaxItems || 5)) {
+          for (const item of evaluated.alternatives.slice(
+            0,
+            this._state.config.dropdownMaxItems || 5,
+          )) {
             body.appendChild(this._buildPopupSection(item.d, productPrice, money, false))
           }
         }
 
-        document.body.appendChild(root)
+        // Mount popup as a child of the instance host so per-instance baked
+        // styles can still reach it, and so disconnectedCallback can tear
+        // it down by detaching the host subtree.
+        this.appendChild(root)
         const prevOverflow = document.body.style.overflow
         document.body.style.overflow = 'hidden'
 
+        // matchMedia change listener — rotation between viewport sizes
+        // mid-open swaps drawer ↔ modal surface.
+        const mq = window.matchMedia('(min-width: 768px)')
+        const onMq = () => {
+          const nowMobile = !mq.matches
+          root.setAttribute('data-surface', nowMobile ? 'drawer' : 'modal')
+          const panel = root.querySelector('[data-sai-popup-panel]')
+          if (panel) {
+            panel.className = `sai-bkodjs1e-popup__panel sai-bkodjs1e-popup__panel--${nowMobile ? 'drawer' : 'modal'}`
+          }
+        }
+        if (typeof mq.addEventListener === 'function') mq.addEventListener('change', onMq)
+        else mq.addListener(onMq)
+
         const close = () => {
+          if (root.getAttribute('data-state') === 'closed') return
           root.setAttribute('data-state', 'closed')
           const cleanup = () => {
             document.removeEventListener('keydown', onKey, true)
+            if (typeof mq.removeEventListener === 'function') mq.removeEventListener('change', onMq)
+            else mq.removeListener(onMq)
             if (root.parentNode) root.parentNode.removeChild(root)
             document.body.style.overflow = prevOverflow
-            if (previouslyFocused) previouslyFocused.focus()
+            if (previouslyFocused && document.contains(previouslyFocused)) previouslyFocused.focus()
+            if (this._closeOpenPopup === close) this._closeOpenPopup = null
           }
           const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
           if (reduced) cleanup()
           else setTimeout(cleanup, 240)
         }
-        const onKey = (e) => { if (e.key === 'Escape') close() }
+        this._closeOpenPopup = close
+
+        // Focus trap — Tab cycles between focusable nodes inside the panel.
+        const onKey = (e) => {
+          if (e.key === 'Escape') {
+            close()
+            return
+          }
+          if (e.key !== 'Tab') return
+          const focusables = root.querySelectorAll(
+            'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"]), input:not([disabled]), [role="button"]',
+          )
+          if (focusables.length === 0) {
+            e.preventDefault()
+            return
+          }
+          const first = focusables[0]
+          const last = focusables[focusables.length - 1]
+          const active = document.activeElement
+          if (e.shiftKey && active === first) {
+            e.preventDefault()
+            last.focus()
+          } else if (!e.shiftKey && active === last) {
+            e.preventDefault()
+            first.focus()
+          }
+        }
         root.addEventListener('click', (e) => {
           const t = e.target
-          if (t instanceof Element && t.closest('[data-sai-popup-dismiss]')) { e.preventDefault(); close() }
+          if (t instanceof Element && t.closest('[data-sai-popup-dismiss]')) {
+            e.preventDefault()
+            close()
+          }
         })
         document.addEventListener('keydown', onKey, true)
 
-        // Wire copy chips inside the popup. The whole code-row is a role="button"
-        // — click + Enter/Space activate. Swap the clipboard icon to a
-        // checkmark on success for ~1.2s.
+        // Wire copy chips inside the popup. The whole code-row is a
+        // role="button" — click + Enter/Space activate. Swap the clipboard
+        // icon to a checkmark on success for ~1.5s.
+        const featureSlug = getFeatureSlug(this)
         const track = this._track
         async function doCopy(btn) {
           const code = btn.getAttribute('data-sai-popup-copy') || ''
@@ -939,9 +632,11 @@
               tmp.select()
               ok = document.execCommand('copy')
               document.body.removeChild(tmp)
-            } catch (__) { /* swallow */ }
+            } catch (__) {
+              /* swallow */
+            }
           }
-          track(`${FEATURE_SLUG}:copy_code`, { discount_code: code, copied: ok })
+          track(`${featureSlug}:copy_code`, { discount_code: code, copied: ok })
           if (!ok) return
           btn.setAttribute('aria-pressed', 'true')
           const copyIcon = btn.querySelector('.sai-bkodjs1e-popup__copy-icon--copy')
@@ -973,20 +668,20 @@
 
         // Force reflow + double rAF so the transition has a clean from-state.
         void root.offsetHeight
-        requestAnimationFrame(() => requestAnimationFrame(() => {
-          root.setAttribute('data-state', 'open')
-          const firstFocusable = root.querySelector('button, [href], [tabindex]:not([tabindex="-1"])')
-          if (firstFocusable instanceof HTMLElement) firstFocusable.focus()
-        }))
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            root.setAttribute('data-state', 'open')
+            const firstFocusable = root.querySelector(
+              'button, [href], [tabindex]:not([tabindex="-1"])',
+            )
+            if (firstFocusable instanceof HTMLElement) firstFocusable.focus()
+          }),
+        )
 
-        const headlineCode = Array.isArray(evaluated.best.d.codes) && evaluated.best.d.codes.length > 0
-          ? (typeof evaluated.best.d.codes[0] === 'string'
-              ? evaluated.best.d.codes[0]
-              : evaluated.best.d.codes[0]?.code)
-          : null
-        this._track(`${FEATURE_SLUG}:popup_opened`, {
+        const headlineCode = evaluated.best ? extractCode(evaluated.best.d) : null
+        this._track(`${featureSlug}:popup_opened`, {
           surface: isMobile ? 'drawer' : 'modal',
-          discount_id: evaluated.best.d?.id || null,
+          discount_id: evaluated.best?.d?.id || null,
           discount_code: headlineCode,
           alternatives_count: evaluated.alternatives.length,
         })
@@ -994,15 +689,32 @@
 
       _buildPopupSection(d, productPrice, money, isPrimary) {
         const section = document.createElement('div')
-        section.className = 'sai-bkodjs1e-popup__section' + (isPrimary ? ' sai-bkodjs1e-popup__section--primary' : '')
+        section.className = `sai-bkodjs1e-popup__section${isPrimary ? ' sai-bkodjs1e-popup__section--primary' : ''}`
 
+        const config = this._state.config
+        const labels = this._state.labels
+
+        // Discount name (configurable). The prefix is rendered inline so the
+        // line reads "with WELCOME50" when the merchant sets it.
+        if (config.showDiscountName) {
+          const name = d?.shortSummary || d?.title
+          if (name) {
+            const p = document.createElement('p')
+            p.className = 'sai-bkodjs1e-popup__name'
+            const prefix = labels.discountNamePrefix
+            p.textContent = prefix ? `${prefix} ${name}` : name
+            section.appendChild(p)
+          }
+        }
+
+        // Summary description — split on " • " separator that Shopify uses
+        // to cram multiple facts onto one line.
         if (d.summary || d.shortSummary) {
-          // Shopify discount summaries cram multiple facts onto one line with
-          // ` • ` separators ("$50.00 off … • Minimum purchase of $500.00 •
-          // For all countries"). Split into separate lines so each fact reads
-          // cleanly.
           const raw = d.summary || d.shortSummary
-          const parts = String(raw).split(/\s*•\s*/).map((s) => s.trim()).filter(Boolean)
+          const parts = String(raw)
+            .split(/\s*•\s*/)
+            .map((s) => s.trim())
+            .filter(Boolean)
           if (parts.length > 1) {
             const ul = document.createElement('ul')
             ul.className = 'sai-bkodjs1e-popup__desc-list'
@@ -1021,20 +733,51 @@
           }
         }
 
-        const saving = savingsAtQty1(d, productPrice)
-        if (saving && saving.absolute > 0) {
-          const p = document.createElement('p')
-          p.className = 'sai-bkodjs1e-popup__saving'
-          p.innerHTML = `You Save <span class="sai-bkodjs1e-popup__saving-amount">${escapeHtml(money(saving.absolute))}</span>`
-          section.appendChild(p)
+        // Unlock message — for potential discounts, show "Spend X more to
+        // unlock". For current ones, show "Applicable on: …".
+        if (config.showUnlockMessage) {
+          const isCurrent = applicability(d) === 'current'
+          const vars = {
+            amount: this._formatRemainingMoney(d, money),
+            quantity: this._formatRemainingQty(d),
+            discount_name: d?.shortSummary || d?.title || '',
+            description: d?.summary || '',
+          }
+          const tpl = isCurrent ? labels.applicableTemplate : labels.unlockTemplate
+          const text = fillTemplate(tpl, vars)
+          if (text) {
+            const p = document.createElement('p')
+            p.className = 'sai-bkodjs1e-popup__unlock'
+            p.textContent = text
+            section.appendChild(p)
+          }
         }
 
-        const code = Array.isArray(d.codes) && d.codes.length > 0
-          ? (typeof d.codes[0] === 'string' ? d.codes[0] : d.codes[0]?.code)
-          : null
+        // Savings delta — only when the discount actually saves money at
+        // qty 1. Format respects the merchant's chosen mode.
+        if (config.showSavingsDelta) {
+          const saving = savingsAtQty1(d, productPrice)
+          if (saving && saving.absolute > 0) {
+            const pct = Math.round(saving.percentage)
+            const p = document.createElement('p')
+            p.className = 'sai-bkodjs1e-popup__saving'
+            let valueHtml
+            if (config.savingsDeltaFormat === 'percentage') {
+              valueHtml = `<span class="sai-bkodjs1e-popup__saving-amount">${pct}% off</span>`
+            } else if (config.savingsDeltaFormat === 'absolute') {
+              valueHtml = `<span class="sai-bkodjs1e-popup__saving-amount">${money(saving.absolute)}</span>`
+            } else {
+              valueHtml = `<span class="sai-bkodjs1e-popup__saving-amount">${money(saving.absolute)} (${pct}% off)</span>`
+            }
+            p.innerHTML = `You Save ${valueHtml}`
+            section.appendChild(p)
+          }
+        }
+
+        const code = extractCode(d)
         if (code) {
-          // Coupon "tear line" — dashed horizontal perforation above the code
-          // chip with scalloped notches on the left/right edges of the card.
+          // Coupon "tear line" — dashed horizontal perforation above the
+          // code chip.
           const perf = document.createElement('div')
           perf.className = 'sai-bkodjs1e-popup__perforation'
           perf.setAttribute('aria-hidden', 'true')
@@ -1045,9 +788,10 @@
           row.setAttribute('data-sai-popup-copy', code)
           row.setAttribute('role', 'button')
           row.setAttribute('tabindex', '0')
-          row.setAttribute('aria-label', 'Copy code ' + code)
+          row.setAttribute('aria-label', `Copy code ${code}`)
+          row.setAttribute('aria-pressed', 'false')
           row.innerHTML = `
-            <span class="sai-bkodjs1e-popup__code">${escapeHtml(code)}</span>
+            <span class="sai-bkodjs1e-popup__code">${code}</span>
             <span class="sai-bkodjs1e-popup__copy" aria-hidden="true">
               <svg class="sai-bkodjs1e-popup__copy-icon sai-bkodjs1e-popup__copy-icon--copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
                 <rect x="4" y="4" width="9" height="9" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/>
@@ -1063,125 +807,13 @@
         return section
       }
 
-      _renderBullets(evaluated, container) {
-        if (!container) return
-        container.innerHTML = ''
-        const built = this._buildBullets(evaluated)
-        if (built) {
-          container.replaceWith(built)
-          // Re-attach data attribute so subsequent renders find it.
-          built.setAttribute('data-sai-bullets', '')
-          // Update reference if needed — done implicitly via re-query.
-          built.hidden = false
-        } else {
-          container.hidden = true
-        }
-      }
-
-      _buildBullets(evaluated) {
-        if (!evaluated.best) return null
-        const { d } = evaluated.best
-        const { config, labels } = this._state
-        const money = this._moneyFn()
-
-        const lines = []
-
-        // 1. Applicable / threshold line.
-        const threshold = thresholdSummary(d, config.thresholdDisplayMode, money)
-        if (threshold) {
-          lines.push({ label: 'Applicable on', value: threshold })
-        } else if (d.summary) {
-          lines.push({ label: 'Applicable on', value: d.summary })
-        }
-
-        // 2. Coupon code line.
-        if (Array.isArray(d.codes) && d.codes.length > 0) {
-          const code = typeof d.codes[0] === 'string' ? d.codes[0] : d.codes[0]?.code
-          if (code) lines.push({ label: 'Coupon code', value: code, strong: true })
-        }
-
-        // 3. Coupon discount + savings line.
-        const productPrice = centsToDecimal(this._state.product.price)
-        const saving = savingsAtQty1(d, productPrice)
-        if (saving) {
-          const pct = Math.round(saving.percentage)
-          const savingText = ` (Your total saving: ${money(saving.absolute)})`
-          lines.push({ label: 'Coupon discount', value: `${pct}% off${savingText}` })
-        }
-
-        if (lines.length === 0) return null
-        const ul = document.createElement('ul')
-        ul.className = 'sai-bkodjs1e__bullets'
-        ul.setAttribute('data-sai-bullets', '')
-        for (const line of lines) {
-          const li = document.createElement('li')
-          li.className = 'sai-bkodjs1e__bullet'
-          const labelNode = document.createTextNode(`${line.label}: `)
-          li.appendChild(labelNode)
-          if (line.strong) {
-            const strong = document.createElement('strong')
-            strong.textContent = line.value
-            li.appendChild(strong)
-          } else {
-            li.appendChild(document.createTextNode(line.value))
-          }
-          ul.appendChild(li)
-        }
-        return ul
-      }
-
-      _renderUnlock(evaluated, container) {
-        if (!container) return
-        // When the headline discount is already current, the bullets list
-        // already shows the "Applicable on:" line — emitting the same text
-        // here as a green callout is duplication. Keep the callout for the
-        // action-y "Spend X more to unlock" case only.
-        const isCurrentHeadline = evaluated.best && applicability(evaluated.best.d) === 'current'
-        if (isCurrentHeadline) {
-          container.hidden = true
-          container.textContent = ''
-          return
-        }
-        const built = this._buildUnlock(evaluated)
-        if (!built) {
-          container.hidden = true
-          container.textContent = ''
-          return
-        }
-        container.replaceChildren(built)
-        container.hidden = false
-      }
-
-      _buildUnlock(evaluated) {
-        if (!evaluated.best) return null
-        if (!this._state.config.showUnlockMessage) return null
-        const { d } = evaluated.best
-        const { labels } = this._state
-        const money = this._moneyFn()
-        const isCurrent = applicability(d) === 'current'
-
-        const vars = {
-          amount: this._formatRemaining(d, money),
-          quantity: this._formatRemainingQty(d),
-          discount_name: d?.shortSummary || d?.title || '',
-          description: d?.summary || '',
-        }
-
-        const tpl = isCurrent ? labels.applicableTemplate : labels.unlockTemplate
-        const text = fillTemplate(tpl, vars)
-        if (!text) return null
-        const span = document.createElement('span')
-        span.textContent = text
-        return span
-      }
-
-      _formatRemaining(d, money) {
+      _formatRemainingMoney(d, money) {
         const q = d?.qualification
         if (!q) return ''
         const metric = q.progressMetric
         const remaining = Number(q.remainingValue)
         if (!Number.isFinite(remaining)) return ''
-        if (metric === 'cart_value') return money(remaining)
+        if (metric === 'cart_value' || metric === 'subtotal') return money(remaining)
         return String(remaining)
       }
 
@@ -1195,284 +827,17 @@
         return ''
       }
 
-      _renderAlternatives(evaluated, container, alreadyAttached) {
-        if (!container) return
-        container.innerHTML = ''
-        if (evaluated.alternatives.length === 0) {
-          container.hidden = true
-          return
-        }
-        container.hidden = false
-
-        const money = this._moneyFn()
-        const productPrice = centsToDecimal(this._state.product.price)
-        const displayMode = this._state.config.displayMode
-
-        // Inline-callout mode: plain text rows (name + meta) — no card chrome.
-        // Expandable / dropdown popup: full ticket cards via _buildPopupSection.
-        const useFlatRows = displayMode === 'default'
-
-        // "Other Offers" header — only in inline mode where the section needs
-        // a label. Expandable mode's trigger already labels it.
-        if (!alreadyAttached && useFlatRows) {
-          const TAG_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m15 9-6 6"/><circle cx="9.5" cy="9.5" r=".75" fill="currentColor"/><circle cx="14.5" cy="14.5" r=".75" fill="currentColor"/></svg>'
-          const divider = document.createElement('div')
-          divider.className = 'sai-bkodjs1e-popup__divider'
-          divider.innerHTML = `<span class="sai-bkodjs1e-popup__divider-icon">${TAG_SVG.replace('<svg ', '<svg class="sai-bkodjs1e-popup__divider-icon" ')}</span><span>Other Offers</span>`
-          container.appendChild(divider)
-        }
-
-        const cap =
-          displayMode === 'dropdown'
-            ? Math.max(1, Number(this._state.config.dropdownMaxItems) || 5)
-            : evaluated.alternatives.length
-        for (const item of evaluated.alternatives.slice(0, cap)) {
-          if (useFlatRows) {
-            container.appendChild(this._buildAltItem(item, productPrice, money))
-          } else {
-            container.appendChild(this._buildPopupSection(item.d, productPrice, money, false))
-          }
-        }
-
-        if (!alreadyAttached) {
-          container.setAttribute('data-sai-alt-list', '')
-        }
-      }
-
-      _buildAltItem(item, productPrice, money) {
-        const li = document.createElement('li')
-        li.className = 'sai-bkodjs1e__alt-item'
-        if (item.isCurrent) li.classList.add('sai-bkodjs1e__alt-item--current')
-        const left = document.createElement('span')
-        left.className = 'sai-bkodjs1e__alt-name'
-        left.textContent = item.d.shortSummary || item.d.title || ''
-        const right = document.createElement('span')
-        right.className = 'sai-bkodjs1e__alt-value'
-        right.textContent = this._altRightText(item, productPrice, money)
-        li.appendChild(left)
-        li.appendChild(right)
-        return li
-      }
-
-      _altRightText(item, productPrice, money) {
-        // For applicable alternatives, show what you save.
-        // For potential ones, show what you need to do to unlock — no more
-        // effective-price math (the original "$X · $Y" rendering confused
-        // users about what the right number meant).
-        if (item.isCurrent) {
-          const saving = savingsAtQty1(item.d, productPrice)
-          if (saving && saving.absolute > 0) return `Save ${money(saving.absolute)}`
-          return 'Applies now'
-        }
-        const q = item.d?.qualification
-        const metric = q && q.progressMetric
-        const remaining = q && Number(q.remainingValue)
-        if (Number.isFinite(remaining) && remaining > 0) {
-          if (metric === 'cart_value' || metric === 'subtotal') {
-            return `Spend ${money(remaining)} more to unlock`
-          }
-          if (metric === 'quantity') {
-            return `Add ${remaining} more to unlock`
-          }
-        }
-        return 'Not yet eligible'
-      }
-
-      _groupAlternatives(items) {
-        const applicable = []
-        const nearMiss = []
-        const memberOnly = []
-        for (const item of items) {
-          if (isMemberOnly(item.d)) memberOnly.push(item)
-          else if (item.isCurrent) applicable.push(item)
-          else nearMiss.push(item)
-        }
-        const out = []
-        if (applicable.length > 0) out.push({ label: 'Applicable', items: applicable })
-        if (nearMiss.length > 0) out.push({ label: 'Near-miss', items: nearMiss })
-        if (memberOnly.length > 0) out.push({ label: 'Member-only', items: memberOnly })
-        return out
-      }
-
-      _renderSticky(evaluated) {
-        const sticky = this.querySelector('[data-sai-sticky]')
-        const stickyInfo = this.querySelector('[data-sai-sticky-info]')
-        const price = this.querySelector('[data-sai-sticky-price]')
-        const label = this.querySelector('[data-sai-sticky-label]')
-        const infoBtn = this.querySelector('[data-sai-sticky-info-button]')
-        const cta = this.querySelector('[data-sai-sticky-cta]')
-        if (!sticky) return
-        if (!evaluated.best) {
-          sticky.hidden = true
-          return
-        }
-        sticky.hidden = false
-        sticky.classList.add('sai-bkodjs1e__sticky--callout')
-
-        // Sticky bar now mirrors the dropdown popup's highlight strip:
-        //   [🏷] Get it at $649.95            [chevron]
-        const money = this._moneyFn()
-        const productPrice = centsToDecimal(this._state.product.price)
-        const finalPrice = discountedPrice(evaluated.best.d, productPrice)
-
-        if (stickyInfo) {
-          stickyInfo.innerHTML = `
-            <span class="sai-bkodjs1e__sticky-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/>
-                <path d="m15 9-6 6"/>
-                <circle cx="9.5" cy="9.5" r=".75" fill="currentColor"/>
-                <circle cx="14.5" cy="14.5" r=".75" fill="currentColor"/>
-              </svg>
-            </span>
-            <span class="sai-bkodjs1e__sticky-callout-text">Get it at <strong data-sai-sticky-price>${escapeHtml(money(finalPrice))}</strong></span>
-          `
-        }
-
-        // Hide the secondary label — the callout text already says everything.
-        if (label) label.hidden = true
-
-        if (infoBtn) {
-          const trigger = this._state.config.stickyModalTrigger
-          infoBtn.hidden = trigger === 'tap_price'
-          // Swap the info-circle for a chevron-right — matches the popup
-          // callout's "tap to expand" affordance.
-          infoBtn.innerHTML = `
-            <svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true" focusable="false">
-              <path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          `
-        }
-        if (cta) {
-          cta.hidden = !this._state.config.stickyCombineWithATC
-        }
-      }
-
-      _buildUnlockText(d) {
-        const money = this._moneyFn()
-        const vars = {
-          amount: this._formatRemaining(d, money),
-          quantity: this._formatRemainingQty(d),
-          discount_name: d?.shortSummary || d?.title || '',
-          description: d?.summary || '',
-        }
-        return fillTemplate(this._state.labels.unlockTemplate, vars)
-      }
-
-      _setHidden(selector, hidden) {
-        const el = this.querySelector(selector)
-        if (el) el.hidden = hidden
-      }
-
-      _bindModeInteractions() {
-        // Expandable trigger toggle.
-        const expandTrigger = this.querySelector('[data-sai-expand-trigger]')
-        if (expandTrigger) {
-          expandTrigger.addEventListener('click', () => {
-            const next = this.getAttribute('data-expanded') !== 'true'
-            this._setExpanded(next)
-            this._track(`${FEATURE_SLUG}:expand_toggle`, { expanded: next })
-          })
-        }
-
-        // Dropdown trigger toggle.
-        const dropdownTrigger = this.querySelector('[data-sai-dropdown-trigger]')
-        if (dropdownTrigger) {
-          dropdownTrigger.addEventListener('click', () => {
-            const next = this.getAttribute('data-dropdown-open') !== 'true'
-            this._setDropdownOpen(next)
-            this._track(`${FEATURE_SLUG}:dropdown_toggle`, { open: next })
-          })
-          // Outside-click closes the dropdown.
-          this._docClickListener = (event) => {
-            if (this.getAttribute('data-dropdown-open') !== 'true') return
-            if (!this.contains(event.target)) {
-              this._setDropdownOpen(false)
-            }
-          }
-          document.addEventListener('click', this._docClickListener)
-        }
-      }
-
-      _setExpanded(expanded) {
-        this.setAttribute('data-expanded', expanded ? 'true' : 'false')
-        const trigger = this.querySelector('[data-sai-expand-trigger]')
-        if (trigger) trigger.setAttribute('aria-expanded', expanded ? 'true' : 'false')
-        const label = this.querySelector('[data-sai-expand-label]')
-        if (label) {
-          label.textContent = expanded
-            ? this._state.labels.collapseTriggerText
-            : this._state.labels.expandTriggerText
-        }
-        // Force a reflow before flipping classes so the grid-template-rows
-        // animation actually plays — single rAF is sometimes coalesced.
-        void this.offsetHeight
-      }
-
-      _setDropdownOpen(open) {
-        this.setAttribute('data-dropdown-open', open ? 'true' : 'false')
-        const trigger = this.querySelector('[data-sai-dropdown-trigger]')
-        if (trigger) trigger.setAttribute('aria-expanded', open ? 'true' : 'false')
-      }
-
-      _bindStickyInteractions() {
-        const sticky = this.querySelector('[data-sai-sticky]')
-        if (!sticky) return
-        const price = this.querySelector('[data-sai-sticky-price]')
-        const info = this.querySelector('[data-sai-sticky-info]')
-        const infoBtn = this.querySelector('[data-sai-sticky-info-button]')
-        const cta = this.querySelector('[data-sai-sticky-cta]')
-        const trigger = this._state.config.stickyModalTrigger
-
-        const open = () => {
-          this._openModal()
-          this._track(`${FEATURE_SLUG}:sticky_tap`, { trigger })
-        }
-
-        if (trigger === 'tap_price' || trigger === 'both') {
-          if (info) info.addEventListener('click', open)
-          if (price) price.addEventListener('click', open)
-        }
-        if (trigger === 'tap_info_icon' || trigger === 'both') {
-          if (infoBtn) infoBtn.addEventListener('click', open)
-        }
-        if (cta) {
-          cta.addEventListener('click', () => {
-            // Combine-with-ATC: trigger the page's primary ATC if one exists.
-            // Heuristic: look for [data-product-form] or form[action='/cart/add'].
-            const form = document.querySelector('form[action*="/cart/add"]')
-            const button = form?.querySelector('button[type="submit"], [type="submit"]')
-            if (button) button.click()
-            this._track(`${FEATURE_SLUG}:sticky_cta`, {})
-          })
-        }
-      }
-
-      // Sticky-bar tap reuses the dropdown-pill popup UI so the merchant
-      // gets one consistent rich modal (header + coupon-ticket sections +
-      // perforation + alternatives divider + slide-in animation) regardless
-      // of whether the trigger was the sticky bar or the dropdown trigger.
-      _openModal() {
-        const evaluated = this._lastEvaluated || evaluate(this._state)
-        this._openDropdownPopup(evaluated)
-      }
-
-      _closeModal() {
-        // Retained as a no-op for any external callers — the popup created
-        // by _openDropdownPopup manages its own close lifecycle.
-      }
-
       _bindCartSync() {
-        installGlobalCartSync()
-        this._cartListener = () => {
+        const handler = debounce(() => {
           fetchCartTotal().then((cart) => {
             if (!cart) return
             this._state.cart = cart
-            // Synthesize a `currentValue` update on every potential discount
+            // Synthesize a currentValue update on every potential discount
             // so re-evaluation reflects the new cart total. Per
-            // StorefrontDiscount: progressMetric/currentValue/remainingValue
-            // are server-computed; we approximate locally on cart change for
-            // immediate feedback. The next product-sync will reconcile.
+            // StorefrontDiscount: progressMetric / currentValue /
+            // remainingValue are server-computed; we approximate locally on
+            // cart change for immediate feedback. The next product-sync
+            // reconciles.
             for (const d of this._state.discounts) {
               const q = d?.qualification
               if (!q) continue
@@ -1499,18 +864,39 @@
                 }
               }
             }
-            this._playPriceAnimation()
             this._render()
           })
+        }, CART_SYNC_DEBOUNCE_MS)
+
+        this._cartUnsubs = []
+
+        try {
+          const evs = window.Spectrum?.events
+          if (evs && typeof evs.on === 'function') {
+            for (const name of [
+              'cart:added',
+              'cart:updated',
+              'cart:removed',
+              'cart:refresh',
+              'cart:change',
+            ]) {
+              const off = evs.on(name, handler)
+              if (typeof off === 'function') this._cartUnsubs.push(off)
+            }
+          }
+        } catch (err) {
+          console.warn('[bkodjs1e] Spectrum.events subscribe failed:', err)
         }
-        window.addEventListener(CART_SYNC_EVENT, this._cartListener)
+
+        // Theme-emitted DOM events (Dawn / Horizon / custom themes).
+        const docEvents = ['cart:updated', 'cart:refresh', 'cart:change', 'cart:item-added']
+        for (const evt of docEvents) {
+          document.addEventListener(evt, handler)
+          this._cartUnsubs.push(() => document.removeEventListener(evt, handler))
+        }
       }
 
       _bindVariantChange() {
-        // Many Shopify themes fire `variant:change` on the document. Dawn,
-        // for example, emits a `change` event on `variant-radios` /
-        // `variant-selects` and updates `product.selected_variant` in URL
-        // search params. Cover both.
         const handler = (event) => {
           const variantId =
             event?.detail?.variant?.id ?? event?.detail?.variantId ?? event?.detail?.id
@@ -1518,26 +904,22 @@
         }
         document.addEventListener('variant:change', handler)
         document.addEventListener('product:variant-change', handler)
+        this._cartUnsubs?.push(() => document.removeEventListener('variant:change', handler))
+        this._cartUnsubs?.push(() =>
+          document.removeEventListener('product:variant-change', handler),
+        )
 
-        // URL-driven variant change — listen to popstate as a fallback.
-        window.addEventListener('popstate', () => {
+        const popstate = () => {
           try {
             const params = new URLSearchParams(window.location.search)
             const variantId = params.get('variant')
             if (variantId) this.onVariantChange(variantId)
-          } catch (_) {}
-        })
-      }
-
-      _playPriceAnimation() {
-        const anim = this._state.config.priceUpdateAnimation
-        if (anim === 'none') return
-        // Force reflow + class refresh so the keyframe restarts.
-        const price = this.querySelector('[data-sai-price]')
-        if (!price) return
-        price.style.animation = 'none'
-        void price.offsetHeight
-        price.style.animation = ''
+          } catch (_) {
+            /* malformed URL */
+          }
+        }
+        window.addEventListener('popstate', popstate)
+        this._cartUnsubs?.push(() => window.removeEventListener('popstate', popstate))
       }
 
       _setupCountdown(evaluated) {
@@ -1583,13 +965,13 @@
 
       _handleCountdownExpiry(expiredDiscount) {
         const behavior = this._state.config.countdownExpiredBehavior
-        this._track(`${FEATURE_SLUG}:countdown_expired`, {
+        this._track(`${getFeatureSlug(this)}:countdown_expired`, {
           discount_id: expiredDiscount?.id || null,
           behavior,
         })
         switch (behavior) {
           case 'hide_widget':
-            this.classList.add('sai-bkodjs1e--hidden')
+            this.hidden = true
             return
           case 'show_next_best': {
             // Remove the expired discount from state and re-render.
@@ -1613,6 +995,13 @@
     customElements.define(TAG, SaiBestPrice)
   }
 
+  function extractCode(d) {
+    if (!d || !Array.isArray(d.codes) || d.codes.length === 0) return null
+    const first = d.codes[0]
+    if (typeof first === 'string') return first
+    return first?.code || null
+  }
+
   // ── Bind to Spectrum analytics envelope ─────────────────────────────────
   function bindContainer(node) {
     const api = window.__spectrumAi?.snippet
@@ -1631,12 +1020,16 @@
   }
 
   // Snippet library JS contract: read data-spectrum-vis before any meaningful
-  // work. Live wrappers SSR with vis="off" — bootstrap flips to "on" only when
-  // the owning experience wins targeting + conflict resolution. Draft (editor
-  // preview) wrappers SSR with vis="on".
+  // work. Live wrappers SSR with vis="off" — bootstrap flips to "on" only
+  // when the owning experience wins targeting + conflict resolution. Draft
+  // (editor preview) wrappers SSR with vis="on".
   function waitForVis(node) {
     const wrapper = node.closest('[data-spectrum-lq-snippet]') || node
-    if (!wrapper || wrapper.getAttribute('data-spectrum-vis') === 'on' || !wrapper.hasAttribute('data-spectrum-vis')) {
+    if (
+      !wrapper ||
+      wrapper.getAttribute('data-spectrum-vis') === 'on' ||
+      !wrapper.hasAttribute('data-spectrum-vis')
+    ) {
       bindContainer(node)
       return
     }

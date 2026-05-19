@@ -1,69 +1,25 @@
 {% doc %}
-  Best Price Widget — PDP.
+  Best Price Widget — PDP. Dropdown pill that opens a popup modal/drawer.
 
-  Surfaces the highest-value applicable discount for the current variant.
-  Reads the per-variant spectrum.discounts metafield (a StorefrontDiscount[]
-  payload mirrored from Shopify into Spectrum's discount table by the
-  product-sync workflow's discount_sync concern) and renders everything
-  client-side. Three display modes (inline callout / expandable card /
-  dropdown), an optional sticky mobile bar that's additive to the chosen
-  display mode, an optional countdown to the discount's expiry, an optional
-  list of alternative discounts, and a savings-delta line versus the regular
-  price.
+  Reads the per-variant spectrum.discounts metafield (StorefrontDiscount[]
+  mirrored from Shopify into Spectrum's discount table by the product-sync
+  workflow's discount_sync concern). Evaluates at quantity 1 against the
+  selected variant's price and renders the best applicable (or potential)
+  discount as a compact callout pill. Tapping "View other offers" opens a
+  popup with the headline discount plus alternative coupons.
 
-  Metaobject-backed: configuration is the same for every placement (no
-  source block), but the *data* changes per product because the metafield is
-  per-variant. On non-product templates the metafield read returns nil and
-  the snippet hides itself.
+  Hides entirely when no best-price discount AND no alternative is available.
 
   @param mutation_handle      {string}     'mut-{instanceId}' — consumed by
-                                            the wrapper's outer div, not
-                                            this body.
-  @param experience_handle    {string}     Consumed by the wrapper's outer
-                                            div.
-  @param content              {object}     Flattened variant.content with
-                                            every prop key set below.
+                                            the wrapper's outer div.
+  @param experience_handle    {string}     Consumed by the wrapper's outer div.
+  @param variant              {object}     spectrum_snippet_instance variant
+                                            with .content carrying merchant
+                                            props.
 {% enddoc %}
 
-{%- comment -%}
-  Liquid globals used inside this snippet (NOT render args — Shopify-native):
-    - product        : the page's main product (PDP context).
-    - shop           : currency / money format for the JSON payload.
-    - request        : locale.iso_code for Intl currency formatting in JS.
-
-  Trust boundary: every merchant-authored text prop is run through `| escape`
-  defensively when rendered in the SSR shell. Inside the JSON payload, every
-  value is piped through `| json` per .claude/rules/generated-liquid.md #5.
-{%- endcomment -%}
-
 {%- liquid
-  # The prod wrapper passes `variant` (the resolved spectrum_snippet_instance
-  # variant) — not a flat `content` arg. Alias `content = variant.content` so
-  # every `content.<prop>` read below resolves to the merchant-authored value
-  # instead of nil. Without this alias, every prop falls back to its default,
-  # which means changes saved in Studio never reach the template.
   assign content = variant.content
-
-  # ── Boolean defaults: == nil check, NEVER | default: (Liquid replaces
-  # `false` with the default, so `| default: true` silently restores defaults
-  # on every merchant-explicit `false`).
-  if content.sticky_mobile_bar == nil
-    assign sticky_mobile_bar = false
-  else
-    assign sticky_mobile_bar = content.sticky_mobile_bar
-  endif
-
-  if content.consider_member_discounts == nil
-    assign consider_member_discounts = true
-  else
-    assign consider_member_discounts = content.consider_member_discounts
-  endif
-
-  if content.consider_stacked_discounts == nil
-    assign consider_stacked_discounts = true
-  else
-    assign consider_stacked_discounts = content.consider_stacked_discounts
-  endif
 
   if content.show_alternatives == nil
     assign show_alternatives = true
@@ -101,82 +57,34 @@
     assign show_savings_delta = content.show_savings_delta
   endif
 
-  if content.expanded_show_alternatives == nil
-    assign expanded_show_alternatives = true
-  else
-    assign expanded_show_alternatives = content.expanded_show_alternatives
-  endif
-
-  if content.dropdown_group_by_type == nil
-    assign dropdown_group_by_type = false
-  else
-    assign dropdown_group_by_type = content.dropdown_group_by_type
-  endif
-
-  if content.sticky_combine_with_atc == nil
-    assign sticky_combine_with_atc = false
-  else
-    assign sticky_combine_with_atc = content.sticky_combine_with_atc
-  endif
-
-  if content.hide_when_no_discounts == nil
-    assign hide_when_no_discounts = true
-  else
-    assign hide_when_no_discounts = content.hide_when_no_discounts
-  endif
-
-  # ── Scalar defaults — text/select/number with valid fallbacks.
-  assign display_mode = content.display_mode | default: 'default'
-  assign priority_logic = content.priority_logic | default: 'highest_savings'
-  assign fallback_logic = content.fallback_logic | default: 'nearest_threshold'
-  assign threshold_display_mode = content.threshold_display_mode | default: 'smart'
+  assign priority_logic = content.priority_logic | default: 'applicability'
   assign max_alternatives = content.max_alternatives | default: 3
   assign alternatives_display = content.alternatives_display | default: 'expandable_list'
   assign countdown_format = content.countdown_format | default: 'short'
   assign countdown_expired_behavior = content.countdown_expired_behavior | default: 'hide_widget'
+  assign countdown_expired_message = content.countdown_expired_message | default: 'This offer has ended'
   assign best_price_prefix = content.best_price_prefix | default: 'Best Price:'
   assign unlock_message_template = content.unlock_message_template | default: 'Spend {amount} more to unlock {discount_name}'
   assign applicable_message_template = content.applicable_message_template | default: 'Applicable on: {description}'
   assign discount_name_prefix = content.discount_name_prefix | default: 'with'
   assign savings_delta_format = content.savings_delta_format | default: 'both'
-  assign expand_trigger_text = content.expand_trigger_text | default: 'View other offers'
-  assign collapse_trigger_text = content.collapse_trigger_text | default: 'Hide other offers'
   assign dropdown_trigger_text = content.dropdown_trigger_text | default: 'View other offers'
   assign dropdown_max_items = content.dropdown_max_items | default: 5
-  assign sticky_modal_trigger = content.sticky_modal_trigger | default: 'tap_price'
-  assign price_update_animation = content.price_update_animation | default: 'fade'
-  assign min_savings_to_show = content.min_savings_to_show | default: 0
-  assign max_threshold_gap_to_show = content.max_threshold_gap_to_show | default: 0
+  assign dropdown_sort_by = content.dropdown_sort_by | default: 'applicability'
 
-  # The display_mode select uses source: "presets". Preset ids are 'default',
-  # 'expandable-card', 'dropdown' — kebab-case in meta.json. Normalize to
-  # snake-case for the BEM modifier so CSS class names stay readable.
-  assign mode_class = display_mode
-  if display_mode == 'default'
-    assign mode_class = 'inline-callout'
-  endif
-
-  # ── Discount metafield read. Always go through
-  # selected_or_first_available_variant — product.selected_variant is nil
-  # unless ?variant=... is in the URL.
   assign raw_value = product.selected_or_first_available_variant.metafields.spectrum.discounts.value
-
-  # Variant inventory for the JS to evaluate against variant switches without
-  # re-fetching. Each variant carries id + price + compare_at_price + a
-  # variant-scoped discounts blob (if present) so option swaps recompute the
-  # best discount instantly.
   assign current_variant_id = product.selected_or_first_available_variant.id
 -%}
 
 {% stylesheet %}
 /* =============================================================================
- * Best Price Widget (bkodjs1e) — three display modes plus a sticky mobile bar.
+ * Best Price Widget (bkodjs1e) — dropdown pill + popup (modal on desktop,
+ * bottom-drawer on mobile).
  *
  * Author selectors stay at (0,1,0) specificity so per-instance baked rules
- * (anchored on [data-spectrum-instance-id][data-spectrum-variant-id]) always
+ * anchored on [data-spectrum-instance-id][data-spectrum-variant-id] always
  * win. Color tokens use --sai-bkodjs1e-* custom properties so the Studio
- * per-instance style panel can override them. Fonts / spacing / radii come
- * from the theme's --sai-* design tokens.
+ * per-instance style panel can override them.
  * ============================================================================= */
 
 .sai-bkodjs1e {
@@ -188,12 +96,7 @@
   --sai-bkodjs1e-card-bg: #ffffff;
   --sai-bkodjs1e-card-border: rgba(0, 0, 0, 0.12);
   --sai-bkodjs1e-card-radius: 8px;
-  --sai-bkodjs1e-badge-bg: transparent;
-  --sai-bkodjs1e-badge-fg: #121212;
   --sai-bkodjs1e-bullet-fg: rgba(0, 0, 0, 0.78);
-  --sai-bkodjs1e-sticky-bg: #ffffff;
-  --sai-bkodjs1e-sticky-fg: #121212;
-  --sai-bkodjs1e-sticky-shadow: 0 -4px 16px rgba(0, 0, 0, 0.12);
 
   display: block;
   box-sizing: border-box;
@@ -221,7 +124,7 @@
 }
 
 /* HTML `hidden` attribute on descendants must win over any author-set
- * `display` value. Author rules below give buttons / lists explicit display
+ * `display` value. Author rules below give elements explicit display
  * values (flex / inline-flex / grid), which the UA `[hidden] { display:none }`
  * rule cannot override without help. */
 .sai-bkodjs1e [hidden] {
@@ -233,227 +136,7 @@
   display: none !important;
 }
 
-/* ── Heading badge (BEST OFFERS / coupon tag) ─────────────────────────────── */
-.sai-bkodjs1e__badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-  padding-block: var(--sai-size-1, 0.25rem);
-  padding-inline: 0;
-  background: var(--sai-bkodjs1e-badge-bg);
-  color: var(--sai-bkodjs1e-badge-fg);
-  flex-direction: row-reverse;
-  justify-content: flex-end;
-}
-
-.sai-bkodjs1e__heading {
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  font-size: 0.8125rem;
-}
-
-.sai-bkodjs1e__badge-icon {
-  inline-size: 1rem;
-  block-size: 1rem;
-  flex: 0 0 auto;
-}
-
-/* ── Inline callout ───────────────────────────────────────────────────────── */
-.sai-bkodjs1e--inline-callout .sai-bkodjs1e__shell {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sai-size-2, 0.5rem);
-}
-
-.sai-bkodjs1e__best-price-row {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.375rem 0.5rem;
-  font-size: 1rem;
-}
-
-.sai-bkodjs1e__best-price-prefix {
-  font-weight: 600;
-  color: var(--sai-bkodjs1e-fg);
-  order: 1;
-}
-
-.sai-bkodjs1e__best-price {
-  font-weight: 700;
-  font-size: 1.5rem;
-  line-height: 1.1;
-  letter-spacing: -0.01em;
-  color: var(--sai-bkodjs1e-accent-fg);
-  order: 2;
-}
-
-/* Countdown sits inline near the price/prefix (after the price). */
-.sai-bkodjs1e__best-price-row .sai-bkodjs1e__countdown {
-  order: 3;
-  margin-inline-start: auto;
-}
-
-/* Savings drops to its own line below — no longer competes with the
- * countdown chip for horizontal space. */
-.sai-bkodjs1e__best-price-row .sai-bkodjs1e__savings {
-  order: 4;
-  flex-basis: 100%;
-  margin-top: 0.125rem;
-}
-
-.sai-bkodjs1e__bullets {
-  list-style: disc;
-  padding-inline-start: 1.25rem;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--sai-size-1, 0.25rem);
-}
-
-.sai-bkodjs1e__bullet {
-  color: var(--sai-bkodjs1e-bullet-fg);
-  font-size: 0.875rem;
-  line-height: 1.45;
-}
-
-.sai-bkodjs1e__bullet strong {
-  color: var(--sai-bkodjs1e-fg);
-  font-weight: 600;
-}
-
-.sai-bkodjs1e__unlock {
-  font-weight: 500;
-  color: var(--sai-bkodjs1e-success-fg);
-  background: var(--sai-bkodjs1e-success-bg);
-  padding: var(--sai-size-2, 0.5rem) var(--sai-size-3, 0.75rem);
-  border-radius: var(--sai-bkodjs1e-card-radius);
-}
-
-.sai-bkodjs1e__discount-name {
-  font-weight: 600;
-}
-
-.sai-bkodjs1e__savings {
-  color: var(--sai-bkodjs1e-accent-fg);
-  font-weight: 600;
-  font-size: 0.8125rem;
-  letter-spacing: 0.005em;
-}
-
-/* ── Countdown ─────────────────────────────────────────────────────────────── */
-.sai-bkodjs1e__countdown {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  background: rgba(0, 0, 0, 0.04);
-  font-variant-numeric: tabular-nums;
-  font-size: 0.8125rem;
-  font-weight: 600;
-}
-
-.sai-bkodjs1e__countdown-icon {
-  inline-size: 0.875rem;
-  block-size: 0.875rem;
-  flex: 0 0 auto;
-}
-
-.sai-bkodjs1e__countdown--expired {
-  background: rgba(220, 53, 69, 0.1);
-  color: #b32130;
-}
-
-/* ── Expandable card ──────────────────────────────────────────────────────── */
-.sai-bkodjs1e--expandable-card {
-  border: 1px solid var(--sai-bkodjs1e-card-border);
-  border-radius: var(--sai-bkodjs1e-card-radius);
-  background: var(--sai-bkodjs1e-card-bg);
-  padding: var(--sai-size-3, 0.75rem) var(--sai-size-4, 1rem);
-}
-
-.sai-bkodjs1e--expandable-card .sai-bkodjs1e__shell {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sai-size-2, 0.5rem);
-}
-
-/* "View / Hide other offers" trigger — a soft pill button instead of a
- * full-width strip with a hard divider line above. Centered, with a
- * subtle hover background so it reads as a tappable affordance without
- * pretending to be a section separator. */
-.sai-bkodjs1e__expand-trigger {
-  appearance: none;
-  background: transparent;
-  border: 0;
-  margin-block-start: var(--sai-size-3, 0.75rem);
-  margin-inline: auto;
-  padding: 0.5rem 1rem;
-  border-radius: 999px;
-  font: inherit;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--sai-bkodjs1e-accent-fg);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.375rem;
-  cursor: pointer;
-  transition: background-color 160ms ease, color 160ms ease;
-}
-
-.sai-bkodjs1e__expand-trigger:hover,
-.sai-bkodjs1e__expand-trigger:focus-visible {
-  background: rgba(0, 0, 0, 0.04);
-}
-
-.sai-bkodjs1e__chevron {
-  inline-size: 0.875rem;
-  block-size: 0.875rem;
-  transition: transform 220ms ease;
-}
-
-.sai-bkodjs1e[data-expanded='true'] .sai-bkodjs1e__chevron {
-  transform: rotate(180deg);
-}
-
-.sai-bkodjs1e__expand-body {
-  display: grid;
-  grid-template-rows: 0fr;
-  transition: grid-template-rows 240ms ease;
-  opacity: 0;
-}
-
-.sai-bkodjs1e[data-expanded='true'] .sai-bkodjs1e__expand-body {
-  grid-template-rows: 1fr;
-  opacity: 1;
-}
-
-.sai-bkodjs1e__expand-body-inner {
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  gap: var(--sai-size-2, 0.5rem);
-}
-
-/* ── Dropdown ─────────────────────────────────────────────────────────────── */
-.sai-bkodjs1e--dropdown {
-  position: relative;
-}
-
-.sai-bkodjs1e--dropdown .sai-bkodjs1e__shell {
-  /* No outer padding/border in dropdown mode — the trigger-stack inside is
-   * the visible card and owns its own border + rounded corners. */
-  display: block;
-  padding: 0;
-  border: 0;
-  background: transparent;
-}
-
-/* ── Dropdown mode trigger stack + popup modal ────────────────────────────── */
-
+/* ── Dropdown trigger stack (the only visible region in SSR) ──────────────── */
 .sai-bkodjs1e__trigger-stack {
   display: flex;
   flex-direction: column;
@@ -475,10 +158,9 @@
   font-size: 0.9375rem;
 }
 
-/* Countdown chip lives inside the green callout in dropdown-pill mode.
- * Right-aligned, transparent background so it blends with the callout
- * strip (no separate grey banner row). */
-.sai-bkodjs1e__callout .sai-bkodjs1e__countdown--in-callout {
+/* Countdown chip lives inside the green callout. Right-aligned, transparent
+ * background so it blends with the callout strip. */
+.sai-bkodjs1e__callout .sai-bkodjs1e__countdown {
   margin-inline-start: auto;
   background: transparent;
   padding: 0;
@@ -486,21 +168,25 @@
   font-size: 0.8125rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
 }
 
-.sai-bkodjs1e__callout .sai-bkodjs1e__countdown--in-callout .sai-bkodjs1e__countdown-icon {
-  color: var(--sai-bkodjs1e-success-fg, #14803a);
+.sai-bkodjs1e__countdown--expired {
+  color: #b32130;
+}
+
+.sai-bkodjs1e__countdown-icon {
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+  flex: 0 0 auto;
 }
 
 .sai-bkodjs1e__callout-icon {
   inline-size: 1.125rem;
   block-size: 1.125rem;
   flex-shrink: 0;
-}
-
-.sai-bkodjs1e__callout-price {
-  color: var(--sai-bkodjs1e-success-fg, #14803a);
-  font-weight: 800;
 }
 
 .sai-bkodjs1e__view-details {
@@ -524,9 +210,13 @@
   background: rgba(0, 0, 0, 0.025);
 }
 
-/* Popup modal mounted to <body> — outside .sai-bkodjs1e host, so it doesn't
- * inherit the host's CSS variables. Re-declare them here so child rules
- * (var(--sai-bkodjs1e-fg) etc.) resolve correctly. */
+.sai-bkodjs1e__chevron {
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+}
+
+/* ── Popup (mounted as child of the host so per-instance baked CSS reaches it) ─ */
+
 .sai-bkodjs1e-popup {
   --sai-bkodjs1e-fg: #121212;
   --sai-bkodjs1e-muted-fg: rgba(0, 0, 0, 0.55);
@@ -663,8 +353,6 @@
 .sai-bkodjs1e-popup__body {
   padding: 1rem 1.25rem 1.25rem;
   overflow-y: auto;
-  /* flex grow + min-height: 0 lets this child of the flex column actually
-   * scroll inside instead of pushing the panel past its max-height cap. */
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
@@ -672,15 +360,9 @@
   gap: 0.875rem;
 }
 
-/* Each section = coupon-ticket card. Self-contained with border + radius +
- * scalloped notches on the side edges right above the code chip (the
- * "perforation" line). */
+/* Each section = coupon-ticket card with perforation above the code chip. */
 .sai-bkodjs1e-popup__section {
-  /* Perforation line + notch centres sit at this distance from the bottom
-   * edge. Must clear the code-chip row (~1.75rem tall) plus generous breathing
-   * room above + below. */
   --sai-bkodjs1e-perf-bottom: 3.5rem;
-  --sai-bkodjs1e-notch-r: 7px;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -696,11 +378,6 @@
   border-color: rgba(20, 128, 58, 0.35);
 }
 
-/* Cards with a perforation keep their crisp bordered rounded-rectangle
- * shape. The dashed line + 1px-thick solid breaks at each end visually
- * separate the content / code-chip zones without trying to mask cuts. */
-
-/* Dashed horizontal perforation spans edge-to-edge across the card. */
 .sai-bkodjs1e-popup__perforation {
   position: absolute;
   left: 0;
@@ -712,15 +389,11 @@
   transform: translateY(0.5px);
 }
 
-/* Code chip pulled away from the perforation so the dashed line isn't
- * crushed up against it. */
 .sai-bkodjs1e-popup__section:has(.sai-bkodjs1e-popup__perforation) .sai-bkodjs1e-popup__code-row {
   margin-top: 0.5rem;
 }
 
 .sai-bkodjs1e-popup__divider {
-  /* Full-width grey banner — used inside the modal/drawer popup body where
-   * the surrounding bg is pure white. */
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -731,21 +404,6 @@
   font-size: 0.8125rem;
   font-weight: 700;
   color: var(--sai-bkodjs1e-fg);
-}
-
-/* When the divider lives inside the inline-callout alternatives list,
- * strip the banner — the surrounding shell may have its own background
- * colour and the grey/borders look out of place. */
-.sai-bkodjs1e__alt-list .sai-bkodjs1e-popup__divider {
-  background: transparent;
-  border: 0;
-  padding: 0.5rem 0 0.25rem;
-}
-
-.sai-bkodjs1e-popup__divider .sai-bkodjs1e-popup__divider-icon {
-  color: var(--sai-bkodjs1e-fg);
-  width: 1.125rem;
-  height: 1.125rem;
 }
 
 .sai-bkodjs1e-popup__divider-icon {
@@ -789,6 +447,20 @@
   background: rgba(0, 0, 0, 0.35);
 }
 
+.sai-bkodjs1e-popup__unlock {
+  margin: 0 0 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--sai-bkodjs1e-success-fg, #14803a);
+}
+
+.sai-bkodjs1e-popup__name {
+  margin: 0 0 0.25rem;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--sai-bkodjs1e-fg);
+}
+
 .sai-bkodjs1e-popup__saving {
   margin: 0 0 0.5rem;
   font-size: 0.875rem;
@@ -800,6 +472,12 @@
   color: var(--sai-bkodjs1e-success-fg, #14803a);
 }
 
+/* For potential (non-applicable) alt offers, the savings amount is grey —
+ * it's not money the shopper has actually saved yet. Primary stays green. */
+.sai-bkodjs1e-popup__section:not(.sai-bkodjs1e-popup__section--primary) .sai-bkodjs1e-popup__saving-amount {
+  color: var(--sai-bkodjs1e-muted-fg);
+}
+
 .sai-bkodjs1e-popup__code-row {
   display: inline-flex;
   align-items: center;
@@ -809,32 +487,6 @@
   border-radius: 4px;
   background: #ffffff;
   align-self: flex-start;
-}
-
-/* For potential (non-applicable) alt offers, the savings amount is grey —
- * it's not money the shopper has actually saved yet. Primary stays green. */
-.sai-bkodjs1e-popup__section:not(.sai-bkodjs1e-popup__section--primary) .sai-bkodjs1e-popup__saving-amount {
-  color: var(--sai-bkodjs1e-muted-fg);
-}
-
-/* Copy button is interactive — give it a hover treatment so it's obviously
- * clickable, and a visible "copied" state. */
-.sai-bkodjs1e-popup__copy {
-  border-radius: 4px;
-  transition: background-color 160ms ease, color 160ms ease;
-}
-
-.sai-bkodjs1e-popup__copy:hover {
-  background: rgba(0, 0, 0, 0.06);
-  color: var(--sai-bkodjs1e-fg);
-}
-
-.sai-bkodjs1e-popup__copy[aria-pressed='true'] {
-  color: var(--sai-bkodjs1e-success-fg, #14803a);
-  background: rgba(20, 128, 58, 0.1);
-}
-
-.sai-bkodjs1e-popup__code-row {
   cursor: pointer;
 }
 
@@ -861,315 +513,49 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  border-radius: 4px;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.sai-bkodjs1e-popup__copy:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--sai-bkodjs1e-fg);
 }
 
 .sai-bkodjs1e-popup__copy[aria-pressed='true'] {
   color: var(--sai-bkodjs1e-success-fg, #14803a);
+  background: rgba(20, 128, 58, 0.1);
 }
 
 .sai-bkodjs1e-popup__copy-icon {
   inline-size: 1rem;
   block-size: 1rem;
 }
-
-.sai-bkodjs1e__dropdown-trigger {
-  appearance: none;
-  background: transparent;
-  border: 0;
-  font: inherit;
-  font-weight: 600;
-  color: var(--sai-bkodjs1e-fg);
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-  margin-inline-start: auto;
-  cursor: pointer;
-  padding: 0.25rem 0;
-}
-
-.sai-bkodjs1e__dropdown-panel {
-  position: absolute;
-  inset-inline: 0;
-  inset-block-start: calc(100% + 0.25rem);
-  background: var(--sai-bkodjs1e-card-bg);
-  border: 1px solid var(--sai-bkodjs1e-card-border);
-  border-radius: var(--sai-bkodjs1e-card-radius);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-  padding: var(--sai-size-2, 0.5rem);
-  z-index: 10;
-  max-block-size: 0;
-  overflow: hidden;
-  opacity: 0;
-  transition: max-block-size 240ms ease, opacity 240ms ease;
-}
-
-.sai-bkodjs1e[data-dropdown-open='true'] .sai-bkodjs1e__dropdown-panel {
-  max-block-size: 24rem;
-  overflow: auto;
-  opacity: 1;
-}
-
-/* ── Alternatives list ────────────────────────────────────────────────────── */
-.sai-bkodjs1e__alt-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-/* Inline-mode alternative rows — Myntra-style clean text list. No borders,
- * no cards, just text with comfortable vertical rhythm. */
-.sai-bkodjs1e__alt-list {
-  gap: 0.75rem;
-  padding-block-start: 0.25rem;
-}
-
-.sai-bkodjs1e__alt-item {
-  display: flex;
-  flex-direction: column;
-  gap: 0.125rem;
-  padding: 0;
-  border: 0;
-}
-
-.sai-bkodjs1e__alt-item--current {
-  position: relative;
-}
-
-.sai-bkodjs1e__alt-group-label,
-.sai-bkodjs1e__alt-heading {
-  font-size: 0.6875rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--sai-bkodjs1e-muted-fg);
-  padding: 0.5rem 0 0.25rem;
-}
-
-.sai-bkodjs1e__alt-name {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--sai-bkodjs1e-fg);
-  line-height: 1.3;
-}
-
-.sai-bkodjs1e__alt-value {
-  color: var(--sai-bkodjs1e-muted-fg);
-  font-size: 0.75rem;
-  line-height: 1.4;
-}
-
-.sai-bkodjs1e__alt-item--current .sai-bkodjs1e__alt-value {
-  color: var(--sai-bkodjs1e-accent-fg);
-  font-weight: 600;
-}
-
-/* ── Sticky mobile bar (additive) ─────────────────────────────────────────── */
-.sai-bkodjs1e__sticky {
-  position: fixed;
-  inset-inline: 0;
-  inset-block-end: 0;
-  background: var(--sai-bkodjs1e-sticky-bg);
-  color: var(--sai-bkodjs1e-sticky-fg);
-  box-shadow: var(--sai-bkodjs1e-sticky-shadow);
-  padding: 0.625rem 1rem calc(env(safe-area-inset-bottom, 0px) + 0.625rem);
-  z-index: 50;
-  display: none;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-
-@media (max-width: 767px) {
-  .sai-bkodjs1e--sticky-on .sai-bkodjs1e__sticky {
-    display: flex;
-  }
-}
-
-
-/* Callout style — mirrors the dropdown popup's __highlight strip:
- * pale-green pill background, tag icon + "Get it at $X" text + chevron. */
-.sai-bkodjs1e__sticky--callout {
-  background: var(--sai-bkodjs1e-accent-bg, #e8f5ec);
-  color: var(--sai-bkodjs1e-accent-fg, #1f7a3a);
-  box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.08);
-  padding: 0.625rem 1rem calc(env(safe-area-inset-bottom, 0px) + 0.625rem);
-}
-
-.sai-bkodjs1e__sticky--callout .sai-bkodjs1e__sticky-info {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 0.5rem;
-  flex: 1 1 auto;
-  min-inline-size: 0;
-}
-
-.sai-bkodjs1e__sticky-icon {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.5rem;
-  height: 1.5rem;
-  color: var(--sai-bkodjs1e-accent-fg, #1f7a3a);
-}
-
-.sai-bkodjs1e__sticky-icon svg {
-  width: 1.25rem;
-  height: 1.25rem;
-}
-
-.sai-bkodjs1e__sticky-callout-text {
-  font-size: 0.9375rem;
-  font-weight: 600;
-  color: var(--sai-bkodjs1e-accent-fg, #1f7a3a);
-  line-height: 1.2;
-}
-
-.sai-bkodjs1e__sticky--callout [data-sai-sticky-price] {
-  font-weight: 800;
-}
-
-.sai-bkodjs1e__sticky--callout .sai-bkodjs1e__sticky-info-button {
-  color: var(--sai-bkodjs1e-accent-fg, #1f7a3a);
-  background: transparent;
-  border: 0;
-  padding: 0.25rem;
-  display: inline-flex;
-  align-items: center;
-  cursor: pointer;
-}
-
-.sai-bkodjs1e__sticky-info {
-  display: flex;
-  flex-direction: column;
-  gap: 0.125rem;
-  flex: 1 1 auto;
-  min-inline-size: 0;
-}
-
-.sai-bkodjs1e__sticky-price {
-  font-weight: 700;
-  font-size: 1rem;
-  color: var(--sai-bkodjs1e-accent-fg);
-}
-
-.sai-bkodjs1e__sticky-label {
-  font-size: 0.75rem;
-  color: var(--sai-bkodjs1e-muted-fg);
-}
-
-.sai-bkodjs1e__sticky-cta {
-  appearance: none;
-  border: 0;
-  border-radius: 999px;
-  background: var(--sai-bkodjs1e-fg);
-  color: #ffffff;
-  font: inherit;
-  font-weight: 700;
-  padding: 0.625rem 1rem;
-  cursor: pointer;
-  flex: 0 0 auto;
-}
-
-.sai-bkodjs1e__sticky-info-button {
-  appearance: none;
-  background: transparent;
-  border: 0;
-  color: inherit;
-  cursor: pointer;
-  padding: 0.25rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* ── Animations ───────────────────────────────────────────────────────────── */
-@keyframes sai-bkodjs1e-fade {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes sai-bkodjs1e-slide-down {
-  from { opacity: 0; transform: translateY(-6px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.sai-bkodjs1e[data-anim='fade'] .sai-bkodjs1e__best-price {
-  animation: sai-bkodjs1e-fade 200ms ease;
-}
-
-.sai-bkodjs1e[data-anim='slide_down'] .sai-bkodjs1e__best-price {
-  animation: sai-bkodjs1e-slide-down 240ms ease;
-}
-
-/* ── Modal (sticky bar info trigger) ──────────────────────────────────────── */
-.sai-bkodjs1e__modal {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  z-index: 100;
-  display: none;
-  align-items: flex-end;
-  justify-content: center;
-}
-
-.sai-bkodjs1e__modal[data-open='true'] {
-  display: flex;
-}
-
-.sai-bkodjs1e__modal-card {
-  background: var(--sai-bkodjs1e-card-bg);
-  inline-size: 100%;
-  max-block-size: 80vh;
-  border-radius: 16px 16px 0 0;
-  padding: var(--sai-size-4, 1rem);
-  overflow: auto;
-}
-
-.sai-bkodjs1e__modal-close {
-  appearance: none;
-  background: transparent;
-  border: 0;
-  font: inherit;
-  font-weight: 600;
-  padding: 0.25rem 0.5rem;
-  cursor: pointer;
-  margin-inline-start: auto;
-  display: block;
-}
 {% endstylesheet %}
 
 <sai-bkodjs1e
-  class="sai-bkodjs1e sai-bkodjs1e--{{ mode_class }}{%- if sticky_mobile_bar %} sai-bkodjs1e--sticky-on{%- endif -%}"
+  class="sai-bkodjs1e"
   data-mutation-handle="{{ mutation_handle }}"
-  data-display-mode="{{ display_mode }}"
-  data-sticky-mobile="{{ sticky_mobile_bar }}"
-  data-anim="{{ price_update_animation }}"
-  data-expanded="false"
-  data-dropdown-open="false">
+  hidden>
 
   {%- comment -%}
-    SSR shell — every visible region exists in markup at SSR so per-instance
-    baked CSS rules anchored on data-spectrum-instance-id always have a node
-    to target. JS fills text content and toggles [hidden] / data-* states.
+    SSR shell — only the dropdown trigger stack is rendered server-side.
+    The popup is created on demand by JS and mounted as a child of the host
+    so per-instance baked styles (anchored on data-spectrum-instance-id +
+    data-spectrum-variant-id) reach it. The host carries `hidden` until JS
+    has confirmed at least one discount (best OR alternative) is available
+    for the current variant.
   {%- endcomment -%}
 
-  <div class="sai-bkodjs1e__shell" data-sai-shell>
-    <div class="sai-bkodjs1e__badge" data-sai-badge hidden>
-      <svg class="sai-bkodjs1e__badge-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-        <path d="M7.5 1.5 1.5 7.5l7 7 6-6V1.5h-7Z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
-        <circle cx="11" cy="5" r="1" fill="currentColor"/>
+  <div class="sai-bkodjs1e__trigger-stack" data-sai-dropdown-trigger>
+    <div class="sai-bkodjs1e__callout" data-sai-callout>
+      <svg class="sai-bkodjs1e__callout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+        <path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/>
+        <path d="m15 9-6 6"/>
+        <circle cx="9.5" cy="9.5" r=".75" fill="currentColor"/>
+        <circle cx="14.5" cy="14.5" r=".75" fill="currentColor"/>
       </svg>
-      <span class="sai-bkodjs1e__heading" data-sai-heading></span>
-    </div>
-
-    <div class="sai-bkodjs1e__best-price-row" data-sai-price-row hidden>
-      <span class="sai-bkodjs1e__best-price-prefix" data-sai-prefix>{{ best_price_prefix | escape }}</span>
-      <span class="sai-bkodjs1e__best-price" data-sai-price></span>
-      <span class="sai-bkodjs1e__savings" data-sai-savings hidden></span>
+      <span data-sai-callout-label></span>
       <span class="sai-bkodjs1e__countdown" data-sai-countdown hidden>
         <svg class="sai-bkodjs1e__countdown-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
           <circle cx="8" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="1.2"/>
@@ -1179,97 +565,23 @@
         <span data-sai-countdown-text></span>
       </span>
     </div>
-
-    <div class="sai-bkodjs1e__unlock" data-sai-unlock hidden></div>
-
-    <ul class="sai-bkodjs1e__bullets" data-sai-bullets hidden></ul>
-
-    <div class="sai-bkodjs1e__alt-list" data-sai-alt-list hidden></div>
-
-    <button type="button" class="sai-bkodjs1e__expand-trigger" data-sai-expand-trigger hidden aria-expanded="false">
-      <span data-sai-expand-label>{{ expand_trigger_text | escape }}</span>
+    <button type="button" class="sai-bkodjs1e__view-details" data-sai-popup-trigger aria-haspopup="dialog">
+      <span data-sai-dropdown-label>{{ dropdown_trigger_text }}</span>
       <svg class="sai-bkodjs1e__chevron" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
         <path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     </button>
-
-    <div class="sai-bkodjs1e__expand-body" data-sai-expand-body>
-      <div class="sai-bkodjs1e__expand-body-inner" data-sai-expand-body-inner></div>
-    </div>
-
-    {%- comment -%}
-      Dropdown mode trigger area — replaces the old inline pill + panel.
-      JS populates the callout text from the resolved best discount and
-      opens a centered modal popup (mounted to <body>) on View Details click.
-    {%- endcomment -%}
-    <div class="sai-bkodjs1e__trigger-stack" data-sai-dropdown-trigger hidden>
-      <div class="sai-bkodjs1e__callout" data-sai-callout>
-        <svg class="sai-bkodjs1e__callout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-          <path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/>
-          <path d="m15 9-6 6"/>
-          <circle cx="9.5" cy="9.5" r=".75" fill="currentColor"/>
-          <circle cx="14.5" cy="14.5" r=".75" fill="currentColor"/>
-        </svg>
-        <span data-sai-callout-label></span>
-      </div>
-      <button type="button" class="sai-bkodjs1e__view-details" data-sai-popup-trigger aria-haspopup="dialog">
-        <span data-sai-dropdown-label>{{ dropdown_trigger_text | escape }}</span>
-        <svg class="sai-bkodjs1e__chevron" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-          <path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </button>
-    </div>
-
-    {%- comment -%}
-      Legacy empty container retained so JS that still references
-      [data-sai-dropdown-panel] doesn't error. Always hidden.
-    {%- endcomment -%}
-    <div class="sai-bkodjs1e__dropdown-panel" data-sai-dropdown-panel hidden></div>
-  </div>
-
-  {%- comment -%}
-    Sticky mobile bar — additive to any display mode. Hidden by default; CSS
-    flips it to flex at viewports ≤767px when the parent carries
-    .sai-bkodjs1e--sticky-on (driven by content.sticky_mobile_bar).
-  {%- endcomment -%}
-  <div class="sai-bkodjs1e__sticky" data-sai-sticky hidden>
-    <div class="sai-bkodjs1e__sticky-info" data-sai-sticky-info>
-      <span class="sai-bkodjs1e__sticky-price" data-sai-sticky-price></span>
-      <span class="sai-bkodjs1e__sticky-label" data-sai-sticky-label></span>
-    </div>
-    <button type="button" class="sai-bkodjs1e__sticky-info-button" data-sai-sticky-info-button hidden aria-label="More details">
-      <svg viewBox="0 0 16 16" width="20" height="20" aria-hidden="true" focusable="false">
-        <circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.4"/>
-        <path d="M8 7.25v3.5M8 5v0.01" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-      </svg>
-    </button>
-    <button type="button" class="sai-bkodjs1e__sticky-cta" data-sai-sticky-cta>View offer</button>
-  </div>
-
-  {%- comment -%}
-    Bottom-sheet modal opened from the sticky bar. Renders the full inline-
-    callout shell so customers see complete details without the bar's space
-    constraints.
-  {%- endcomment -%}
-  <div class="sai-bkodjs1e__modal" data-sai-modal data-open="false" role="dialog" aria-modal="true" aria-label="Best price details">
-    <div class="sai-bkodjs1e__modal-card" data-sai-modal-card>
-      <button type="button" class="sai-bkodjs1e__modal-close" data-sai-modal-close aria-label="Close">Close</button>
-      <div data-sai-modal-content></div>
-    </div>
   </div>
 
   {%- comment -%}
     JSON payload. Per-value `| json` is mandatory inside
     <script type="application/json"> — see .claude/rules/generated-liquid.md
-    rule #5. Liquid's `| json` filter unicode-escapes `<`, `>`, line
-    separators so values containing `</script>` or `<!--` survive intact as
-    JSON but cannot terminate the surrounding <script> element. The JS reads
-    this once on init.
+    rule #5.
 
     `discounts` falls back to `{"discounts":[]}` when the metafield is blank
     (non-product templates, products without the discount sync, fresh
     products before product-sync has run). The JS branches on this and hides
-    the widget if `hide_when_no_discounts` is true.
+    the widget when there's no headline AND no alternative.
   {%- endcomment -%}
   <script type="application/json" data-sai-payload>
 {
@@ -1301,13 +613,7 @@
     "moneyFormat": {{ shop.money_format | json }}
   },
   "config": {
-    "displayMode": {{ display_mode | json }},
-    "stickyMobileBar": {{ sticky_mobile_bar | json }},
     "priorityLogic": {{ priority_logic | json }},
-    "fallbackLogic": {{ fallback_logic | json }},
-    "thresholdDisplayMode": {{ threshold_display_mode | json }},
-    "considerMemberDiscounts": {{ consider_member_discounts | json }},
-    "considerStackedDiscounts": {{ consider_stacked_discounts | json }},
     "showAlternatives": {{ show_alternatives | json }},
     "maxAlternatives": {{ max_alternatives | json }},
     "alternativesDisplay": {{ alternatives_display | json }},
@@ -1319,18 +625,9 @@
     "showDiscountName": {{ show_discount_name | json }},
     "showSavingsDelta": {{ show_savings_delta | json }},
     "savingsDeltaFormat": {{ savings_delta_format | json }},
-    "expandTriggerText": {{ expand_trigger_text | json }},
-    "collapseTriggerText": {{ collapse_trigger_text | json }},
-    "expandedShowAlternatives": {{ expanded_show_alternatives | json }},
     "dropdownTriggerText": {{ dropdown_trigger_text | json }},
     "dropdownMaxItems": {{ dropdown_max_items | json }},
-    "dropdownGroupByType": {{ dropdown_group_by_type | json }},
-    "stickyCombineWithATC": {{ sticky_combine_with_atc | json }},
-    "stickyModalTrigger": {{ sticky_modal_trigger | json }},
-    "priceUpdateAnimation": {{ price_update_animation | json }},
-    "hideWhenNoDiscounts": {{ hide_when_no_discounts | json }},
-    "minSavingsToShow": {{ min_savings_to_show | json }},
-    "maxThresholdGapToShow": {{ max_threshold_gap_to_show | json }}
+    "dropdownSortBy": {{ dropdown_sort_by | json }}
   },
   "labels": {
     "bestPricePrefix": {{ best_price_prefix | json }},
@@ -1338,12 +635,10 @@
     "unlockTemplate": {{ unlock_message_template | json }},
     "applicableTemplate": {{ applicable_message_template | json }},
     "discountNamePrefix": {{ discount_name_prefix | json }},
-    "expandTriggerText": {{ expand_trigger_text | json }},
-    "collapseTriggerText": {{ collapse_trigger_text | json }},
-    "expiredMessage": {{ "Offer ended" | json }}
+    "expiredMessage": {{ countdown_expired_message | json }}
   }
 }
   </script>
 </sai-bkodjs1e>
 
-<script src="{{ 'sai-snippet-bkodjs1e.js' | asset_url }}" async></script>
+<script src="{{ 'sai-snippet-bkodjs1e.js' | asset_url }}" defer></script>
