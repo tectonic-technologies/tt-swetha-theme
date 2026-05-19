@@ -396,6 +396,7 @@
         if (!variantId) return
         const next = this._variantsById.get(String(variantId))
         if (!next) return
+        const previousVariantId = this._currentVariantId
         this._currentVariantId = String(variantId)
         // Variant-scoped discounts override product-level when present.
         if (next.discounts) {
@@ -404,6 +405,13 @@
         this._state.product.price = next.price
         this._state.product.compareAtPrice = next.compareAtPrice
         this._render()
+        const evaluated = this._lastEvaluated
+        this._track(`${getFeatureSlug(this)}:variant_change`, {
+          variant_id: String(variantId),
+          previous_variant_id: previousVariantId,
+          headline_discount_id: evaluated?.best?.d?.id ?? null,
+          discount_count: this._state.discounts.length,
+        })
       }
 
       _readPayload() {
@@ -831,7 +839,11 @@
         const handler = debounce(() => {
           fetchCartTotal().then((cart) => {
             if (!cart) return
+            const previousCart = this._state.cart
             this._state.cart = cart
+            // Snapshot applicability before the local recompute so we can
+            // detect flips and emit cart_change with the diff.
+            const flips = []
             // Synthesize a currentValue update on every potential discount
             // so re-evaluation reflects the new cart total. Per
             // StorefrontDiscount: progressMetric / currentValue /
@@ -841,6 +853,7 @@
             for (const d of this._state.discounts) {
               const q = d?.qualification
               if (!q) continue
+              const before = q.applicability
               if (q.progressMetric === 'cart_value' && cart.total != null) {
                 q.currentValue = cart.total
                 if (typeof q.requiredValue === 'number') {
@@ -863,8 +876,17 @@
                   q.applicability = q.isSatisfied ? 'current' : 'potential'
                 }
               }
+              if (before !== q.applicability) {
+                flips.push({ discount_id: d?.id ?? null, from: before, to: q.applicability })
+              }
             }
             this._render()
+            this._track(`${getFeatureSlug(this)}:cart_change`, {
+              cart_subtotal: cart.total,
+              previous_cart_subtotal: previousCart?.total ?? null,
+              item_count: cart.itemCount,
+              applicability_flips: flips,
+            })
           })
         }, CART_SYNC_DEBOUNCE_MS)
 
