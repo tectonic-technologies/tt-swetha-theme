@@ -16,19 +16,27 @@
   function noop() {}
   function safeFn(fn) {
     return (name, payload) => {
-      try { fn(name, payload) } catch (_) { /* analytics is best-effort */ }
+      try {
+        fn(name, payload)
+      } catch (_) {
+        /* analytics is best-effort */
+      }
     }
   }
 
   // ── Icons ────────────────────────────────────────────────────────────
   const ENTRY_ICONS = {
-    percent: '<svg viewBox="0 0 32 32" aria-hidden="true" focusable="false"><path fill="currentColor" d="M16 0c1.4 1.9 3.6 1.1 5.6 1.5.4 2 1.9 3.5 4 3.7-.4 2 1 3.8 2.7 5-1 1.8-.5 4 1 5.3-1.5 1.3-2 3.5-1 5.3-1.7 1.2-3.1 3-2.7 5-2.1.2-3.6 1.7-4 3.7-2-.4-4.2.4-5.6 2.3-1.4-1.9-3.6-2.7-5.6-2.3-.4-2-1.9-3.5-4-3.7.4-2-1-3.8-2.7-5 1-1.8.5-4-1-5.3 1.5-1.3 2-3.5 1-5.3 1.7-1.2 3.1-3 2.7-5 2.1-.2 3.6-1.7 4-3.7 2 .4 4.2-.4 5.6-2.3z"/><circle cx="12" cy="12" r="1.7" fill="#fff"/><circle cx="20" cy="20" r="1.7" fill="#fff"/><path d="M21 11 11 21" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>',
+    percent:
+      '<svg viewBox="0 0 32 32" aria-hidden="true" focusable="false"><path fill="currentColor" d="M16 0c1.4 1.9 3.6 1.1 5.6 1.5.4 2 1.9 3.5 4 3.7-.4 2 1 3.8 2.7 5-1 1.8-.5 4 1 5.3-1.5 1.3-2 3.5-1 5.3-1.7 1.2-3.1 3-2.7 5-2.1.2-3.6 1.7-4 3.7-2-.4-4.2.4-5.6 2.3-1.4-1.9-3.6-2.7-5.6-2.3-.4-2-1.9-3.5-4-3.7.4-2-1-3.8-2.7-5 1-1.8.5-4-1-5.3 1.5-1.3 2-3.5 1-5.3 1.7-1.2 3.1-3 2.7-5 2.1-.2 3.6-1.7 4-3.7 2 .4 4.2-.4 5.6-2.3z"/><circle cx="12" cy="12" r="1.7" fill="#fff"/><circle cx="20" cy="20" r="1.7" fill="#fff"/><path d="M21 11 11 21" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>',
     tag: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 12V3h9l9 9-9 9zM7.5 8.5h.01" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     gift: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 8h18v4H3zM5 12v9h14v-9M12 8v13M8 8c-2 0-3-2-1-3s4 1 5 3M16 8c2 0 3-2 1-3s-4 1-5 3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-    chevron_right: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    chevron_right:
+      '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   }
-  const BACK_ARROW = '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'
-  const X_ICON = '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>'
+  const BACK_ARROW =
+    '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+  const X_ICON =
+    '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>'
 
   // ── Helpers ──────────────────────────────────────────────────────────
   function el(tag, className, attrs) {
@@ -48,10 +56,18 @@
   }
 
   function moneyFormatter(code) {
-    try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: code || 'USD', currencyDisplay: 'narrowSymbol' }) }
-    catch (_) {
-      try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: code || 'USD' }) }
-      catch (__) { return { format: (n) => `${code || '$'}${Number(n).toFixed(2)}` } }
+    try {
+      return new Intl.NumberFormat(undefined, {
+        style: 'currency',
+        currency: code || 'USD',
+        currencyDisplay: 'narrowSymbol',
+      })
+    } catch (_) {
+      try {
+        return new Intl.NumberFormat(undefined, { style: 'currency', currency: code || 'USD' })
+      } catch (__) {
+        return { format: (n) => `${code || '$'}${Number(n).toFixed(2)}` }
+      }
     }
   }
 
@@ -66,7 +82,11 @@
     if (!value) return []
     let parsed = value
     if (typeof parsed === 'string') {
-      try { parsed = JSON.parse(parsed) } catch (_) { return [] }
+      try {
+        parsed = JSON.parse(parsed)
+      } catch (_) {
+        return []
+      }
     }
     if (Array.isArray(parsed)) return parsed
     if (parsed && Array.isArray(parsed.discounts)) return parsed.discounts
@@ -79,7 +99,10 @@
     for (const variantId of Object.keys(discountsByVariant)) {
       const list = parseDiscountsBlob(discountsByVariant[variantId])
       for (const d of list) {
-        const key = (d.id != null ? `id:${d.id}` : '') || (Array.isArray(d.codes) && d.codes[0] ? `code:${d.codes[0]}` : null) || `t:${d.title || d.shortSummary || ''}`
+        const key =
+          (d.id != null ? `id:${d.id}` : '') ||
+          (Array.isArray(d.codes) && d.codes[0] ? `code:${d.codes[0]}` : null) ||
+          `t:${d.title || d.shortSummary || ''}`
         if (!byKey.has(key)) byKey.set(key, d)
       }
     }
@@ -87,19 +110,19 @@
   }
 
   function isApplicable(d) {
-    const q = d && d.qualification
+    const q = d?.qualification
     return !!q && (q.isSatisfied === true || q.applicability === 'current')
   }
 
   function isPotential(d) {
-    const q = d && d.qualification
+    const q = d?.qualification
     return !!q && q.applicability === 'potential' && q.isSatisfied !== true
   }
 
   function getCode(d) {
     if (!d || !Array.isArray(d.codes) || d.codes.length === 0) return null
     const raw = d.codes[0]
-    return typeof raw === 'string' ? raw : (raw && raw.code) || null
+    return typeof raw === 'string' ? raw : raw?.code || null
   }
 
   function isApplied(d, appliedCodes) {
@@ -131,7 +154,7 @@
   }
 
   function savingsAt(d, subtotal) {
-    const dv = d && d.discountValue
+    const dv = d?.discountValue
     if (!dv) return 0
     switch (dv.type) {
       case 'PERCENTAGE': {
@@ -142,18 +165,22 @@
         const amt = Number(dv.amount)
         return Number.isFinite(amt) ? Math.min(amt, Number(subtotal) || amt) : 0
       }
-      case 'FREE_SHIPPING': return 0
-      default: return 0
+      case 'FREE_SHIPPING':
+        return 0
+      default:
+        return 0
     }
   }
 
   function discountPercent(d, subtotal) {
-    const dv = d && d.discountValue
+    const dv = d?.discountValue
     if (!dv) return null
-    if (dv.type === 'PERCENTAGE' && Number.isFinite(Number(dv.percentage))) return Math.round(Number(dv.percentage))
+    if (dv.type === 'PERCENTAGE' && Number.isFinite(Number(dv.percentage)))
+      return Math.round(Number(dv.percentage))
     if (dv.type === 'FIXED') {
       const abs = savingsAt(d, subtotal)
-      if (Number.isFinite(subtotal) && subtotal > 0 && abs > 0) return Math.round((abs / subtotal) * 100)
+      if (Number.isFinite(subtotal) && subtotal > 0 && abs > 0)
+        return Math.round((abs / subtotal) * 100)
     }
     return null
   }
@@ -162,18 +189,32 @@
   function sortDiscounts(list, mode, subtotal) {
     const c = list.slice()
     switch (mode) {
-      case 'recent_first': return c
+      case 'recent_first':
+        return c
       case 'highest_savings':
         return c.sort((a, b) => savingsAt(b, subtotal) - savingsAt(a, subtotal))
       case 'expiry_soonest':
-        return c.sort((a, b) => (Date.parse(a.endsAt || '') || Infinity) - (Date.parse(b.endsAt || '') || Infinity))
+        return c.sort(
+          (a, b) =>
+            (Date.parse(a.endsAt || '') || Number.POSITIVE_INFINITY) -
+            (Date.parse(b.endsAt || '') || Number.POSITIVE_INFINITY),
+        )
       case 'alphabetical':
         return c.sort((a, b) => String(getCode(a) || '').localeCompare(String(getCode(b) || '')))
       case 'closest_to_qualify':
-        return c.sort((a, b) => (Number(a.qualification && a.qualification.remainingValue) || Infinity) - (Number(b.qualification && b.qualification.remainingValue) || Infinity))
+        return c.sort(
+          (a, b) =>
+            (Number(a.qualification?.remainingValue) || Number.POSITIVE_INFINITY) -
+            (Number(b.qualification?.remainingValue) || Number.POSITIVE_INFINITY),
+        )
       case 'highest_potential_savings':
-        return c.sort((a, b) => savingsAt(b, subtotal + (Number(a.qualification && a.qualification.remainingValue) || 0)) - savingsAt(a, subtotal + (Number(b.qualification && b.qualification.remainingValue) || 0)))
-      default: return c
+        return c.sort(
+          (a, b) =>
+            savingsAt(b, subtotal + (Number(a.qualification?.remainingValue) || 0)) -
+            savingsAt(a, subtotal + (Number(b.qualification?.remainingValue) || 0)),
+        )
+      default:
+        return c
     }
   }
 
@@ -192,7 +233,9 @@
     const total = applicable.length + applied.length + autoApplied.length
     if (config.entryCtaShowCount && total > 0) parts.push(`${total} offer${total === 1 ? '' : 's'}`)
     if (config.entryCtaShowMaxSavings) {
-      const best = applicable.concat(applied).reduce((max, d) => Math.max(max, savingsAt(d, subtotal)), 0)
+      const best = applicable
+        .concat(applied)
+        .reduce((max, d) => Math.max(max, savingsAt(d, subtotal)), 0)
       if (best > 0) parts.push(`Save up to ${ctx.money.format(best)}`)
     }
     if (parts.length === 0) {
@@ -224,7 +267,12 @@
     // Vertical % OFF bar.
     if (config.showCouponAsset) {
       const pct = discountPercent(d, subtotal)
-      const label = pct != null ? `${pct}% OFF` : (d.discountValue && d.discountValue.type === 'FREE_SHIPPING' ? 'FREE SHIP' : '')
+      const label =
+        pct != null
+          ? `${pct}% OFF`
+          : d.discountValue && d.discountValue.type === 'FREE_SHIPPING'
+            ? 'FREE SHIP'
+            : ''
       const bar = el('div', `${TAG}-card__bar`, { text: label })
       card.appendChild(bar)
     } else {
@@ -234,26 +282,32 @@
     // Body.
     const body = el('div', `${TAG}-card__body`)
     const code = getCode(d)
-    if (config.showCodeChip && code) body.appendChild(el('div', `${TAG}-card__code`, { text: code }))
+    if (config.showCodeChip && code)
+      body.appendChild(el('div', `${TAG}-card__code`, { text: code }))
     else body.appendChild(el('div', `${TAG}-card__code`, { text: d.title || d.shortSummary || '' }))
 
     if (state === 'applicable' || state === 'applied') {
       const abs = savingsAt(d, subtotal)
       if (config.showSavingsCallout && abs > 0) {
-        body.appendChild(el('div', `${TAG}-card__savings`, {
-          text: state === 'applied'
-            ? `Saved ${money.format(abs)} on this order`
-            : `Save ${money.format(abs)} on this order`,
-        }))
+        body.appendChild(
+          el('div', `${TAG}-card__savings`, {
+            text:
+              state === 'applied'
+                ? `Saved ${money.format(abs)} on this order`
+                : `Save ${money.format(abs)} on this order`,
+          }),
+        )
       }
     } else if (state === 'potential' && config.showRemainingAmount) {
-      const remaining = Number(d.qualification && d.qualification.remainingValue)
+      const remaining = Number(d.qualification?.remainingValue)
       if (Number.isFinite(remaining) && remaining > 0) {
-        body.appendChild(el('div', `${TAG}-card__remaining`, {
-          text: fillTemplate(config.remainingAmountTemplate || 'Add {remaining} more to unlock', {
-            remaining: money.format(remaining),
+        body.appendChild(
+          el('div', `${TAG}-card__remaining`, {
+            text: fillTemplate(config.remainingAmountTemplate || 'Add {remaining} more to unlock', {
+              remaining: money.format(remaining),
+            }),
           }),
-        }))
+        )
       }
     }
 
@@ -267,7 +321,11 @@
     // Trailing CTA.
     const trailing = el('div', `${TAG}-card__trailing`)
     if (state === 'applied') {
-      trailing.appendChild(el('span', `${TAG}-card__cta ${TAG}-card__cta--applied`, { text: config.removeLinkText || 'APPLIED' }))
+      trailing.appendChild(
+        el('span', `${TAG}-card__cta ${TAG}-card__cta--applied`, {
+          text: config.removeLinkText || 'APPLIED',
+        }),
+      )
     } else if (state === 'applicable' && code) {
       const btn = el('button', `${TAG}-card__cta`, {
         type: 'button',
@@ -296,7 +354,13 @@
       const toggle = el('button', `${TAG}-page__section-toggle`, { type: 'button' })
       toggle.appendChild(document.createTextNode(title))
       const ind = el('span', `${TAG}-page__section-indicator`, {
-        text: defaultCollapsed ? (config.collapseIndicator === 'plus_minus' ? '+' : '▾') : (config.collapseIndicator === 'plus_minus' ? '−' : '▴'),
+        text: defaultCollapsed
+          ? config.collapseIndicator === 'plus_minus'
+            ? '+'
+            : '▾'
+          : config.collapseIndicator === 'plus_minus'
+            ? '−'
+            : '▴',
       })
       toggle.appendChild(ind)
       titleWrap.appendChild(toggle)
@@ -314,10 +378,13 @@
     const body = el('div', `${TAG}-page__section-body`)
     if (collapsible && defaultCollapsed) body.setAttribute('data-collapsed', 'true')
 
-    const maxVisible = state === 'applied' ? Number(config.appliedMaxVisible)
-      : state === 'applicable' ? Number(config.applicableMaxVisible)
-      : Number(config.potentialMaxVisible)
-    const cap = Number.isFinite(maxVisible) ? Math.max(0, maxVisible) : Infinity
+    const maxVisible =
+      state === 'applied'
+        ? Number(config.appliedMaxVisible)
+        : state === 'applicable'
+          ? Number(config.applicableMaxVisible)
+          : Number(config.potentialMaxVisible)
+    const cap = Number.isFinite(maxVisible) ? Math.max(0, maxVisible) : Number.POSITIVE_INFINITY
 
     list.forEach((d, i) => {
       const card = buildCard(d, state, ctx)
@@ -333,13 +400,15 @@
       let expanded = false
       showMore.addEventListener('click', () => {
         expanded = !expanded
-        body.querySelectorAll(`[data-hidden]`).forEach((card) => {
-          card.style.display = expanded ? '' : 'none'
-        })
+        for (const card of body.querySelectorAll('[data-hidden]')) {
+          if (card instanceof HTMLElement) card.style.display = expanded ? '' : 'none'
+        }
         showMore.textContent = expanded ? 'Show less' : `Show all ${list.length} →`
       })
       // Initial hide.
-      body.querySelectorAll(`[data-hidden]`).forEach((c) => { c.style.display = 'none' })
+      for (const c of body.querySelectorAll('[data-hidden]')) {
+        if (c instanceof HTMLElement) c.style.display = 'none'
+      }
       body.appendChild(showMore)
     }
 
@@ -351,9 +420,14 @@
         toggle.addEventListener('click', () => {
           const collapsed = body.getAttribute('data-collapsed') === 'true'
           body.setAttribute('data-collapsed', collapsed ? 'false' : 'true')
-          if (ind) ind.textContent = !collapsed
-            ? (config.collapseIndicator === 'plus_minus' ? '+' : '▾')
-            : (config.collapseIndicator === 'plus_minus' ? '−' : '▴')
+          if (ind)
+            ind.textContent = !collapsed
+              ? config.collapseIndicator === 'plus_minus'
+                ? '+'
+                : '▾'
+              : config.collapseIndicator === 'plus_minus'
+                ? '−'
+                : '▴'
         })
       }
     }
@@ -366,7 +440,9 @@
     const { config } = ctx
     if (host._pageOpen) return
     host._pageOpen = true
-    ctx.track(`${FEATURE_SLUG}:page_opened`, { coupons_count: ctx.applicable.length + ctx.applied.length + ctx.autoApplied.length })
+    ctx.track(`${FEATURE_SLUG}:page_opened`, {
+      coupons_count: ctx.applicable.length + ctx.applied.length + ctx.autoApplied.length,
+    })
 
     const page = el('div', `${TAG}-page ${TAG}-page--enter-${config.pageEntryAnimation}`)
     const backdrop = el('div', `${TAG}-page__backdrop`, { 'data-sai-backdrop': '' })
@@ -374,13 +450,17 @@
     const panel = el('div', `${TAG}-page__panel`)
 
     // Header.
-    const header = el('header', `${TAG}-page__header${config.pageHeaderSticky ? ` ${TAG}-page__header--sticky` : ''}`)
+    const header = el(
+      'header',
+      `${TAG}-page__header${config.pageHeaderSticky ? ` ${TAG}-page__header--sticky` : ''}`,
+    )
     const close = el('button', `${TAG}-page__close`, {
       type: 'button',
       'aria-label': 'Close',
     })
     if (config.pageCloseStyle === 'x_icon') close.innerHTML = X_ICON
-    else if (config.pageCloseStyle === 'text_link') close.innerHTML = '<span style="font-weight:600;font-size:.875rem;">Close</span>'
+    else if (config.pageCloseStyle === 'text_link')
+      close.innerHTML = '<span style="font-weight:600;font-size:.875rem;">Close</span>'
     else close.innerHTML = BACK_ARROW
     header.appendChild(close)
     header.appendChild(el('h2', `${TAG}-page__title`, { text: config.pageTitle || 'Apply Coupon' }))
@@ -444,21 +524,55 @@
     const applicableSorted = sortDiscounts(ctx.applicable, config.applicableSort, ctx.subtotal)
     const potentialSorted = sortDiscounts(ctx.potential, config.potentialSort, ctx.subtotal)
 
-    const sectionsOrder = config.sectionDisplayOrder === 'applied_first'
-      ? ['applied', 'applicable', 'potential']
-      : ['applicable', 'applied', 'potential']
+    const sectionsOrder =
+      config.sectionDisplayOrder === 'applied_first'
+        ? ['applied', 'applicable', 'potential']
+        : ['applicable', 'applied', 'potential']
 
     const sectionMap = {
-      applied: () => appliedSorted.length > 0 ? buildSection(config.appliedHeaderText || 'Applied', appliedSorted.length, appliedSorted, 'applied', ctx) : null,
-      applicable: () => applicableSorted.length > 0 ? buildSection(config.applicableHeaderText || 'Best Coupon', applicableSorted.length, applicableSorted, 'applicable', ctx) : null,
-      potential: () => potentialSorted.length > 0 ? buildSection(config.potentialHeaderText || 'More Offers', potentialSorted.length, potentialSorted, 'potential', ctx) : null,
+      applied: () =>
+        appliedSorted.length > 0
+          ? buildSection(
+              config.appliedHeaderText || 'Applied',
+              appliedSorted.length,
+              appliedSorted,
+              'applied',
+              ctx,
+            )
+          : null,
+      applicable: () =>
+        applicableSorted.length > 0
+          ? buildSection(
+              config.applicableHeaderText || 'Best Coupon',
+              applicableSorted.length,
+              applicableSorted,
+              'applicable',
+              ctx,
+            )
+          : null,
+      potential: () =>
+        potentialSorted.length > 0
+          ? buildSection(
+              config.potentialHeaderText || 'More Offers',
+              potentialSorted.length,
+              potentialSorted,
+              'potential',
+              ctx,
+            )
+          : null,
     }
     let renderedAny = false
     for (const key of sectionsOrder) {
       const node = sectionMap[key]()
-      if (node) { scroll.appendChild(node); renderedAny = true }
+      if (node) {
+        scroll.appendChild(node)
+        renderedAny = true
+      }
     }
-    if (!renderedAny) scroll.appendChild(el('div', `${TAG}-page__empty`, { text: 'No offers available right now.' }))
+    if (!renderedAny)
+      scroll.appendChild(
+        el('div', `${TAG}-page__empty`, { text: 'No offers available right now.' }),
+      )
 
     if (config.showInputForm && config.inputPosition === 'bottom') scroll.appendChild(inputForm())
 
@@ -473,17 +587,24 @@
     const prevOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     page.classList.add(`${TAG}-page--open`)
-    const slideKf = config.pageEntryAnimation === 'slide_up'
-      ? [{ transform: 'translateY(100%)' }, { transform: 'translateY(0)' }]
-      : config.pageEntryAnimation === 'fade'
-      ? [{ opacity: 0 }, { opacity: 1 }]
-      : [{ transform: 'translateX(100%)' }, { transform: 'translateX(0)' }]
+    const slideKf =
+      config.pageEntryAnimation === 'slide_up'
+        ? [{ transform: 'translateY(100%)' }, { transform: 'translateY(0)' }]
+        : config.pageEntryAnimation === 'fade'
+          ? [{ opacity: 0 }, { opacity: 1 }]
+          : [{ transform: 'translateX(100%)' }, { transform: 'translateX(0)' }]
     const easing = 'cubic-bezier(0.22, 0.61, 0.36, 1)'
     const duration = config.pageEntryAnimation === 'fade' ? 200 : 280
     try {
       panel.animate(slideKf, { duration, easing, fill: 'both' })
-      backdrop.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 220, easing: 'ease-out', fill: 'both' })
-    } catch (_) { /* WAAPI unsupported, fall back to instant open */ }
+      backdrop.animate([{ opacity: 0 }, { opacity: 1 }], {
+        duration: 220,
+        easing: 'ease-out',
+        fill: 'both',
+      })
+    } catch (_) {
+      /* WAAPI unsupported, fall back to instant open */
+    }
 
     // Card-level Apply.
     scroll.addEventListener('click', (e) => {
@@ -505,18 +626,25 @@
       document.removeEventListener('keydown', onEsc)
       ctx.track(`${FEATURE_SLUG}:page_closed`, {})
       page.style.pointerEvents = 'none'
-      const exitKf = config.pageEntryAnimation === 'slide_up'
-        ? [{ transform: 'translateY(0)' }, { transform: 'translateY(100%)' }]
-        : config.pageEntryAnimation === 'fade'
-        ? [{ opacity: 1 }, { opacity: 0 }]
-        : [{ transform: 'translateX(0)' }, { transform: 'translateX(100%)' }]
+      const exitKf =
+        config.pageEntryAnimation === 'slide_up'
+          ? [{ transform: 'translateY(0)' }, { transform: 'translateY(100%)' }]
+          : config.pageEntryAnimation === 'fade'
+            ? [{ opacity: 1 }, { opacity: 0 }]
+            : [{ transform: 'translateX(0)' }, { transform: 'translateX(100%)' }]
       const easing = 'cubic-bezier(0.4, 0, 1, 1)'
       const duration = config.pageEntryAnimation === 'fade' ? 200 : 280
       let panelAnim = null
       try {
         panelAnim = panel.animate(exitKf, { duration, easing, fill: 'forwards' })
-        backdrop.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220, easing: 'ease-in', fill: 'forwards' })
-      } catch (_) { /* WAAPI unsupported */ }
+        backdrop.animate([{ opacity: 1 }, { opacity: 0 }], {
+          duration: 220,
+          easing: 'ease-in',
+          fill: 'forwards',
+        })
+      } catch (_) {
+        /* WAAPI unsupported */
+      }
       const unmount = () => {
         host._pageOpen = false
         host._pageClosing = false
@@ -531,7 +659,9 @@
         window.setTimeout(unmount, duration + 60)
       }
     }
-    function onEsc(e) { if (e.key === 'Escape') closePage() }
+    function onEsc(e) {
+      if (e.key === 'Escape') closePage()
+    }
     document.addEventListener('keydown', onEsc)
     close.addEventListener('click', closePage)
     backdrop.addEventListener('click', closePage)
@@ -554,19 +684,25 @@
   // themes serve from Online Store 2.0.
   async function fetchVariantDiscounts(items) {
     const byVariant = {}
-    const handles = new Set(items.map((it) => it && it.handle).filter(Boolean))
-    await Promise.all(Array.from(handles).map(async (handle) => {
-      try {
-        const r = await fetch(`/products/${handle}.js`, { headers: { Accept: 'application/json' } })
-        if (!r.ok) return
-        const product = await r.json()
-        for (const v of product.variants || []) {
-          if (v && v.metafields && v.metafields.spectrum && v.metafields.spectrum.discounts) {
-            byVariant[String(v.id)] = v.metafields.spectrum.discounts
+    const handles = new Set(items.map((it) => it?.handle).filter(Boolean))
+    await Promise.all(
+      Array.from(handles).map(async (handle) => {
+        try {
+          const r = await fetch(`/products/${handle}.js`, {
+            headers: { Accept: 'application/json' },
+          })
+          if (!r.ok) return
+          const product = await r.json()
+          for (const v of product.variants || []) {
+            if (v?.metafields?.spectrum?.discounts) {
+              byVariant[String(v.id)] = v.metafields.spectrum.discounts
+            }
           }
+        } catch (_) {
+          /* skip */
         }
-      } catch (_) { /* skip */ }
-    }))
+      }),
+    )
     return byVariant
   }
 
@@ -577,7 +713,11 @@
     const payloadScript = host.querySelector('[data-sai-payload]')
     if (!payloadScript) return
     let payload
-    try { payload = JSON.parse(payloadScript.textContent || '{}') } catch (_) { return }
+    try {
+      payload = JSON.parse(payloadScript.textContent || '{}')
+    } catch (_) {
+      return
+    }
 
     const config = payload.config || {}
     // Hydrate cart from /cart.js. Use items_subtotal_price (pre-discount
@@ -589,9 +729,10 @@
     // applicable=true so stale rejected codes don't render as APPLIED.
     const liveCart = await fetchCart()
     const subtotalSource = Number(liveCart.items_subtotal_price)
-    const subtotal = Number.isFinite(subtotalSource) && subtotalSource > 0
-      ? subtotalSource / 100
-      : (Number(liveCart.total_price) / 100 || 0)
+    const subtotal =
+      Number.isFinite(subtotalSource) && subtotalSource > 0
+        ? subtotalSource / 100
+        : Number(liveCart.total_price) / 100 || 0
     const appliedCodes = (liveCart.discount_codes || [])
       .filter((d) => d && d.applicable === true)
       .map((d) => String(d.code).toUpperCase())
@@ -614,10 +755,19 @@
             if (!appliedCodes.includes(up)) appliedCodes.push(up)
           }
         }
-      } catch (_) { /* fall through with empty data */ }
+      } catch (_) {
+        /* fall through with empty data */
+      }
     }
 
-    console.log('[z0q31ww1] subtotal:', subtotal, 'appliedCodes:', appliedCodes, 'sectionOrder:', config.sectionDisplayOrder)
+    console.log(
+      '[z0q31ww1] subtotal:',
+      subtotal,
+      'appliedCodes:',
+      appliedCodes,
+      'sectionOrder:',
+      config.sectionDisplayOrder,
+    )
 
     const raw = collectDiscounts(discountsByVariant)
     const recomputed = raw.map((d) => recompute(d, subtotal))
@@ -637,12 +787,14 @@
     let emit = noop
     try {
       const ai = window.__spectrumAi
-      if (ai && ai.snippet && typeof ai.snippet.bind === 'function') {
+      if (ai?.snippet && typeof ai.snippet.bind === 'function') {
         const handles = ai.snippet.bind(host, () => {})
         if (handles && typeof handles.track === 'function') track = safeFn(handles.track)
         if (handles && typeof handles.emit === 'function') emit = safeFn(handles.emit)
       }
-    } catch (_) { /* SDK absent */ }
+    } catch (_) {
+      /* SDK absent */
+    }
 
     const ctx = {
       config,
@@ -668,8 +820,10 @@
     // Listen on the window so any source can open the drawer.
     window.addEventListener('spectrum:view-all-offers:open', (e) => {
       try {
-        e.preventDefault && e.preventDefault()
-      } catch (_) { /* event already consumed */ }
+        e.preventDefault?.()
+      } catch (_) {
+        /* event already consumed */
+      }
       openPage(host, ctx)
     })
   }
