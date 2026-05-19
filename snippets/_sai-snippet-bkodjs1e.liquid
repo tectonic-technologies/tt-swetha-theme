@@ -535,15 +535,16 @@
 
 <sai-bkodjs1e
   class="sai-bkodjs1e"
-  data-mutation-handle="{{ mutation_handle }}">
+  data-mutation-handle="{{ mutation_handle }}"
+  hidden>
 
   {%- comment -%}
     SSR shell — only the dropdown trigger stack is rendered server-side.
     The popup is created on demand by JS and mounted as a child of the host
     so per-instance baked styles (anchored on data-spectrum-instance-id +
-    data-spectrum-variant-id) reach it. JS sets `this.hidden = true` only
-    when it confirms zero discounts are available; the SSR default is
-    visible so a JS failure doesn't make the widget disappear entirely.
+    data-spectrum-variant-id) reach it. The host carries `hidden` until JS
+    has confirmed at least one discount (best OR alternative) is available
+    for the current variant.
   {%- endcomment -%}
 
   <div class="sai-bkodjs1e__trigger-stack" data-sai-dropdown-trigger>
@@ -554,7 +555,7 @@
         <circle cx="9.5" cy="9.5" r=".75" fill="currentColor"/>
         <circle cx="14.5" cy="14.5" r=".75" fill="currentColor"/>
       </svg>
-      <span data-sai-callout-label>{{ best_price_prefix }}</span>
+      <span data-sai-callout-label></span>
       <span class="sai-bkodjs1e__countdown" data-sai-countdown hidden>
         <svg class="sai-bkodjs1e__countdown-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
           <circle cx="8" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="1.2"/>
