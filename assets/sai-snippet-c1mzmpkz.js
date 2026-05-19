@@ -1496,14 +1496,18 @@
       requestAnimationFrame(() => attachDescriptionExpand(body, config.descriptionExpandable))
     }
 
-    // Defer the first paint until /cart.js resolves so the SSR card order
-    // reflects live cart state — otherwise the PDP-time payload (cart=0)
-    // paints first, then the cart-sync re-render reorders the cards, which
-    // the merchant sees as a flash. A 250ms hard timeout falls back to
-    // painting the cart-blind state if the cart fetch is slow / fails, so
-    // we never block visible UI longer than the next animation frame.
+    // Paint cart-blind cards immediately so the body reserves layout space
+    // (no CLS), but keep them visually hidden until /cart.js resolves so
+    // the merchant doesn't see a reorder flash if cart state would
+    // reshuffle the cards. After the first cart sync (or a 250ms hard
+    // timeout), re-render with cart-aware data and reveal.
+    //
+    // Hidden via opacity-only — visibility:hidden also reserves layout but
+    // collapses the carousel's intersection-observer / measurement code in
+    // some themes. Opacity 0 keeps the cards "real" to layout + JS,
+    // invisible to the user.
     let lastRendered = baseDiscounts
-    let firstRenderDone = false
+    let revealed = false
     const fireListImpression = (discounts) => {
       const part = partition(discounts)
       ctx.track(`${FEATURE_SLUG}:list_impression`, {
@@ -1513,39 +1517,58 @@
         list_layout: config.listLayout,
       })
     }
-    const renderFirst = (discounts) => {
-      if (firstRenderDone) return
-      firstRenderDone = true
-      lastRendered = discounts
-      render(discounts)
-      // list_impression fires once, on the painted set — the `_impression`
-      // suffix is load-bearing per the storefront SDK gate.
-      fireListImpression(discounts)
+    const reveal = () => {
+      if (revealed) return
+      revealed = true
+      body.style.opacity = ''
+      body.style.transition = ''
+      // list_impression fires once on the painted set the merchant
+      // actually sees — the `_impression` suffix is load-bearing per the
+      // storefront SDK gate.
+      fireListImpression(lastRendered)
     }
 
-    // Listeners attach to host root — safe before first paint because
-    // delegated handlers no-op on missing children.
+    // Initial paint with cart-blind data — reserves layout to prevent CLS.
+    body.style.opacity = '0'
+    body.style.transition = 'opacity 120ms ease-out'
+    render(baseDiscounts)
+
+    // Listeners attach to host root after first paint.
     attachTermsTriggers(host, ctx)
     attachOverflowExpand(body, ctx)
     attachCopy(host, labels, config.copySuccessDurationMs, ctx.track)
     attachDropdown(host, ctx.track)
 
+    // 250ms hard timeout — if cart fetch is slow / fails, reveal the
+    // cart-blind paint rather than leaving the cards invisible forever.
     let cartSyncedFirst = false
     const FIRST_PAINT_TIMEOUT_MS = 250
     const firstPaintTimer = setTimeout(() => {
-      if (!firstRenderDone) renderFirst(baseDiscounts)
+      if (!revealed) reveal()
     }, FIRST_PAINT_TIMEOUT_MS)
 
-    // Cart-aware re-render. First invocation seeds first paint when fast
-    // enough; later invocations diff against lastRendered and only repaint
-    // when applicability / progress actually changed.
+    // Cart-aware re-render. First invocation re-renders with live cart
+    // state then reveals; later invocations only repaint when
+    // applicability / progress actually changed.
     function syncFromCart() {
       fetchCartSubtotal().then((cartSubtotal) => {
         const updated = recomputeForCart(baseDiscounts, cartSubtotal, config.variantPrice)
         if (!cartSyncedFirst) {
           cartSyncedFirst = true
           clearTimeout(firstPaintTimer)
-          renderFirst(updated)
+          // Re-render only if cart state differs from cart-blind. Avoids
+          // a needless DOM swap when the two paints would be identical.
+          const cartBlindMatches = updated.every((d, i) => {
+            const a = lastRendered[i]?.qualification
+            const b = d?.qualification
+            if (!a || !b) return false
+            return a.applicability === b.applicability && a.isSatisfied === b.isSatisfied
+          })
+          if (!cartBlindMatches) {
+            lastRendered = updated
+            render(updated)
+          }
+          reveal()
           return
         }
         const changed = updated.some((d, i) => {
