@@ -307,140 +307,6 @@
     })
   }
 
-  // ── Cart-aware recompute ──────────────────────────────────────────────
-
-  function recomputeForCart(discounts, cartSubtotal, variantPrice) {
-    if (cartSubtotal == null && variantPrice == null) return discounts
-    const baseline = Math.max(Number(cartSubtotal) || 0, Number(variantPrice) || 0)
-    if (baseline <= 0) return discounts
-    return discounts.map((d) => {
-      const q = d?.qualification
-      if (!q || q.progressMetric !== 'subtotal' || q.requiredValue == null) return d
-      const required = Number(q.requiredValue)
-      if (!(required > 0)) return d
-      if (baseline >= required) {
-        return Object.assign({}, d, {
-          qualification: Object.assign({}, q, {
-            isSatisfied: true,
-            applicability: 'current',
-            progressPercent: 100,
-            currentValue: baseline,
-            remainingValue: 0,
-            matchedSubtotalAmount: baseline,
-          }),
-        })
-      }
-      const remaining = Math.round((required - baseline) * 100) / 100
-      const pct = Math.round((baseline / required) * 100)
-      return Object.assign({}, d, {
-        qualification: Object.assign({}, q, {
-          isSatisfied: false,
-          applicability: 'potential',
-          progressPercent: pct,
-          currentValue: baseline,
-          remainingValue: remaining,
-          matchedSubtotalAmount: baseline,
-        }),
-      })
-    })
-  }
-
-  async function fetchCartSubtotal() {
-    try {
-      const res = await fetch('/cart.js', {
-        credentials: 'same-origin',
-        headers: { Accept: 'application/json' },
-      })
-      // Gate on 2xx — a 4xx/5xx response means the cart endpoint is down or
-      // serving HTML (password page, app proxy edge case). Refetching from a
-      // failed response and re-rendering would clobber the prior state.
-      if (!res.ok) {
-        console.warn('[c1mzmpkz] /cart.js returned', res.status)
-        return null
-      }
-      const cart = await res.json()
-      // Prefer items_subtotal_price (pre-discount subtotal) so threshold
-      // qualifications match Shopify's own rules. total_price is post-
-      // discount and shrinks when any coupon is applied.
-      if (cart && cart.items_subtotal_price != null) return Number(cart.items_subtotal_price) / 100
-      if (cart && cart.total_price != null) return Number(cart.total_price) / 100
-      return null
-    } catch (err) {
-      console.warn('[c1mzmpkz] /cart.js fetch failed:', err)
-      return null
-    }
-  }
-
-  // ── Live cart change subscription ─────────────────────────────────────
-
-  // Cart-change subscription. Subscribes to Spectrum.cart events (emitted
-  // by spectrum-sdk.js from Spectrum.cart.add / change / update / clear)
-  // plus common theme-emitted DOM events. Returns an unsubscribe function
-  // the caller MUST invoke on disconnect / pagehide so listeners don't leak.
-  // Replaces the previous window.fetch + XMLHttpRequest.prototype monkey-
-  // patches, which stacked on top of spectrum-sdk's own interceptor and
-  // were never torn down.
-  function subscribeToCartChanges(callback) {
-    let pending
-    function debouncedFire() {
-      if (pending) clearTimeout(pending)
-      pending = setTimeout(() => {
-        pending = null
-        try {
-          callback()
-        } catch (err) {
-          console.warn('[c1mzmpkz] cart-change callback failed:', err)
-        }
-      }, 120)
-    }
-
-    const unsubs = []
-    try {
-      const evs = window.Spectrum?.events
-      if (evs && typeof evs.on === 'function') {
-        for (const name of [
-          'cart:added',
-          'cart:updated',
-          'cart:removed',
-          'cart:refresh',
-          'cart:change',
-        ]) {
-          const off = evs.on(name, debouncedFire)
-          if (typeof off === 'function') unsubs.push(off)
-        }
-      }
-    } catch (err) {
-      console.warn('[c1mzmpkz] Spectrum.events subscribe failed:', err)
-    }
-
-    const docEvents = [
-      'cart:updated',
-      'cart:refresh',
-      'cart:change',
-      'cart:added',
-      'cart:removed',
-      'shopify:cart:update',
-    ]
-    for (const name of docEvents) {
-      document.addEventListener(name, debouncedFire)
-      unsubs.push(() => document.removeEventListener(name, debouncedFire))
-    }
-
-    return function unsubscribe() {
-      if (pending) {
-        clearTimeout(pending)
-        pending = null
-      }
-      for (const off of unsubs) {
-        try {
-          off()
-        } catch (_) {
-          /* listener already gone */
-        }
-      }
-    }
-  }
-
   // ── Lock icon SVGs ────────────────────────────────────────────────────
 
   function lockIconSvg(style) {
@@ -511,22 +377,6 @@
       return wrap
     }
 
-    // Status badge
-    if (config.showStatusBadge) {
-      const badgeLabel = isCurrent
-        ? labels.applicableStatusLabel || 'Available now'
-        : labels.potentialStatusLabel || 'Almost there'
-      body.appendChild(
-        el(
-          'span',
-          `sai-c1mzmpkz__status-badge sai-c1mzmpkz__status-badge--${isCurrent ? 'current' : 'potential'}`,
-          {
-            text: badgeLabel,
-          },
-        ),
-      )
-    }
-
     // Near-miss as badge under headline (alternative position)
     let remainingText = null
     if (config.showRemainingAmount && !isCurrent) {
@@ -595,21 +445,6 @@
     // Near-miss in flow (below description)
     if (remainingText && config.nearMissPosition === 'below_description') {
       body.appendChild(el('p', 'sai-c1mzmpkz__remaining', { text: remainingText }))
-    }
-
-    // Progress bar (potential only)
-    if (config.showRemainingAmount && !isCurrent) {
-      const bar = el('div', 'sai-c1mzmpkz__progress', {
-        role: 'progressbar',
-        'aria-valuemin': '0',
-        'aria-valuemax': '100',
-      })
-      const pct = progressPct(d)
-      bar.setAttribute('aria-valuenow', String(Math.round(pct * 100)))
-      const fill = el('div', 'sai-c1mzmpkz__progress-fill')
-      fill.style.transform = `scaleX(${pct})`
-      bar.appendChild(fill)
-      body.appendChild(bar)
     }
 
     // Code chip + copy button row
@@ -1301,10 +1136,9 @@
     if (api && typeof api.bind === 'function') {
       try {
         const handles = api.bind(wrapper, ({ currentVariantId } = {}) => {
-          // Variant resolution — swap the per-variant discount snapshot and
-          // re-render. Cart-driven recompute (subscribeToCartChanges) still
-          // mutates `baseDiscounts` between variant swaps; switching variant
-          // resets back to the server snapshot for the new variant id.
+          // Variant resolution — swap the per-variant discount snapshot
+          // and re-render. Discounts are PDP-evaluated server-side
+          // against the new variant's price; no cart context is mixed in.
           if (currentVariantId == null) return
           const nextId = String(currentVariantId)
           if (nextId === activeVariantId) return
@@ -1497,132 +1331,34 @@
     }
 
     // Paint cart-blind cards immediately so the body reserves layout space
-    // (no CLS), but keep them visually hidden until /cart.js resolves so
-    // the merchant doesn't see a reorder flash if cart state would
-    // reshuffle the cards. After the first cart sync (or a 250ms hard
-    // timeout), re-render with cart-aware data and reveal.
-    //
-    // Hidden via opacity-only — visibility:hidden also reserves layout but
-    // collapses the carousel's intersection-observer / measurement code in
-    // some themes. Opacity 0 keeps the cards "real" to layout + JS,
-    // invisible to the user.
+    // PDP eval is purely product-price × qty 1 — no cart context, no
+    // /cart.js fetch, no opacity-defer-and-reveal. The SSR payload from
+    // resolvePdpDiscounts already classified each discount as `current` /
+    // `potential` / `never` against the variant price, which is exactly
+    // what this section is supposed to show.
     let lastRendered = baseDiscounts
-    let revealed = false
-    const fireListImpression = (discounts) => {
-      const part = partition(discounts)
-      ctx.track(`${FEATURE_SLUG}:list_impression`, {
-        applicable_count: part.applicable.length,
-        potential_count: part.potential.length,
-        total_count: part.applicable.length + part.potential.length,
-        list_layout: config.listLayout,
-      })
-    }
-    const reveal = () => {
-      if (revealed) return
-      revealed = true
-      body.style.opacity = ''
-      body.style.transition = ''
-      // list_impression fires once on the painted set the merchant
-      // actually sees — the `_impression` suffix is load-bearing per the
-      // storefront SDK gate.
-      fireListImpression(lastRendered)
-    }
-
-    // Initial paint with cart-blind data — reserves layout to prevent CLS.
-    body.style.opacity = '0'
-    body.style.transition = 'opacity 120ms ease-out'
     render(baseDiscounts)
 
-    // Listeners attach to host root after first paint.
+    // list_impression fires once on the painted set — the `_impression`
+    // suffix is load-bearing per the storefront SDK gate.
+    const partRender = partition(baseDiscounts)
+    ctx.track(`${FEATURE_SLUG}:list_impression`, {
+      applicable_count: partRender.applicable.length,
+      potential_count: partRender.potential.length,
+      total_count: partRender.applicable.length + partRender.potential.length,
+      list_layout: config.listLayout,
+    })
+
     attachTermsTriggers(host, ctx)
     attachOverflowExpand(body, ctx)
     attachCopy(host, labels, config.copySuccessDurationMs, ctx.track)
     attachDropdown(host, ctx.track)
 
-    // 250ms hard timeout — if cart fetch is slow / fails, reveal the
-    // cart-blind paint rather than leaving the cards invisible forever.
-    let cartSyncedFirst = false
-    const FIRST_PAINT_TIMEOUT_MS = 250
-    const firstPaintTimer = setTimeout(() => {
-      if (!revealed) reveal()
-    }, FIRST_PAINT_TIMEOUT_MS)
-
-    // Cart-aware re-render. First invocation re-renders with live cart
-    // state then reveals; later invocations only repaint when
-    // applicability / progress actually changed.
-    function syncFromCart() {
-      fetchCartSubtotal().then((cartSubtotal) => {
-        const updated = recomputeForCart(baseDiscounts, cartSubtotal, config.variantPrice)
-        if (!cartSyncedFirst) {
-          cartSyncedFirst = true
-          clearTimeout(firstPaintTimer)
-          // Re-render only if cart state differs from cart-blind. Avoids
-          // a needless DOM swap when the two paints would be identical.
-          const cartBlindMatches = updated.every((d, i) => {
-            const a = lastRendered[i]?.qualification
-            const b = d?.qualification
-            if (!a || !b) return false
-            return a.applicability === b.applicability && a.isSatisfied === b.isSatisfied
-          })
-          if (!cartBlindMatches) {
-            lastRendered = updated
-            render(updated)
-          }
-          reveal()
-          return
-        }
-        const changed = updated.some((d, i) => {
-          const before = lastRendered[i]?.qualification
-          const after = d?.qualification
-          if (!before || !after) return true
-          return (
-            before.isSatisfied !== after.isSatisfied ||
-            before.applicability !== after.applicability ||
-            before.progressPercent !== after.progressPercent
-          )
-        })
-        if (!changed) return
-        const wasApplicableCount = partition(lastRendered).applicable.length
-        const nowApplicableCount = partition(updated).applicable.length
-        lastRendered = updated
-        render(updated)
-        if (nowApplicableCount !== wasApplicableCount) {
-          ctx.track(`${FEATURE_SLUG}:cart_recomputed`, {
-            applicable_count: nowApplicableCount,
-            potential_count: partition(updated).potential.length,
-            applicable_delta: nowApplicableCount - wasApplicableCount,
-          })
-        }
-      })
-    }
-
-    syncFromCart()
-    const unsubscribeCart = subscribeToCartChanges(syncFromCart)
-    host._unsubscribeCart = unsubscribeCart
-
-    // Tear down on pagehide — covers bfcache, SPA navigation, and tab close.
-    // Tear down also on MutationObserver-detected removal of the host from
-    // the DOM (cart re-renders, variant swaps that re-render the section).
-    const onPageHide = () => {
-      clearTimeout(firstPaintTimer)
-      try {
-        unsubscribeCart()
-      } catch (_) {
-        /* already torn down */
-      }
-    }
-    window.addEventListener('pagehide', onPageHide, { once: true })
+    // Tear down carousel timers / resize listeners on host removal.
+    // Variant swaps re-run discountsForVariant() + render() inline; no
+    // cart subscription to manage.
     const removalObserver = new MutationObserver(() => {
       if (!document.contains(host)) {
-        clearTimeout(firstPaintTimer)
-        try {
-          unsubscribeCart()
-        } catch (_) {
-          /* already torn down */
-        }
-        // Clear autoplay timers + abort window-resize listeners attached
-        // by attachCarousel — otherwise they keep firing into a detached
-        // host (and stack per variant swap).
         const c = host._ctx
         if (c) {
           if (Array.isArray(c.autoplayTimers)) {
@@ -1640,7 +1376,6 @@
             c.abortController = null
           }
         }
-        window.removeEventListener('pagehide', onPageHide)
         removalObserver.disconnect()
       }
     })
