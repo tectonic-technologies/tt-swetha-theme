@@ -34,7 +34,11 @@
   function noop() {}
   function safeFn(fn) {
     return (name, payload) => {
-      try { fn(name, payload) } catch (_) { /* analytics best-effort */ }
+      try {
+        fn(name, payload)
+      } catch (_) {
+        /* analytics best-effort */
+      }
     }
   }
 
@@ -57,7 +61,10 @@
       })
     } catch (_) {
       try {
-        return new Intl.NumberFormat(undefined, { style: 'currency', currency: currencyCode || 'USD' })
+        return new Intl.NumberFormat(undefined, {
+          style: 'currency',
+          currency: currencyCode || 'USD',
+        })
       } catch (_) {
         return { format: (n) => `${currencyCode || '$'}${Number(n).toFixed(2)}` }
       }
@@ -95,18 +102,18 @@
     if (!d || !appliedCodes || appliedCodes.length === 0) return false
     const codes = Array.isArray(d.codes) ? d.codes : []
     for (const raw of codes) {
-      const code = typeof raw === 'string' ? raw : raw && raw.code
+      const code = typeof raw === 'string' ? raw : raw?.code
       if (code && appliedCodes.includes(String(code).toUpperCase())) return true
     }
     return false
   }
 
   function applicability(d) {
-    return (d && d.qualification && d.qualification.applicability) || 'never'
+    return d?.qualification?.applicability || 'never'
   }
 
   function isApplicable(d) {
-    const q = (d && d.qualification) || {}
+    const q = d?.qualification || {}
     return q.isSatisfied === true || q.applicability === 'current'
   }
 
@@ -124,12 +131,12 @@
   function getCode(d) {
     if (!d || !Array.isArray(d.codes) || d.codes.length === 0) return null
     const raw = d.codes[0]
-    return typeof raw === 'string' ? raw : (raw && raw.code) || null
+    return typeof raw === 'string' ? raw : raw?.code || null
   }
 
   function endsAtMs(d) {
-    const vc = d && d.visibilityConfig
-    const raw = (vc && (vc.endsAt || vc.endDate)) || (d && d.endsAt)
+    const vc = d?.visibilityConfig
+    const raw = (vc && (vc.endsAt || vc.endDate)) || d?.endsAt
     if (!raw) return null
     const t = typeof raw === 'number' ? raw : Date.parse(raw)
     return Number.isFinite(t) ? t : null
@@ -161,28 +168,29 @@
   }
 
   function savingsPct(d, cartTotal, abs) {
-    const dv = d && d.discountValue
-    if (dv && dv.type === 'PERCENTAGE' && Number.isFinite(Number(dv.percentage))) return Number(dv.percentage)
+    const dv = d?.discountValue
+    if (dv && dv.type === 'PERCENTAGE' && Number.isFinite(Number(dv.percentage)))
+      return Number(dv.percentage)
     if (!Number.isFinite(cartTotal) || cartTotal <= 0) return 0
     return (abs / cartTotal) * 100
   }
 
   function thresholdGap(d) {
-    const q = d && d.qualification
+    const q = d?.qualification
     if (!q) return null
     const r = Number(q.remainingValue)
     return Number.isFinite(r) ? r : null
   }
 
   function thresholdRequired(d) {
-    const q = d && d.qualification
+    const q = d?.qualification
     if (!q) return null
     const r = Number(q.requiredValue)
     return Number.isFinite(r) ? r : null
   }
 
   function recomputeAgainstCart(d, cart) {
-    const q = d && d.qualification
+    const q = d?.qualification
     if (!q) return d
     const out = Object.assign({}, d, { qualification: Object.assign({}, q) })
     const oq = out.qualification
@@ -193,9 +201,8 @@
       oq.currentValue = cart.totalPrice
       if (Number.isFinite(Number(oq.requiredValue))) {
         oq.remainingValue = Math.max(0, oq.requiredValue - cart.totalPrice)
-        oq.progressPercent = oq.requiredValue > 0
-          ? Math.min(100, (cart.totalPrice / oq.requiredValue) * 100)
-          : 100
+        oq.progressPercent =
+          oq.requiredValue > 0 ? Math.min(100, (cart.totalPrice / oq.requiredValue) * 100) : 100
         oq.isSatisfied = cart.totalPrice >= oq.requiredValue
         oq.applicability = oq.isSatisfied ? 'current' : 'potential'
       }
@@ -203,9 +210,8 @@
       oq.currentValue = cart.itemCount
       if (Number.isFinite(Number(oq.requiredValue))) {
         oq.remainingValue = Math.max(0, oq.requiredValue - cart.itemCount)
-        oq.progressPercent = oq.requiredValue > 0
-          ? Math.min(100, (cart.itemCount / oq.requiredValue) * 100)
-          : 100
+        oq.progressPercent =
+          oq.requiredValue > 0 ? Math.min(100, (cart.itemCount / oq.requiredValue) * 100) : 100
         oq.isSatisfied = cart.itemCount >= oq.requiredValue
         oq.applicability = oq.isSatisfied ? 'current' : 'potential'
       }
@@ -254,7 +260,11 @@
     const seen = new Map()
     for (const variantId of Object.keys(byVariant)) {
       const blob = byVariant[variantId]
-      const list = Array.isArray(blob) ? blob : (blob && Array.isArray(blob.discounts) ? blob.discounts : [])
+      const list = Array.isArray(blob)
+        ? blob
+        : blob && Array.isArray(blob.discounts)
+          ? blob.discounts
+          : []
       for (const d of list) {
         if (!d || !d.id) continue
         if (!seen.has(d.id)) seen.set(d.id, d)
@@ -279,12 +289,12 @@
         tag === 'cart-drawer' ||
         tag === 'cart-notification' ||
         id.toLowerCase().indexOf('cart-drawer') !== -1 ||
-        (typeof cls === 'string' && (
-          cls.indexOf('cart-drawer') !== -1 ||
-          cls.indexOf('drawer') !== -1 ||
-          cls.indexOf('mini-cart') !== -1
-        ))
-      ) return true
+        (typeof cls === 'string' &&
+          (cls.indexOf('cart-drawer') !== -1 ||
+            cls.indexOf('drawer') !== -1 ||
+            cls.indexOf('mini-cart') !== -1))
+      )
+        return true
       node = node.parentElement
       depth++
     }
@@ -301,7 +311,9 @@
 
   // ── Apply / Remove via /discount nav ─────────────────────────────────
   function discountApplyUrl(code, redirect) {
-    const r = redirect || (window.location.pathname.indexOf('/cart') === 0 ? '/cart' : window.location.pathname)
+    const r =
+      redirect ||
+      (window.location.pathname.indexOf('/cart') === 0 ? '/cart' : window.location.pathname)
     return `/discount/${encodeURIComponent(code)}?redirect=${encodeURIComponent(r)}`
   }
 
@@ -313,16 +325,20 @@
     try {
       await fetch('/cart/update.js', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({ discount: '' }),
         credentials: 'same-origin',
       })
-    } catch (_) { /* swallow — reload still happens */ }
+    } catch (_) {
+      /* swallow — reload still happens */
+    }
     window.location.href = '/cart'
   }
 
   // ── Countdown ────────────────────────────────────────────────────────
-  function pad2(n) { return n < 10 ? `0${n}` : String(n) }
+  function pad2(n) {
+    return n < 10 ? `0${n}` : String(n)
+  }
 
   function formatCountdown(remainingMs, showSeconds) {
     if (remainingMs <= 0) return '0s'
@@ -375,7 +391,7 @@
     const origFetch = window.fetch
     if (typeof origFetch === 'function') {
       window.fetch = function patched(input, ...rest) {
-        const url = typeof input === 'string' ? input : (input && input.url) || ''
+        const url = typeof input === 'string' ? input : input?.url || ''
         const isMutation = CART_MUTATION_PATHS.some((p) => url.indexOf(p) !== -1)
         const result = origFetch.call(this, input, ...rest)
         if (isMutation) result.then(() => fire()).catch(() => {})
@@ -411,14 +427,17 @@
       // qualifications match Shopify's own rules — total_price is post-
       // discount and shrinks the moment any coupon is applied, falsely
       // disqualifying other coupons.
-      const subtotalCents = typeof data.items_subtotal_price === 'number'
-        ? data.items_subtotal_price
-        : (typeof data.total_price === 'number' ? data.total_price : 0)
+      const subtotalCents =
+        typeof data.items_subtotal_price === 'number'
+          ? data.items_subtotal_price
+          : typeof data.total_price === 'number'
+            ? data.total_price
+            : 0
       return {
         totalPrice: subtotalCents / 100,
         itemCount: typeof data.item_count === 'number' ? data.item_count : 0,
         appliedDiscountCodes: (Array.isArray(data.discount_codes) ? data.discount_codes : [])
-          .filter((d) => d && d.applicable)
+          .filter((d) => d?.applicable)
           .map((d) => String(d.code).toUpperCase()),
       }
     } catch (_) {
@@ -438,15 +457,21 @@
     '<path d="M21 11 11 21" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>',
     '</svg>',
   ].join('')
-  const SHIPPING_TRUCK_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 6h11v9H3zM14 9h4l3 3v3h-7zM7 18.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM17 18.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>'
-  const CHECKMARK_SVG = '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+  const SHIPPING_TRUCK_SVG =
+    '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 6h11v9H3zM14 9h4l3 3v3h-7zM7 18.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM17 18.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>'
+  const CHECKMARK_SVG =
+    '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'
 
   // ── Render ──────────────────────────────────────────────────────────
   function renderEmpty(slot, labels) {
     slot.hidden = false
     slot.innerHTML = ''
     const empty = el('div', 'sai-cbpwlx29__empty')
-    empty.appendChild(el('p', 'sai-cbpwlx29__empty-heading', { text: labels.emptyStateHeading || 'No coupons available' }))
+    empty.appendChild(
+      el('p', 'sai-cbpwlx29__empty-heading', {
+        text: labels.emptyStateHeading || 'No coupons available',
+      }),
+    )
     empty.appendChild(el('p', 'sai-cbpwlx29__empty-body', { text: labels.emptyStateBody || '' }))
     slot.appendChild(empty)
   }
@@ -468,7 +493,10 @@
     row.appendChild(input)
     row.appendChild(btn)
     wrap.appendChild(row)
-    const fb = el('p', 'sai-cbpwlx29__manual-feedback', { 'data-sai-manual-feedback': '', hidden: true })
+    const fb = el('p', 'sai-cbpwlx29__manual-feedback', {
+      'data-sai-manual-feedback': '',
+      hidden: true,
+    })
     wrap.appendChild(fb)
     parent.appendChild(wrap)
 
@@ -491,7 +519,10 @@
     }
     btn.addEventListener('click', submit)
     input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); submit() }
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        submit()
+      }
     })
   }
 
@@ -506,7 +537,7 @@
   }
 
   function formatRemainingValue(d, money) {
-    const q = d && d.qualification
+    const q = d?.qualification
     if (!q) return ''
     const r = Number(q.remainingValue)
     if (!Number.isFinite(r)) return ''
@@ -515,15 +546,16 @@
   }
 
   function formatCurrentValue(d, cart, money) {
-    const q = d && d.qualification
+    const q = d?.qualification
     if (!q) return ''
-    if (q.progressMetric === 'cart_value') return money.format(Number.isFinite(cart.totalPrice) ? cart.totalPrice : 0)
+    if (q.progressMetric === 'cart_value')
+      return money.format(Number.isFinite(cart.totalPrice) ? cart.totalPrice : 0)
     if (q.progressMetric === 'quantity') return String(cart.itemCount || 0)
     return ''
   }
 
   function formatThresholdValue(d, money) {
-    const q = d && d.qualification
+    const q = d?.qualification
     if (!q) return ''
     const r = Number(q.requiredValue)
     if (!Number.isFinite(r)) return ''
@@ -535,7 +567,11 @@
     const ends = endsAtMs(d)
     if (!ends || format === 'hidden') return ''
     if (format === 'date') {
-      try { return new Date(ends).toLocaleDateString() } catch (_) { return '' }
+      try {
+        return new Date(ends).toLocaleDateString()
+      } catch (_) {
+        return ''
+      }
     }
     if (format === 'countdown' || format === 'relative') {
       const diff = ends - Date.now()
@@ -600,11 +636,12 @@
   // expired-message in place of the countdown.
   function buildCard(d, mode, ctx, opts) {
     const { config, labels, cart, money } = ctx
-    const isBestOffer = !!(opts && opts.bestOffer)
+    const isBestOffer = !!opts?.bestOffer
     // Only the highlighted best-offer applicable card carries the full chrome
     // (countdown header, code chip, description, terms, etc.). Plain
     // applicable rows below it render compact (icon + savings + Apply).
-    const isFullCard = (mode === 'applicable' && isBestOffer) || mode === 'potential' || mode === 'expired'
+    const isFullCard =
+      (mode === 'applicable' && isBestOffer) || mode === 'potential' || mode === 'expired'
     const card = el('div', 'sai-cbpwlx29__card', { 'data-sai-card-state': mode })
     if (d && d.id != null) card.setAttribute('data-discount-id', String(d.id))
     if (isBestOffer) card.setAttribute('data-best-offer', 'true')
@@ -648,7 +685,7 @@
     if (config.showCouponIcon) {
       const icon = el('span', 'sai-cbpwlx29__icon')
       // Free shipping uses a truck glyph; everything else uses the percent badge.
-      const isShipping = d && d.discountValue && d.discountValue.type === 'FREE_SHIPPING'
+      const isShipping = d?.discountValue && d.discountValue.type === 'FREE_SHIPPING'
       icon.innerHTML = isShipping ? SHIPPING_TRUCK_SVG : DISCOUNT_BADGE_SVG
       if (isShipping) icon.classList.add('sai-cbpwlx29__icon--shipping')
       main.appendChild(icon)
@@ -672,7 +709,9 @@
     if (config.showSavingsCallout || mode === 'applied' || mode === 'auto-applied') {
       main.appendChild(buildMessageNode(messageText, code))
     } else {
-      const fallback = el('span', 'sai-cbpwlx29__message', { text: d.shortSummary || d.title || '' })
+      const fallback = el('span', 'sai-cbpwlx29__message', {
+        text: d.shortSummary || d.title || '',
+      })
       main.appendChild(fallback)
     }
     row.appendChild(main)
@@ -710,7 +749,7 @@
 
     // Near-miss hint: "Add $X more to unlock $Y Off" in muted red.
     if (mode === 'near-miss') {
-      const remaining = Number(d.qualification && d.qualification.remainingValue)
+      const remaining = Number(d.qualification?.remainingValue)
       const savings = abs
       if (Number.isFinite(remaining) && remaining > 0) {
         const tpl = labels.nearMissHintTemplate || 'Add {remaining} more to unlock {savings} Off'
@@ -728,9 +767,11 @@
     if (isBestOffer && mode === 'applicable' && code) {
       const subrow = el('div', 'sai-cbpwlx29__subrow')
       subrow.appendChild(el('span', 'sai-cbpwlx29__code-inline', { text: code }))
-      subrow.appendChild(el('span', 'sai-cbpwlx29__pill', {
-        text: labels.bestOfferPillLabel || 'Best Offer For You',
-      }))
+      subrow.appendChild(
+        el('span', 'sai-cbpwlx29__pill', {
+          text: labels.bestOfferPillLabel || 'Best Offer For You',
+        }),
+      )
       body.appendChild(subrow)
     }
 
@@ -758,7 +799,10 @@
       const desc = el('p', 'sai-cbpwlx29__description', { text: d.summary || d.shortSummary })
       body.appendChild(desc)
       if (config.descriptionExpandable) {
-        const toggle = el('button', 'sai-cbpwlx29__description-toggle', { type: 'button', text: 'Read more' })
+        const toggle = el('button', 'sai-cbpwlx29__description-toggle', {
+          type: 'button',
+          text: 'Read more',
+        })
         toggle.addEventListener('click', () => {
           const expanded = desc.classList.toggle('sai-cbpwlx29__description--expanded')
           toggle.textContent = expanded ? 'Show less' : 'Read more'
@@ -790,7 +834,9 @@
     if (config.showMinOrderThreshold && isFullCard) {
       const req = thresholdRequired(d)
       if (req != null) {
-        body.appendChild(el('p', 'sai-cbpwlx29__min-order', { text: `Min order ${money.format(req)}` }))
+        body.appendChild(
+          el('p', 'sai-cbpwlx29__min-order', { text: `Min order ${money.format(req)}` }),
+        )
       }
     }
 
@@ -809,7 +855,7 @@
       })
       termsBtn.addEventListener('click', () => {
         ctx.track(`${FEATURE_SLUG}:terms_opened`, {
-          discount_id: d && d.id ? String(d.id) : null,
+          discount_id: d?.id ? String(d.id) : null,
           discount_code: code,
         })
         openTermsModal(d, ctx)
@@ -822,11 +868,13 @@
   }
 
   function describeType(d) {
-    const dv = d && d.discountValue
+    const dv = d?.discountValue
     if (!dv) return ''
     switch (dv.type) {
       case 'PERCENTAGE':
-        return Number.isFinite(Number(dv.percentage)) ? `${Math.round(Number(dv.percentage))}% Off` : 'Percentage Off'
+        return Number.isFinite(Number(dv.percentage))
+          ? `${Math.round(Number(dv.percentage))}% Off`
+          : 'Percentage Off'
       case 'FIXED':
         return 'Amount Off'
       case 'FREE_SHIPPING':
@@ -844,12 +892,18 @@
     const { config, labels, cart, money } = ctx
     const row = el('div', 'sai-cbpwlx29__next-coupon')
     const head = el('div', 'sai-cbpwlx29__next-coupon-head')
-    head.appendChild(el('span', 'sai-cbpwlx29__next-coupon-name', { text: d.shortSummary || d.title || '' }))
+    head.appendChild(
+      el('span', 'sai-cbpwlx29__next-coupon-name', { text: d.shortSummary || d.title || '' }),
+    )
     const code = getCode(d)
     if (isApplicable(d) && code) {
-      head.appendChild(el('button', 'sai-cbpwlx29__next-coupon-apply', {
-        type: 'button', 'data-sai-apply': code, text: labels.applyButtonText || 'APPLY',
-      }))
+      head.appendChild(
+        el('button', 'sai-cbpwlx29__next-coupon-apply', {
+          type: 'button',
+          'data-sai-apply': code,
+          text: labels.applyButtonText || 'APPLY',
+        }),
+      )
     }
     row.appendChild(head)
 
@@ -861,23 +915,33 @@
       // when the qualification context isn't the cart subtotal.
       const current = Number.isFinite(Number(q.currentValue))
         ? Number(q.currentValue)
-        : (q.progressMetric === 'quantity' ? cart.itemCount : cart.totalPrice)
+        : q.progressMetric === 'quantity'
+          ? cart.itemCount
+          : cart.totalPrice
       const remaining = Number(q.remainingValue)
-      row.appendChild(el('div', 'sai-cbpwlx29__next-coupon-meta', {
-        text: Number.isFinite(remaining) && remaining > 0
-          ? fillTemplate(labels.remainingAmountTemplate || 'Add {remaining} more to unlock', {
-              remaining: formatRemainingValue(d, money),
-              threshold: formatThresholdValue(d, money),
-              current: formatCurrentValue(d, cart, money),
-            })
-          : '',
-      }))
+      row.appendChild(
+        el('div', 'sai-cbpwlx29__next-coupon-meta', {
+          text:
+            Number.isFinite(remaining) && remaining > 0
+              ? fillTemplate(labels.remainingAmountTemplate || 'Add {remaining} more to unlock', {
+                  remaining: formatRemainingValue(d, money),
+                  threshold: formatThresholdValue(d, money),
+                  current: formatCurrentValue(d, cart, money),
+                })
+              : '',
+        }),
+      )
 
       // Progress bar only when there's genuine progress to show (cart hasn't
       // already met the threshold) — a 100%-filled bar on a potential coupon
       // is misleading, so we hard-cap pct < 1 when remaining > 0.
-      if (config.showProgressBar && Number.isFinite(required) && required > 0
-        && Number.isFinite(remaining) && remaining > 0) {
+      if (
+        config.showProgressBar &&
+        Number.isFinite(required) &&
+        required > 0 &&
+        Number.isFinite(remaining) &&
+        remaining > 0
+      ) {
         const pctRaw = current / required
         const pct = Math.max(0, Math.min(0.95, pctRaw))
         const track = el('div', 'sai-cbpwlx29__next-coupon-track')
@@ -894,7 +958,7 @@
 
   function buildProgress(d, ctx, mode) {
     const { config, labels, cart, money } = ctx
-    const q = d && d.qualification
+    const q = d?.qualification
     if (!q) return null
     const required = Number(q.requiredValue)
     if (!Number.isFinite(required) || required <= 0) return null
@@ -926,8 +990,12 @@
 
     if (config.showAmountsOnBarEnds) {
       const ends = el('div', 'sai-cbpwlx29__progress-ends')
-      ends.appendChild(el('span', 'sai-cbpwlx29__progress-end', { text: formatCurrentValue(d, cart, money) }))
-      ends.appendChild(el('span', 'sai-cbpwlx29__progress-end', { text: formatThresholdValue(d, money) }))
+      ends.appendChild(
+        el('span', 'sai-cbpwlx29__progress-end', { text: formatCurrentValue(d, cart, money) }),
+      )
+      ends.appendChild(
+        el('span', 'sai-cbpwlx29__progress-end', { text: formatThresholdValue(d, money) }),
+      )
       wrap.appendChild(ends)
     }
     return wrap
@@ -938,7 +1006,8 @@
     const { labels } = ctx
     const isMobile = !window.matchMedia('(min-width: 768px)').matches
     const root = document.createElement('div')
-    root.style.cssText = 'position:fixed;inset:0;z-index:99999;display:flex;background:rgba(0,0,0,0.45)'
+    root.style.cssText =
+      'position:fixed;inset:0;z-index:99999;display:flex;background:rgba(0,0,0,0.45)'
     const panel = document.createElement('div')
     panel.style.cssText = isMobile
       ? 'margin-top:auto;width:100%;background:#fff;border-radius:1rem 1rem 0 0;padding:1rem;max-height:70vh;overflow:auto'
@@ -954,7 +1023,8 @@
     const close = document.createElement('button')
     close.type = 'button'
     close.textContent = 'Close'
-    close.style.cssText = 'margin-top:1rem;padding:0.5rem 1rem;border-radius:999px;background:#1a1a1a;color:#fff;border:0;font-weight:600;cursor:pointer'
+    close.style.cssText =
+      'margin-top:1rem;padding:0.5rem 1rem;border-radius:999px;background:#1a1a1a;color:#fff;border:0;font-weight:600;cursor:pointer'
     panel.appendChild(close)
     root.appendChild(panel)
 
@@ -962,8 +1032,12 @@
       document.removeEventListener('keydown', onKey, true)
       if (root.parentNode) root.parentNode.removeChild(root)
     }
-    const onKey = (e) => { if (e.key === 'Escape') cleanup() }
-    root.addEventListener('click', (e) => { if (e.target === root) cleanup() })
+    const onKey = (e) => {
+      if (e.key === 'Escape') cleanup()
+    }
+    root.addEventListener('click', (e) => {
+      if (e.target === root) cleanup()
+    })
     close.addEventListener('click', cleanup)
     document.addEventListener('keydown', onKey, true)
     document.body.appendChild(root)
@@ -985,14 +1059,21 @@
         const ok = document.execCommand('copy')
         document.body.removeChild(tmp)
         return ok
-      } catch (__) { return false }
+      } catch (__) {
+        return false
+      }
     }
   }
 
   // ── Main render ──────────────────────────────────────────────────────
   function render(ctx) {
     const { host, slot, config, labels, cart, money } = ctx
-    const orderedAll = buildOrderedList(ctx.discounts, cart.appliedDiscountCodes, cart.totalPrice, config.withinTierSort)
+    const orderedAll = buildOrderedList(
+      ctx.discounts,
+      cart.appliedDiscountCodes,
+      cart.totalPrice,
+      config.withinTierSort,
+    )
     ctx.lastOrdered = orderedAll
 
     if (orderedAll.length === 0) {
@@ -1019,7 +1100,10 @@
       if (behavior === 'hide_coupon') {
         visible = orderedAll.slice(1)
         if (visible.length === 0) {
-          if (config.showEmptyState) { renderEmpty(slot, labels); return }
+          if (config.showEmptyState) {
+            renderEmpty(slot, labels)
+            return
+          }
           host.classList.add('sai-cbpwlx29--hidden')
           slot.hidden = true
           return
@@ -1044,7 +1128,7 @@
       else if (isAutoApplied(d)) autoAppliedList.push(d)
       else if (isApplicable(d)) applicableList.push(d)
       else if (isPotential(d) && nearMissThreshold > 0) {
-        const remaining = Number(d.qualification && d.qualification.remainingValue)
+        const remaining = Number(d.qualification?.remainingValue)
         if (Number.isFinite(remaining) && remaining > 0 && remaining <= nearMissThreshold) {
           nearMissList.push(d)
         }
@@ -1058,9 +1142,10 @@
       const s = savingsAtCart(a, cart.totalPrice)
       if (s > appliedTopSavings) appliedTopSavings = s
     }
-    const upgradeApplicable = appliedTopSavings > 0
-      ? applicableList.filter((d) => savingsAtCart(d, cart.totalPrice) > appliedTopSavings)
-      : applicableList
+    const upgradeApplicable =
+      appliedTopSavings > 0
+        ? applicableList.filter((d) => savingsAtCart(d, cart.totalPrice) > appliedTopSavings)
+        : applicableList
     // Cap applicable suggestions at max_coupons_displayed (default 3) —
     // 1st renders as highlighted best-offer card, the rest as compact rows
     // with an Apply CTA. Same cap regardless of display_mode.
@@ -1110,16 +1195,22 @@
       const link = el('button', 'sai-cbpwlx29__view-all', {
         type: 'button',
         'data-sai-view-all': '',
-        text: (labels && labels.viewAllCouponsLabel) || config.viewAllCouponsLabel || 'View all coupons',
+        text: labels?.viewAllCouponsLabel || config.viewAllCouponsLabel || 'View all coupons',
       })
       link.addEventListener('click', (e) => {
         e.preventDefault()
         ctx.track(`${FEATURE_SLUG}:view_all_clicked`, {})
         let handled = false
         try {
-          const evt = new CustomEvent('spectrum:view-all-offers:open', { bubbles: true, cancelable: true, detail: { source: 'cbpwlx29' } })
+          const evt = new CustomEvent('spectrum:view-all-offers:open', {
+            bubbles: true,
+            cancelable: true,
+            detail: { source: 'cbpwlx29' },
+          })
           handled = !window.dispatchEvent(evt)
-        } catch (_) { /* old browser */ }
+        } catch (_) {
+          /* old browser */
+        }
         if (!handled) {
           // Fallback: click the z0q31ww1 entry CTA if present on the page.
           const cta = document.querySelector('sai-z0q31ww1 [data-sai-entry]')
@@ -1170,7 +1261,10 @@
           copy.setAttribute('aria-pressed', 'true')
           const prev = copy.textContent
           copy.textContent = labels.copySuccessLabel || 'Copied!'
-          setTimeout(() => { copy.setAttribute('aria-pressed', 'false'); copy.textContent = prev }, 1500)
+          setTimeout(() => {
+            copy.setAttribute('aria-pressed', 'false')
+            copy.textContent = prev
+          }, 1500)
         })
         return
       }
@@ -1187,7 +1281,10 @@
       window.location.href = discountApplyUrl(code)
       // If navigation is intercepted, restore button text after a beat.
       setTimeout(() => {
-        if (btn.isConnected) { btn.removeAttribute('disabled'); btn.textContent = prev }
+        if (btn.isConnected) {
+          btn.removeAttribute('disabled')
+          btn.textContent = prev
+        }
       }, 2000)
     }, 50)
   }
@@ -1204,30 +1301,39 @@
       for (const t of ctx._timers) clearInterval(t)
     }
     ctx._timers = []
-    visibleDiscounts.forEach((d) => {
+    for (const d of visibleDiscounts) {
       // Match by data-discount-id so card order (applied / best-offer /
       // applicable / auto-applied) doesn't matter — index pairing breaks the
       // moment we render more than just the best-offer card.
-      const card = d && d.id != null
-        ? ctx.slot.querySelector(`.sai-cbpwlx29__card[data-discount-id="${CSS.escape(String(d.id))}"]`)
-        : null
-      if (!card) return
+      const card =
+        d && d.id != null
+          ? ctx.slot.querySelector(
+              `.sai-cbpwlx29__card[data-discount-id="${CSS.escape(String(d.id))}"]`,
+            )
+          : null
+      if (!card) continue
       const textEl = card.querySelector('[data-sai-countdown-text]')
-      if (!textEl) return
+      if (!textEl) continue
       let endsMs = null
       if (ctx.config.timerSource === 'session_window') {
         endsMs = sessionWindowEndsAt(ctx.config.sessionWindowDurationMinutes)
       } else {
         endsMs = endsAtMs(d)
       }
-      if (endsMs == null) { textEl.parentElement.parentElement && (textEl.closest('.sai-cbpwlx29__countdown-header').style.display = 'none'); return }
+      if (endsMs == null) {
+        if (textEl.parentElement?.parentElement) {
+          const header = textEl.closest('.sai-cbpwlx29__countdown-header')
+          if (header instanceof HTMLElement) header.style.display = 'none'
+        }
+        continue
+      }
       const tick = () => {
         const remaining = endsMs - Date.now()
         if (remaining <= 0) {
           textEl.textContent = '0s'
           clearInterval(timer)
           ctx.track(`${FEATURE_SLUG}:countdown_expired`, {
-            discount_id: d && d.id ? String(d.id) : null,
+            discount_id: d?.id ? String(d.id) : null,
             timer_source: ctx.config.timerSource,
             behavior: ctx.config.countdownExpiredBehavior,
           })
@@ -1235,12 +1341,14 @@
           return
         }
         const tpl = ctx.labels.countdownFormatTemplate || 'Offer ends in {countdown}'
-        textEl.textContent = fillTemplate(tpl, { countdown: formatCountdown(remaining, ctx.config.countdownShowSeconds) })
+        textEl.textContent = fillTemplate(tpl, {
+          countdown: formatCountdown(remaining, ctx.config.countdownShowSeconds),
+        })
       }
       tick()
       const timer = setInterval(tick, 1000)
       ctx._timers.push(timer)
-    })
+    }
   }
 
   // ── Auto-apply ───────────────────────────────────────────────────────
@@ -1255,13 +1363,15 @@
     const code = getCode(top)
     if (!code) return
     // Trigger == threshold_met: only auto-apply when qualification.isSatisfied.
-    if (ctx.config.autoApplyTrigger === 'threshold_met' && !(top.qualification && top.qualification.isSatisfied)) return
+    if (ctx.config.autoApplyTrigger === 'threshold_met' && !top.qualification?.isSatisfied) return
     // Session-storage guard to prevent reload loops.
     try {
       const key = `${AUTO_APPLY_SESSION_KEY}:${code}`
       if (window.sessionStorage.getItem(key) === '1') return
       window.sessionStorage.setItem(key, '1')
-    } catch (_) { /* sessionStorage unavailable — skip auto-apply */ return }
+    } catch (_) {
+      /* sessionStorage unavailable — skip auto-apply */ return
+    }
     ctx.track(`${FEATURE_SLUG}:auto_apply`, { discount_code: code })
     window.location.href = discountApplyUrl(code)
   }
@@ -1274,7 +1384,11 @@
     const payloadEl = host.querySelector('script[data-sai-payload]')
     if (!payloadEl) return
     let payload
-    try { payload = JSON.parse(payloadEl.textContent || '{}') } catch (_) { return }
+    try {
+      payload = JSON.parse(payloadEl.textContent || '{}')
+    } catch (_) {
+      return
+    }
     if (!payload || !payload.config) return
 
     // Visibility scope check — bail with host hidden if mismatched.
@@ -1297,11 +1411,13 @@
       // Dedupe: cart.discount_codes and cart.cart_level_discount_applications
       // overlap for code-based discounts. Set-based dedupe + uppercase
       // canonicalisation makes isApplied() match regardless of source.
-      appliedDiscountCodes: Array.from(new Set(
-        (Array.isArray(baseCart.appliedDiscountCodes) ? baseCart.appliedDiscountCodes : [])
-          .map((c) => String(c).toUpperCase().trim())
-          .filter(Boolean)
-      )),
+      appliedDiscountCodes: Array.from(
+        new Set(
+          (Array.isArray(baseCart.appliedDiscountCodes) ? baseCart.appliedDiscountCodes : [])
+            .map((c) => String(c).toUpperCase().trim())
+            .filter(Boolean),
+        ),
+      ),
     }
 
     // Union + dedupe + recompute against live cart.
@@ -1317,23 +1433,34 @@
 
     // Analytics envelope via Spectrum SDK bind.
     const wrapper = host.closest('[data-spectrum-lq-snippet]') || host
-    const api = window.__spectrumAi && window.__spectrumAi.snippet
+    const api = window.__spectrumAi?.snippet
     let trackFn = noop
     let emitFn = noop
     if (api && typeof api.bind === 'function') {
       try {
-        const handles = api.bind(wrapper, () => { /* no variant resolution on cart */ })
+        const handles = api.bind(wrapper, () => {
+          /* no variant resolution on cart */
+        })
         if (handles) {
           if (typeof handles.track === 'function') trackFn = safeFn(handles.track)
           if (typeof handles.emit === 'function') emitFn = safeFn(handles.emit)
         }
-      } catch (_) { /* keep noop */ }
+      } catch (_) {
+        /* keep noop */
+      }
     }
 
     const ctx = {
-      host, slot, config, labels, cart, discounts, discountByCode,
+      host,
+      slot,
+      config,
+      labels,
+      cart,
+      discounts,
+      discountByCode,
       money: moneyFormatter(cart.currency),
-      track: trackFn, emit: emitFn,
+      track: trackFn,
+      emit: emitFn,
       _timers: [],
     }
 
@@ -1377,7 +1504,11 @@
   // the owning experience wins targeting + conflict resolution.
   function waitForVis(host) {
     const wrapper = host.closest('[data-spectrum-lq-snippet]') || host
-    if (!wrapper || wrapper.getAttribute('data-spectrum-vis') === 'on' || !wrapper.hasAttribute('data-spectrum-vis')) {
+    if (
+      !wrapper ||
+      wrapper.getAttribute('data-spectrum-vis') === 'on' ||
+      !wrapper.hasAttribute('data-spectrum-vis')
+    ) {
       initHost(host)
       return
     }
@@ -1392,7 +1523,7 @@
 
   function bootAll() {
     const hosts = document.querySelectorAll(TAG)
-    hosts.forEach((host) => waitForVis(host))
+    for (const host of hosts) waitForVis(host)
   }
 
   if (document.readyState === 'loading') {
