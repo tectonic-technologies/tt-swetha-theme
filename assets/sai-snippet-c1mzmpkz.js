@@ -1496,31 +1496,58 @@
       requestAnimationFrame(() => attachDescriptionExpand(body, config.descriptionExpandable))
     }
 
-    // Initial render with the per-variant snapshot.
+    // Defer the first paint until /cart.js resolves so the SSR card order
+    // reflects live cart state — otherwise the PDP-time payload (cart=0)
+    // paints first, then the cart-sync re-render reorders the cards, which
+    // the merchant sees as a flash. A 250ms hard timeout falls back to
+    // painting the cart-blind state if the cart fetch is slow / fails, so
+    // we never block visible UI longer than the next animation frame.
     let lastRendered = baseDiscounts
-    render(baseDiscounts)
+    let firstRenderDone = false
+    const fireListImpression = (discounts) => {
+      const part = partition(discounts)
+      ctx.track(`${FEATURE_SLUG}:list_impression`, {
+        applicable_count: part.applicable.length,
+        potential_count: part.potential.length,
+        total_count: part.applicable.length + part.potential.length,
+        list_layout: config.listLayout,
+      })
+    }
+    const renderFirst = (discounts) => {
+      if (firstRenderDone) return
+      firstRenderDone = true
+      lastRendered = discounts
+      render(discounts)
+      // list_impression fires once, on the painted set — the `_impression`
+      // suffix is load-bearing per the storefront SDK gate.
+      fireListImpression(discounts)
+    }
 
-    // Listeners attached once on host root.
+    // Listeners attach to host root — safe before first paint because
+    // delegated handlers no-op on missing children.
     attachTermsTriggers(host, ctx)
     attachOverflowExpand(body, ctx)
     attachCopy(host, labels, config.copySuccessDurationMs, ctx.track)
     attachDropdown(host, ctx.track)
 
-    // One-shot list_impression fired after first render. The `_impression`
-    // suffix is load-bearing — the storefront SDK gates events with this
-    // suffix behind the per-brand impressionsEnabled toggle.
-    const partRender = partition(baseDiscounts)
-    ctx.track(`${FEATURE_SLUG}:list_impression`, {
-      applicable_count: partRender.applicable.length,
-      potential_count: partRender.potential.length,
-      total_count: partRender.applicable.length + partRender.potential.length,
-      list_layout: config.listLayout,
-    })
+    let cartSyncedFirst = false
+    const FIRST_PAINT_TIMEOUT_MS = 250
+    const firstPaintTimer = setTimeout(() => {
+      if (!firstRenderDone) renderFirst(baseDiscounts)
+    }, FIRST_PAINT_TIMEOUT_MS)
 
-    // Cart-aware re-render.
+    // Cart-aware re-render. First invocation seeds first paint when fast
+    // enough; later invocations diff against lastRendered and only repaint
+    // when applicability / progress actually changed.
     function syncFromCart() {
       fetchCartSubtotal().then((cartSubtotal) => {
         const updated = recomputeForCart(baseDiscounts, cartSubtotal, config.variantPrice)
+        if (!cartSyncedFirst) {
+          cartSyncedFirst = true
+          clearTimeout(firstPaintTimer)
+          renderFirst(updated)
+          return
+        }
         const changed = updated.some((d, i) => {
           const before = lastRendered[i]?.qualification
           const after = d?.qualification
@@ -1554,6 +1581,7 @@
     // Tear down also on MutationObserver-detected removal of the host from
     // the DOM (cart re-renders, variant swaps that re-render the section).
     const onPageHide = () => {
+      clearTimeout(firstPaintTimer)
       try {
         unsubscribeCart()
       } catch (_) {
@@ -1563,6 +1591,7 @@
     window.addEventListener('pagehide', onPageHide, { once: true })
     const removalObserver = new MutationObserver(() => {
       if (!document.contains(host)) {
+        clearTimeout(firstPaintTimer)
         try {
           unsubscribeCart()
         } catch (_) {
