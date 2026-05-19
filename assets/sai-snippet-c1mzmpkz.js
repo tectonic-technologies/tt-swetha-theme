@@ -741,6 +741,12 @@
   }
 
   function attachOverflowExpand(body, ctx) {
+    // Once-guard against accidental double-bind (e.g. re-init paths) —
+    // matches the saiTermsBound pattern on attachTermsTriggers. Without
+    // it, every duplicate init would stack a click listener and the
+    // overflow popup would open N times per click.
+    if (body.dataset.saiOverflowBound === '1') return
+    body.dataset.saiOverflowBound = '1'
     body.addEventListener('click', (event) => {
       const target = event.target
       if (!(target instanceof Element)) return
@@ -767,6 +773,12 @@
   }
 
   function openOverflowPopup(cards, ctx) {
+    // Singleton — if a popup is already open (e.g. duplicate click event
+    // races), tear it down before mounting a fresh one. Prevents the
+    // "drawer opens twice" symptom when any upstream binding stacks.
+    for (const existing of document.body.querySelectorAll('.sai-c1mzmpkz-popup')) {
+      existing.remove()
+    }
     const root = el('div', 'sai-c1mzmpkz-popup', { role: 'dialog', 'aria-modal': 'true' })
     const backdrop = el('div', 'sai-c1mzmpkz-popup__backdrop', { 'data-sai-popup-dismiss': '' })
     const panel = el('div', 'sai-c1mzmpkz-popup__panel')
