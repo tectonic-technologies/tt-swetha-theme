@@ -129,6 +129,83 @@
     return { applicable, potential }
   }
 
+  // ── Pool mode + targeting helpers (Phase 3) ──────────────────────────
+  // Whether a discount is product-specific (vs store-wide / order-level).
+  // Used by promote_product_specific_above_storewide to bubble these
+  // discounts up within their section.
+  function isProductSpecific(d) {
+    const t = d?.targetConfig?.__typename
+    return t === 'DiscountProducts' || t === 'DiscountCollections'
+  }
+
+  // Manual pool: parse comma/newline-separated codes from the merchant
+  // textarea, normalise to uppercase, drop blanks/duplicates.
+  function parseManualCouponList(raw) {
+    if (!raw || typeof raw !== 'string') return []
+    const seen = new Set()
+    const out = []
+    for (const tok of raw.split(/[\s,]+/)) {
+      const code = tok.trim().toUpperCase()
+      if (!code || seen.has(code)) continue
+      seen.add(code)
+      out.push(code)
+    }
+    return out
+  }
+
+  function discountHasCode(d, code) {
+    const codes = d?.codes
+    if (!Array.isArray(codes)) return false
+    const upper = code.toUpperCase()
+    for (const c of codes) {
+      if (typeof c === 'string' && c.toUpperCase() === upper) return true
+    }
+    return false
+  }
+
+  // Apply pool mode + filter to the per-variant discounts list. Returns a
+  // (possibly reordered) subset.
+  function applyPoolMode(discounts, config) {
+    const list = Array.isArray(discounts) ? discounts.slice() : []
+    if (config.poolMode === 'manual') {
+      const codes = parseManualCouponList(config.manualCouponList)
+      if (codes.length === 0) return []
+      // Index by first matching code → preserve merchant order.
+      const ordered = []
+      for (const code of codes) {
+        const match = list.find((d) => discountHasCode(d, code))
+        if (match) ordered.push(match)
+      }
+      // Optional sort override.
+      if (config.manualSort === 'threshold_asc') {
+        ordered.sort((a, b) => thresholdOf(a) - thresholdOf(b))
+      } else if (config.manualSort === 'threshold_desc') {
+        ordered.sort((a, b) => thresholdOf(b) - thresholdOf(a))
+      }
+      return ordered
+    }
+    // Dynamic mode — filter by relevance class.
+    switch (config.poolFilter) {
+      case 'product_applicable_only':
+        return list.filter(isProductSpecific)
+      default:
+        return list
+    }
+  }
+
+  // After section-sort, optionally bubble product-specific discounts to
+  // the top of each section. Stable within the existing sort.
+  function applyPromoteProductSpecific(list, enabled) {
+    if (!enabled) return list
+    const productSpecific = []
+    const storewide = []
+    for (const d of list) {
+      if (isProductSpecific(d)) productSpecific.push(d)
+      else storewide.push(d)
+    }
+    return productSpecific.concat(storewide)
+  }
+
   function estimatedSavingsAmount(d) {
     const v = d.discountValue || {}
     if (v.type === 'FIXED' && typeof v.amount === 'number') return v.amount
@@ -307,140 +384,6 @@
     })
   }
 
-  // ── Cart-aware recompute ──────────────────────────────────────────────
-
-  function recomputeForCart(discounts, cartSubtotal, variantPrice) {
-    if (cartSubtotal == null && variantPrice == null) return discounts
-    const baseline = Math.max(Number(cartSubtotal) || 0, Number(variantPrice) || 0)
-    if (baseline <= 0) return discounts
-    return discounts.map((d) => {
-      const q = d?.qualification
-      if (!q || q.progressMetric !== 'subtotal' || q.requiredValue == null) return d
-      const required = Number(q.requiredValue)
-      if (!(required > 0)) return d
-      if (baseline >= required) {
-        return Object.assign({}, d, {
-          qualification: Object.assign({}, q, {
-            isSatisfied: true,
-            applicability: 'current',
-            progressPercent: 100,
-            currentValue: baseline,
-            remainingValue: 0,
-            matchedSubtotalAmount: baseline,
-          }),
-        })
-      }
-      const remaining = Math.round((required - baseline) * 100) / 100
-      const pct = Math.round((baseline / required) * 100)
-      return Object.assign({}, d, {
-        qualification: Object.assign({}, q, {
-          isSatisfied: false,
-          applicability: 'potential',
-          progressPercent: pct,
-          currentValue: baseline,
-          remainingValue: remaining,
-          matchedSubtotalAmount: baseline,
-        }),
-      })
-    })
-  }
-
-  async function fetchCartSubtotal() {
-    try {
-      const res = await fetch('/cart.js', {
-        credentials: 'same-origin',
-        headers: { Accept: 'application/json' },
-      })
-      // Gate on 2xx — a 4xx/5xx response means the cart endpoint is down or
-      // serving HTML (password page, app proxy edge case). Refetching from a
-      // failed response and re-rendering would clobber the prior state.
-      if (!res.ok) {
-        console.warn('[c1mzmpkz] /cart.js returned', res.status)
-        return null
-      }
-      const cart = await res.json()
-      // Prefer items_subtotal_price (pre-discount subtotal) so threshold
-      // qualifications match Shopify's own rules. total_price is post-
-      // discount and shrinks when any coupon is applied.
-      if (cart && cart.items_subtotal_price != null) return Number(cart.items_subtotal_price) / 100
-      if (cart && cart.total_price != null) return Number(cart.total_price) / 100
-      return null
-    } catch (err) {
-      console.warn('[c1mzmpkz] /cart.js fetch failed:', err)
-      return null
-    }
-  }
-
-  // ── Live cart change subscription ─────────────────────────────────────
-
-  // Cart-change subscription. Subscribes to Spectrum.cart events (emitted
-  // by spectrum-sdk.js from Spectrum.cart.add / change / update / clear)
-  // plus common theme-emitted DOM events. Returns an unsubscribe function
-  // the caller MUST invoke on disconnect / pagehide so listeners don't leak.
-  // Replaces the previous window.fetch + XMLHttpRequest.prototype monkey-
-  // patches, which stacked on top of spectrum-sdk's own interceptor and
-  // were never torn down.
-  function subscribeToCartChanges(callback) {
-    let pending
-    function debouncedFire() {
-      if (pending) clearTimeout(pending)
-      pending = setTimeout(() => {
-        pending = null
-        try {
-          callback()
-        } catch (err) {
-          console.warn('[c1mzmpkz] cart-change callback failed:', err)
-        }
-      }, 120)
-    }
-
-    const unsubs = []
-    try {
-      const evs = window.Spectrum?.events
-      if (evs && typeof evs.on === 'function') {
-        for (const name of [
-          'cart:added',
-          'cart:updated',
-          'cart:removed',
-          'cart:refresh',
-          'cart:change',
-        ]) {
-          const off = evs.on(name, debouncedFire)
-          if (typeof off === 'function') unsubs.push(off)
-        }
-      }
-    } catch (err) {
-      console.warn('[c1mzmpkz] Spectrum.events subscribe failed:', err)
-    }
-
-    const docEvents = [
-      'cart:updated',
-      'cart:refresh',
-      'cart:change',
-      'cart:added',
-      'cart:removed',
-      'shopify:cart:update',
-    ]
-    for (const name of docEvents) {
-      document.addEventListener(name, debouncedFire)
-      unsubs.push(() => document.removeEventListener(name, debouncedFire))
-    }
-
-    return function unsubscribe() {
-      if (pending) {
-        clearTimeout(pending)
-        pending = null
-      }
-      for (const off of unsubs) {
-        try {
-          off()
-        } catch (_) {
-          /* listener already gone */
-        }
-      }
-    }
-  }
-
   // ── Lock icon SVGs ────────────────────────────────────────────────────
 
   function lockIconSvg(style) {
@@ -511,22 +454,6 @@
       return wrap
     }
 
-    // Status badge
-    if (config.showStatusBadge) {
-      const badgeLabel = isCurrent
-        ? labels.applicableStatusLabel || 'Available now'
-        : labels.potentialStatusLabel || 'Almost there'
-      body.appendChild(
-        el(
-          'span',
-          `sai-c1mzmpkz__status-badge sai-c1mzmpkz__status-badge--${isCurrent ? 'current' : 'potential'}`,
-          {
-            text: badgeLabel,
-          },
-        ),
-      )
-    }
-
     // Near-miss as badge under headline (alternative position)
     let remainingText = null
     if (config.showRemainingAmount && !isCurrent) {
@@ -595,21 +522,6 @@
     // Near-miss in flow (below description)
     if (remainingText && config.nearMissPosition === 'below_description') {
       body.appendChild(el('p', 'sai-c1mzmpkz__remaining', { text: remainingText }))
-    }
-
-    // Progress bar (potential only)
-    if (config.showRemainingAmount && !isCurrent) {
-      const bar = el('div', 'sai-c1mzmpkz__progress', {
-        role: 'progressbar',
-        'aria-valuemin': '0',
-        'aria-valuemax': '100',
-      })
-      const pct = progressPct(d)
-      bar.setAttribute('aria-valuenow', String(Math.round(pct * 100)))
-      const fill = el('div', 'sai-c1mzmpkz__progress-fill')
-      fill.style.transform = `scaleX(${pct})`
-      bar.appendChild(fill)
-      body.appendChild(bar)
     }
 
     // Code chip + copy button row
@@ -1301,10 +1213,9 @@
     if (api && typeof api.bind === 'function') {
       try {
         const handles = api.bind(wrapper, ({ currentVariantId } = {}) => {
-          // Variant resolution — swap the per-variant discount snapshot and
-          // re-render. Cart-driven recompute (subscribeToCartChanges) still
-          // mutates `baseDiscounts` between variant swaps; switching variant
-          // resets back to the server snapshot for the new variant id.
+          // Variant resolution — swap the per-variant discount snapshot
+          // and re-render. Discounts are PDP-evaluated server-side
+          // against the new variant's price; no cart context is mixed in.
           if (currentVariantId == null) return
           const nextId = String(currentVariantId)
           if (nextId === activeVariantId) return
@@ -1335,9 +1246,27 @@
     function render(discounts) {
       body.innerHTML = ''
 
-      const { applicable, potential } = partition(discounts)
+      // Pool mode + filter come first — narrow the candidate set before
+      // partitioning. In manual mode this also fixes the order if
+      // manual_sort = 'merchant_defined'; the in-section comparator
+      // below preserves that order under stable-sort semantics.
+      const pooled = applyPoolMode(discounts, config)
+
+      const { applicable, potential } = partition(pooled)
       applicable.sort(applicableComparator(config.applicableSort))
       potential.sort(potentialComparator(config.potentialSort))
+
+      // Promote product-specific discounts to the top of each section
+      // when the merchant has the toggle on (default true). Runs after
+      // the chosen sort to preserve relative order within each class.
+      const promote = config.promoteProductSpecificAboveStorewide
+      const applicableOrdered = applyPromoteProductSpecific(applicable, promote)
+      const potentialOrdered = applyPromoteProductSpecific(potential, promote)
+      // Mutate in-place so the rest of render() reads the promoted order.
+      applicable.length = 0
+      potential.length = 0
+      applicable.push(...applicableOrdered)
+      potential.push(...potentialOrdered)
 
       const totalCount = applicable.length + potential.length
 
@@ -1412,7 +1341,24 @@
       let pShown = 0
       let aHidden = 0
       let pHidden = 0
+      // Insert an inline section divider between applicable and potential
+      // card groups so the merchant can tell the two sections apart even
+      // after the AVAILABLE NOW per-card badge was dropped. Carousel
+      // layout skips the divider — the carousel expects each list child
+      // to be a slide and would treat the divider as a card.
+      const showDivider =
+        config.listLayout !== 'carousel' && applicable.length > 0 && potential.length > 0
+      let dividerInserted = false
       for (const d of combined) {
+        if (showDivider && !dividerInserted && !isApplicable(d)) {
+          listInner.appendChild(
+            el('div', 'sai-c1mzmpkz__section-divider', {
+              text: labels.potentialSectionLabel || 'Almost there',
+              role: 'separator',
+            }),
+          )
+          dividerInserted = true
+        }
         const card = buildCard(d, ctx)
         if (isApplicable(d)) {
           if (aShown >= maxApplicable) {
@@ -1496,19 +1442,17 @@
       requestAnimationFrame(() => attachDescriptionExpand(body, config.descriptionExpandable))
     }
 
-    // Initial render with the per-variant snapshot.
+    // Paint cart-blind cards immediately so the body reserves layout space
+    // PDP eval is purely product-price × qty 1 — no cart context, no
+    // /cart.js fetch, no opacity-defer-and-reveal. The SSR payload from
+    // resolvePdpDiscounts already classified each discount as `current` /
+    // `potential` / `never` against the variant price, which is exactly
+    // what this section is supposed to show.
     let lastRendered = baseDiscounts
     render(baseDiscounts)
 
-    // Listeners attached once on host root.
-    attachTermsTriggers(host, ctx)
-    attachOverflowExpand(body, ctx)
-    attachCopy(host, labels, config.copySuccessDurationMs, ctx.track)
-    attachDropdown(host, ctx.track)
-
-    // One-shot list_impression fired after first render. The `_impression`
-    // suffix is load-bearing — the storefront SDK gates events with this
-    // suffix behind the per-brand impressionsEnabled toggle.
+    // list_impression fires once on the painted set — the `_impression`
+    // suffix is load-bearing per the storefront SDK gate.
     const partRender = partition(baseDiscounts)
     ctx.track(`${FEATURE_SLUG}:list_impression`, {
       applicable_count: partRender.applicable.length,
@@ -1517,60 +1461,16 @@
       list_layout: config.listLayout,
     })
 
-    // Cart-aware re-render.
-    function syncFromCart() {
-      fetchCartSubtotal().then((cartSubtotal) => {
-        const updated = recomputeForCart(baseDiscounts, cartSubtotal, config.variantPrice)
-        const changed = updated.some((d, i) => {
-          const before = lastRendered[i]?.qualification
-          const after = d?.qualification
-          if (!before || !after) return true
-          return (
-            before.isSatisfied !== after.isSatisfied ||
-            before.applicability !== after.applicability ||
-            before.progressPercent !== after.progressPercent
-          )
-        })
-        if (!changed) return
-        const wasApplicableCount = partition(lastRendered).applicable.length
-        const nowApplicableCount = partition(updated).applicable.length
-        lastRendered = updated
-        render(updated)
-        if (nowApplicableCount !== wasApplicableCount) {
-          ctx.track(`${FEATURE_SLUG}:cart_recomputed`, {
-            applicable_count: nowApplicableCount,
-            potential_count: partition(updated).potential.length,
-            applicable_delta: nowApplicableCount - wasApplicableCount,
-          })
-        }
-      })
-    }
+    attachTermsTriggers(host, ctx)
+    attachOverflowExpand(body, ctx)
+    attachCopy(host, labels, config.copySuccessDurationMs, ctx.track)
+    attachDropdown(host, ctx.track)
 
-    syncFromCart()
-    const unsubscribeCart = subscribeToCartChanges(syncFromCart)
-    host._unsubscribeCart = unsubscribeCart
-
-    // Tear down on pagehide — covers bfcache, SPA navigation, and tab close.
-    // Tear down also on MutationObserver-detected removal of the host from
-    // the DOM (cart re-renders, variant swaps that re-render the section).
-    const onPageHide = () => {
-      try {
-        unsubscribeCart()
-      } catch (_) {
-        /* already torn down */
-      }
-    }
-    window.addEventListener('pagehide', onPageHide, { once: true })
+    // Tear down carousel timers / resize listeners on host removal.
+    // Variant swaps re-run discountsForVariant() + render() inline; no
+    // cart subscription to manage.
     const removalObserver = new MutationObserver(() => {
       if (!document.contains(host)) {
-        try {
-          unsubscribeCart()
-        } catch (_) {
-          /* already torn down */
-        }
-        // Clear autoplay timers + abort window-resize listeners attached
-        // by attachCarousel — otherwise they keep firing into a detached
-        // host (and stack per variant swap).
         const c = host._ctx
         if (c) {
           if (Array.isArray(c.autoplayTimers)) {
@@ -1588,7 +1488,6 @@
             c.abortController = null
           }
         }
-        window.removeEventListener('pagehide', onPageHide)
         removalObserver.disconnect()
       }
     })
