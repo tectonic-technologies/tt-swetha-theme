@@ -15,10 +15,14 @@
   // Default coupon-ticket SVG — shown on cards when `show_coupon_icon` is
   // on but no `coupon_icon_url` is supplied. Matches the Vaaree-style
   // pink/percent ticket from the reference design.
-  const DEFAULT_COUPON_SVG = '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><defs><linearGradient id="sai-c1mzmpkz-coupon-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#FDE7EF"/><stop offset="100%" stop-color="#F8C8DC"/></linearGradient></defs><path d="M6 16a6 6 0 0 1 6-6h40a6 6 0 0 1 6 6v6a4 4 0 0 0 0 8v6a6 6 0 0 1-6 6H12a6 6 0 0 1-6-6v-6a4 4 0 0 0 0-8v-6Z" fill="url(#sai-c1mzmpkz-coupon-bg)" stroke="#2A2A2A" stroke-width="2"/><line x1="30" y1="14" x2="30" y2="42" stroke="#2A2A2A" stroke-width="1.5" stroke-dasharray="3 3"/><circle cx="48" cy="28" r="8" fill="#E4377F"/><path d="M44 32l8-8M45 25.5h.01M50.5 30.5h.01" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round"/></svg>'
+  const DEFAULT_COUPON_SVG =
+    '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><defs><linearGradient id="sai-c1mzmpkz-coupon-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#FDE7EF"/><stop offset="100%" stop-color="#F8C8DC"/></linearGradient></defs><path d="M6 16a6 6 0 0 1 6-6h40a6 6 0 0 1 6 6v6a4 4 0 0 0 0 8v6a6 6 0 0 1-6 6H12a6 6 0 0 1-6-6v-6a4 4 0 0 0 0-8v-6Z" fill="url(#sai-c1mzmpkz-coupon-bg)" stroke="#2A2A2A" stroke-width="2"/><line x1="30" y1="14" x2="30" y2="42" stroke="#2A2A2A" stroke-width="1.5" stroke-dasharray="3 3"/><circle cx="48" cy="28" r="8" fill="#E4377F"/><path d="M44 32l8-8M45 25.5h.01M50.5 30.5h.01" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round"/></svg>'
 
   const SNIPPET_ID = 'c1mzmpkz'
-  const TAG = 'sai-c1mzmpkz'
+  // Host is a <div> with data-sai-snippet-root="c1mzmpkz" (not a custom
+  // element — we never registered <sai-c1mzmpkz>, and themes can choke on
+  // unregistered elements during hydration).
+  const HOST_SELECTOR = '[data-sai-snippet-root="c1mzmpkz"]'
   const FEATURE_SLUG = 'pdp_promotions'
 
   // ── Analytics helpers ─────────────────────────────────────────────────
@@ -30,7 +34,11 @@
   function noop() {}
   function safeFn(fn) {
     return (name, payload) => {
-      try { fn(name, payload) } catch (_) { /* analytics is best-effort */ }
+      try {
+        fn(name, payload)
+      } catch (_) {
+        /* analytics is best-effort */
+      }
     }
   }
 
@@ -45,7 +53,10 @@
       })
     } catch (_) {
       try {
-        return new Intl.NumberFormat(undefined, { style: 'currency', currency: currencyCode || 'USD' })
+        return new Intl.NumberFormat(undefined, {
+          style: 'currency',
+          currency: currencyCode || 'USD',
+        })
       } catch (_) {
         return { format: (n) => `${currencyCode || '$'}${Number(n).toFixed(2)}` }
       }
@@ -76,7 +87,11 @@
     if (!scriptEl) return null
     try {
       return JSON.parse(scriptEl.textContent || '{}')
-    } catch (_) {
+    } catch (err) {
+      // Fail loud — silently returning null would render the snippet with
+      // every default, masking a broken payload upstream (rule: Fail Loud,
+      // Never Fake).
+      console.warn('[c1mzmpkz] payload JSON parse failed:', err)
       return null
     }
   }
@@ -185,7 +200,10 @@
     const v = d.discountValue || {}
     if (v.type === 'FREE_SHIPPING') return 'Free Shipping'
     if (v.type === 'PERCENTAGE') {
-      const pct = typeof v.percentage === 'number' ? Math.round(v.percentage * (v.percentage <= 1 ? 100 : 1)) : null
+      const pct =
+        typeof v.percentage === 'number'
+          ? Math.round(v.percentage * (v.percentage <= 1 ? 100 : 1))
+          : null
       return pct != null ? `${pct}% Off` : 'Percentage off'
     }
     if (v.type === 'FIXED') {
@@ -200,7 +218,10 @@
     const v = d.discountValue || {}
     if (v.type === 'FREE_SHIPPING') return 'Save on shipping'
     const fmt = moneyFormatter(v.currencyCode || currency)
-    const pct = typeof v.percentage === 'number' ? Math.round(v.percentage * (v.percentage <= 1 ? 100 : 1)) : null
+    const pct =
+      typeof v.percentage === 'number'
+        ? Math.round(v.percentage * (v.percentage <= 1 ? 100 : 1))
+        : null
     const abs = typeof v.amount === 'number' ? fmt.format(v.amount) : null
     if (mode === 'percentage' && pct != null) return `Save ${pct}%`
     if (mode === 'absolute' && abs) return `Save ${abs}`
@@ -243,7 +264,11 @@
     const now = Date.now()
     const diffMs = t - now
     if (fmtMode === 'date') {
-      try { return `Expires ${new Date(t).toLocaleDateString()}` } catch (_) { return null }
+      try {
+        return `Expires ${new Date(t).toLocaleDateString()}`
+      } catch (_) {
+        return null
+      }
     }
     if (fmtMode === 'countdown' || fmtMode === 'relative') {
       if (diffMs <= 0) return 'Expired'
@@ -266,12 +291,14 @@
   function interpolateTerms(template, d, currency) {
     const fmt = moneyFormatter(currency)
     const q = d.qualification || {}
-    const code = (d.codes && d.codes[0]) || (d.applicationType === 'automatic' ? 'no code needed' : '')
-    const minOrder = q.progressMetric === 'subtotal' && q.requiredValue != null ? fmt.format(q.requiredValue) : ''
+    const code = d.codes?.[0] || (d.applicationType === 'automatic' ? 'no code needed' : '')
+    const minOrder =
+      q.progressMetric === 'subtotal' && q.requiredValue != null ? fmt.format(q.requiredValue) : ''
     const stack = d.stackConfig || {}
-    const stackingNote = stack.orderDiscounts || stack.productDiscounts || stack.shippingDiscounts
-      ? 'Stackable with other discounts'
-      : 'Cannot be combined with other discounts unless stated'
+    const stackingNote =
+      stack.orderDiscounts || stack.productDiscounts || stack.shippingDiscounts
+        ? 'Stackable with other discounts'
+        : 'Cannot be combined with other discounts unless stated'
     return interpolate(template, {
       summary: d.summary || d.shortSummary || '',
       min_order: minOrder || '—',
@@ -287,7 +314,7 @@
     const baseline = Math.max(Number(cartSubtotal) || 0, Number(variantPrice) || 0)
     if (baseline <= 0) return discounts
     return discounts.map((d) => {
-      const q = d && d.qualification
+      const q = d?.qualification
       if (!q || q.progressMetric !== 'subtotal' || q.requiredValue == null) return d
       const required = Number(q.requiredValue)
       if (!(required > 0)) return d
@@ -320,76 +347,98 @@
 
   async function fetchCartSubtotal() {
     try {
-      const res = await fetch('/cart.js', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
-      if (!res.ok) return null
+      const res = await fetch('/cart.js', {
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' },
+      })
+      // Gate on 2xx — a 4xx/5xx response means the cart endpoint is down or
+      // serving HTML (password page, app proxy edge case). Refetching from a
+      // failed response and re-rendering would clobber the prior state.
+      if (!res.ok) {
+        console.warn('[c1mzmpkz] /cart.js returned', res.status)
+        return null
+      }
       const cart = await res.json()
-      if (cart && cart.total_price != null) return Number(cart.total_price) / 100
+      // Prefer items_subtotal_price (pre-discount subtotal) so threshold
+      // qualifications match Shopify's own rules. total_price is post-
+      // discount and shrinks when any coupon is applied.
       if (cart && cart.items_subtotal_price != null) return Number(cart.items_subtotal_price) / 100
+      if (cart && cart.total_price != null) return Number(cart.total_price) / 100
       return null
-    } catch (_) {
+    } catch (err) {
+      console.warn('[c1mzmpkz] /cart.js fetch failed:', err)
       return null
     }
   }
 
   // ── Live cart change subscription ─────────────────────────────────────
 
+  // Cart-change subscription. Subscribes to Spectrum.cart events (emitted
+  // by spectrum-sdk.js from Spectrum.cart.add / change / update / clear)
+  // plus common theme-emitted DOM events. Returns an unsubscribe function
+  // the caller MUST invoke on disconnect / pagehide so listeners don't leak.
+  // Replaces the previous window.fetch + XMLHttpRequest.prototype monkey-
+  // patches, which stacked on top of spectrum-sdk's own interceptor and
+  // were never torn down.
   function subscribeToCartChanges(callback) {
-    const MUTATION_PATHS = [
-      '/cart/add', '/cart/add.js',
-      '/cart/change', '/cart/change.js',
-      '/cart/update', '/cart/update.js',
-      '/cart/clear', '/cart/clear.js',
-    ]
-
-    function isCartMutation(url) {
-      if (typeof url !== 'string') return false
-      try {
-        const u = new URL(url, window.location.origin)
-        return MUTATION_PATHS.some((p) => u.pathname === p)
-      } catch (_) {
-        return MUTATION_PATHS.some((p) => url.indexOf(p) !== -1)
-      }
-    }
-
     let pending
     function debouncedFire() {
       if (pending) clearTimeout(pending)
       pending = setTimeout(() => {
         pending = null
-        try { callback() } catch (_) {}
+        try {
+          callback()
+        } catch (err) {
+          console.warn('[c1mzmpkz] cart-change callback failed:', err)
+        }
       }, 120)
     }
 
-    const origFetch = window.fetch
-    if (origFetch && !window.__saiC1Patched) {
-      window.__saiC1Patched = true
-      window.fetch = function patchedFetch(input, init) {
-        const url = typeof input === 'string' ? input : (input && input.url)
-        const result = origFetch.apply(this, arguments)
-        if (isCartMutation(url)) result.then(debouncedFire, debouncedFire)
-        return result
-      }
-    }
-
-    const OrigXHR = window.XMLHttpRequest
-    if (OrigXHR && !window.__saiC1XHRPatched) {
-      window.__saiC1XHRPatched = true
-      const origOpen = OrigXHR.prototype.open
-      const origSend = OrigXHR.prototype.send
-      OrigXHR.prototype.open = function (method, url) {
-        this.__saiC1Url = url
-        return origOpen.apply(this, arguments)
-      }
-      OrigXHR.prototype.send = function () {
-        if (isCartMutation(this.__saiC1Url)) {
-          this.addEventListener('loadend', debouncedFire)
+    const unsubs = []
+    try {
+      const evs = window.Spectrum?.events
+      if (evs && typeof evs.on === 'function') {
+        for (const name of [
+          'cart:added',
+          'cart:updated',
+          'cart:removed',
+          'cart:refresh',
+          'cart:change',
+        ]) {
+          const off = evs.on(name, debouncedFire)
+          if (typeof off === 'function') unsubs.push(off)
         }
-        return origSend.apply(this, arguments)
       }
+    } catch (err) {
+      console.warn('[c1mzmpkz] Spectrum.events subscribe failed:', err)
     }
 
-    const evtNames = ['cart:updated', 'cart:refresh', 'cart:change', 'cart:added', 'cart:removed', 'shopify:cart:update']
-    evtNames.forEach((name) => document.addEventListener(name, debouncedFire))
+    const docEvents = [
+      'cart:updated',
+      'cart:refresh',
+      'cart:change',
+      'cart:added',
+      'cart:removed',
+      'shopify:cart:update',
+    ]
+    for (const name of docEvents) {
+      document.addEventListener(name, debouncedFire)
+      unsubs.push(() => document.removeEventListener(name, debouncedFire))
+    }
+
+    return function unsubscribe() {
+      if (pending) {
+        clearTimeout(pending)
+        pending = null
+      }
+      for (const off of unsubs) {
+        try {
+          off()
+        } catch (_) {
+          /* listener already gone */
+        }
+      }
+    }
   }
 
   // ── Lock icon SVGs ────────────────────────────────────────────────────
@@ -409,7 +458,7 @@
   function buildCard(d, ctx) {
     const { config, labels } = ctx
     const isAutomatic = d.applicationType === 'automatic'
-    const code = (d.codes && d.codes[0]) || null
+    const code = d.codes?.[0] || null
     const isCurrent = isApplicable(d)
     const allowCopy = code && !isAutomatic && (isCurrent || config.enableCopyOnPotential)
 
@@ -426,18 +475,20 @@
 
     const card = el('article', `sai-c1mzmpkz__card${treatmentClass}`, {
       'data-discount-id': d.id || '',
-      'data-applicability': (d.qualification && d.qualification.applicability) || '',
+      'data-applicability': d.qualification?.applicability || '',
     })
 
     const body = card
 
     if (config.showCouponIcon && config.couponIconUrl && iconPosition === 'top_right') {
       // Legacy top-right small icon.
-      card.appendChild(el('img', 'sai-c1mzmpkz__icon', {
-        src: config.couponIconUrl,
-        alt: '',
-        loading: 'lazy',
-      }))
+      card.appendChild(
+        el('img', 'sai-c1mzmpkz__icon', {
+          src: config.couponIconUrl,
+          alt: '',
+          loading: 'lazy',
+        }),
+      )
     } else if (!isCurrent && config.potentialVisualTreatment === 'locked') {
       const lock = el('span', 'sai-c1mzmpkz__lock', { 'aria-hidden': 'true' })
       lock.innerHTML = lockIconSvg(config.lockIconStyle || 'lock')
@@ -447,11 +498,13 @@
     function buildInlineImage() {
       const wrap = el('span', 'sai-c1mzmpkz__card-image-inline', { 'aria-hidden': 'true' })
       if (config.couponIconUrl) {
-        wrap.appendChild(el('img', 'sai-c1mzmpkz__card-image', {
-          src: config.couponIconUrl,
-          alt: '',
-          loading: 'lazy',
-        }))
+        wrap.appendChild(
+          el('img', 'sai-c1mzmpkz__card-image', {
+            src: config.couponIconUrl,
+            alt: '',
+            loading: 'lazy',
+          }),
+        )
       } else {
         wrap.innerHTML = DEFAULT_COUPON_SVG
       }
@@ -461,11 +514,17 @@
     // Status badge
     if (config.showStatusBadge) {
       const badgeLabel = isCurrent
-        ? (labels.applicableStatusLabel || 'Available now')
-        : (labels.potentialStatusLabel || 'Almost there')
-      body.appendChild(el('span', `sai-c1mzmpkz__status-badge sai-c1mzmpkz__status-badge--${isCurrent ? 'current' : 'potential'}`, {
-        text: badgeLabel,
-      }))
+        ? labels.applicableStatusLabel || 'Available now'
+        : labels.potentialStatusLabel || 'Almost there'
+      body.appendChild(
+        el(
+          'span',
+          `sai-c1mzmpkz__status-badge sai-c1mzmpkz__status-badge--${isCurrent ? 'current' : 'potential'}`,
+          {
+            text: badgeLabel,
+          },
+        ),
+      )
     }
 
     // Near-miss as badge under headline (alternative position)
@@ -474,7 +533,11 @@
       remainingText = formatRemaining(d, config.remainingAmountTemplate, config.currencyCode)
     }
     if (remainingText && config.nearMissPosition === 'badge') {
-      body.appendChild(el('span', 'sai-c1mzmpkz__remaining sai-c1mzmpkz__remaining--badge', { text: remainingText }))
+      body.appendChild(
+        el('span', 'sai-c1mzmpkz__remaining sai-c1mzmpkz__remaining--badge', {
+          text: remainingText,
+        }),
+      )
     }
 
     // Discount type label — image inline to the left of the heading
@@ -509,9 +572,11 @@
     // text. The Terms & Conditions link is a separate sibling below.
     if (config.showDescription && (d.summary || d.shortSummary)) {
       const wrap = el('div', 'sai-c1mzmpkz__description-wrap')
-      wrap.appendChild(el('p', 'sai-c1mzmpkz__description', {
-        text: d.summary || d.shortSummary,
-      }))
+      wrap.appendChild(
+        el('p', 'sai-c1mzmpkz__description', {
+          text: d.summary || d.shortSummary,
+        }),
+      )
       body.appendChild(wrap)
     }
 
@@ -534,7 +599,11 @@
 
     // Progress bar (potential only)
     if (config.showRemainingAmount && !isCurrent) {
-      const bar = el('div', 'sai-c1mzmpkz__progress', { role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100' })
+      const bar = el('div', 'sai-c1mzmpkz__progress', {
+        role: 'progressbar',
+        'aria-valuemin': '0',
+        'aria-valuemax': '100',
+      })
       const pct = progressPct(d)
       bar.setAttribute('aria-valuenow', String(Math.round(pct * 100)))
       const fill = el('div', 'sai-c1mzmpkz__progress-fill')
@@ -549,13 +618,15 @@
       row.appendChild(el('span', 'sai-c1mzmpkz__code-label', { text: labels.codeLabel }))
       row.appendChild(el('span', 'sai-c1mzmpkz__code-chip', { text: code }))
       if (config.showCopyButton && allowCopy) {
-        row.appendChild(el('button', 'sai-c1mzmpkz__copy-btn', {
-          type: 'button',
-          'data-sai-copy': code,
-          'aria-pressed': 'false',
-          'aria-label': `${labels.copyCtaLabel} ${code}`,
-          text: labels.copyCtaLabel,
-        }))
+        row.appendChild(
+          el('button', 'sai-c1mzmpkz__copy-btn', {
+            type: 'button',
+            'data-sai-copy': code,
+            'aria-pressed': 'false',
+            'aria-label': `${labels.copyCtaLabel} ${code}`,
+            text: labels.copyCtaLabel,
+          }),
+        )
       }
       body.appendChild(row)
     }
@@ -571,12 +642,14 @@
     // line below the rest of the card content. Opens the T&C modal on
     // desktop, bottom-sheet drawer on mobile.
     if (config.showTerms) {
-      body.appendChild(el('button', 'sai-c1mzmpkz__terms-toggle', {
-        type: 'button',
-        'data-sai-tc-trigger': '',
-        'data-discount-id': d.id || '',
-        text: labels.termsLabel,
-      }))
+      body.appendChild(
+        el('button', 'sai-c1mzmpkz__terms-toggle', {
+          type: 'button',
+          'data-sai-tc-trigger': '',
+          'data-discount-id': d.id || '',
+          text: labels.termsLabel,
+        }),
+      )
     }
 
     return card
@@ -588,15 +661,26 @@
     const type = block.type || 'image_banner'
     const wrap = el('div', `sai-c1mzmpkz__promo-block sai-c1mzmpkz__promo-block--${type}`)
     if (type === 'labeled_divider') {
-      if (block.headline) wrap.appendChild(el('span', 'sai-c1mzmpkz__promo-headline', { text: block.headline }))
+      if (block.headline)
+        wrap.appendChild(el('span', 'sai-c1mzmpkz__promo-headline', { text: block.headline }))
       return wrap
     }
     if (block.imageUrl) {
-      wrap.appendChild(el('img', 'sai-c1mzmpkz__promo-image', { src: block.imageUrl, alt: block.imageAlt || '', loading: 'lazy' }))
+      wrap.appendChild(
+        el('img', 'sai-c1mzmpkz__promo-image', {
+          src: block.imageUrl,
+          alt: block.imageAlt || '',
+          loading: 'lazy',
+        }),
+      )
     }
-    if (block.headline) wrap.appendChild(el('h4', 'sai-c1mzmpkz__promo-headline', { text: block.headline }))
+    if (block.headline)
+      wrap.appendChild(el('h4', 'sai-c1mzmpkz__promo-headline', { text: block.headline }))
     if (block.body) wrap.appendChild(el('p', 'sai-c1mzmpkz__promo-body', { text: block.body }))
-    if (block.link) wrap.appendChild(el('a', 'sai-c1mzmpkz__promo-link', { href: block.link, text: 'Learn more' }))
+    if (block.link)
+      wrap.appendChild(
+        el('a', 'sai-c1mzmpkz__promo-link', { href: block.link, text: 'Learn more' }),
+      )
     return wrap
   }
 
@@ -605,26 +689,45 @@
   function buildSectionList(discounts, ctx, kind, maxVisible) {
     const group = el('section', `sai-c1mzmpkz__group sai-c1mzmpkz__group--${kind}`)
     const list = el('div', 'sai-c1mzmpkz__list')
-    discounts.forEach((d, i) => {
-      const card = buildCard(d, ctx)
+    for (let i = 0; i < discounts.length; i++) {
+      const card = buildCard(discounts[i], ctx)
       if (typeof maxVisible === 'number' && i >= maxVisible) {
         card.setAttribute('data-sai-overflow', 'hidden')
       }
       list.appendChild(card)
-    })
+    }
     if (ctx.config.listLayout === 'carousel') {
-      const viewportCls = 'sai-c1mzmpkz__carousel-viewport' + (ctx.config.carouselShowArrows ? ' sai-c1mzmpkz__carousel-viewport--has-arrows' : '')
+      const viewportCls = `sai-c1mzmpkz__carousel-viewport${ctx.config.carouselShowArrows ? ' sai-c1mzmpkz__carousel-viewport--has-arrows' : ''}`
       const viewport = el('div', viewportCls)
       viewport.appendChild(list)
       if (ctx.config.carouselShowArrows) {
-        viewport.appendChild(el('button', 'sai-c1mzmpkz__carousel-arrow sai-c1mzmpkz__carousel-arrow--prev', { type: 'button', 'aria-label': 'Previous', 'data-sai-carousel-prev': '' }))
-        viewport.appendChild(el('button', 'sai-c1mzmpkz__carousel-arrow sai-c1mzmpkz__carousel-arrow--next', { type: 'button', 'aria-label': 'Next', 'data-sai-carousel-next': '' }))
+        viewport.appendChild(
+          el('button', 'sai-c1mzmpkz__carousel-arrow sai-c1mzmpkz__carousel-arrow--prev', {
+            type: 'button',
+            'aria-label': 'Previous',
+            'data-sai-carousel-prev': '',
+          }),
+        )
+        viewport.appendChild(
+          el('button', 'sai-c1mzmpkz__carousel-arrow sai-c1mzmpkz__carousel-arrow--next', {
+            type: 'button',
+            'aria-label': 'Next',
+            'data-sai-carousel-next': '',
+          }),
+        )
       }
       group.appendChild(viewport)
       if (ctx.config.carouselShowDots) {
         const dots = el('div', 'sai-c1mzmpkz__dots', { 'data-sai-carousel-dots': '' })
         for (let i = 0; i < discounts.length; i++) {
-          dots.appendChild(el('button', 'sai-c1mzmpkz__dot', { type: 'button', 'data-sai-dot-index': String(i), 'aria-label': `Go to offer ${i + 1}`, 'aria-current': i === 0 ? 'true' : 'false' }))
+          dots.appendChild(
+            el('button', 'sai-c1mzmpkz__dot', {
+              type: 'button',
+              'data-sai-dot-index': String(i),
+              'aria-label': `Go to offer ${i + 1}`,
+              'aria-current': i === 0 ? 'true' : 'false',
+            }),
+          )
         }
         group.appendChild(dots)
       }
@@ -651,13 +754,14 @@
     if (prev) prev.addEventListener('click', () => scrollByCards(-1))
     if (next) next.addEventListener('click', () => scrollByCards(1))
 
-    dots.forEach((dot) => {
+    for (const dot of dots) {
       dot.addEventListener('click', () => {
         const idx = Number(dot.getAttribute('data-sai-dot-index')) || 0
         const cards = list.querySelectorAll('.sai-c1mzmpkz__card')
-        if (cards[idx]) cards[idx].scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' })
+        if (cards[idx])
+          cards[idx].scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' })
       })
-    })
+    }
 
     if (dots.length > 0) {
       function updateActiveDot() {
@@ -672,34 +776,54 @@
         if (!atEnd) {
           let best = Number.POSITIVE_INFINITY
           const listLeft = list.getBoundingClientRect().left
-          cards.forEach((c, i) => {
-            const d = Math.abs(c.getBoundingClientRect().left - listLeft)
-            if (d < best) { best = d; nearest = i }
-          })
+          for (let i = 0; i < cards.length; i++) {
+            const d = Math.abs(cards[i].getBoundingClientRect().left - listLeft)
+            if (d < best) {
+              best = d
+              nearest = i
+            }
+          }
         }
-        dots.forEach((dot, i) => dot.setAttribute('aria-current', i === nearest ? 'true' : 'false'))
+        for (let i = 0; i < dots.length; i++) {
+          dots[i].setAttribute('aria-current', i === nearest ? 'true' : 'false')
+        }
       }
       list.addEventListener('scroll', updateActiveDot, { passive: true })
-      // Also re-run on resize since clientWidth / scrollWidth change.
-      window.addEventListener('resize', updateActiveDot)
+      // Re-run on resize since clientWidth / scrollWidth change. Owned by an
+      // AbortController so the listener detaches when the carousel is torn
+      // down — otherwise a new listener stacks on every variant swap.
+      ctx.abortController = ctx.abortController || new AbortController()
+      window.addEventListener('resize', updateActiveDot, { signal: ctx.abortController.signal })
     }
 
     if (ctx.config.carouselAutoplay) {
       const intervalMs = Math.max(1500, Number(ctx.config.carouselAutoplayIntervalMs) || 5000)
-      let timer = setInterval(() => {
+      const tick = () => {
         const cards = list.querySelectorAll('.sai-c1mzmpkz__card')
         if (cards.length < 2) return
         const atEnd = list.scrollLeft + list.clientWidth >= list.scrollWidth - 4
         if (atEnd) list.scrollTo({ left: 0, behavior: 'smooth' })
         else scrollByCards(1)
-      }, intervalMs)
-      group.addEventListener('mouseenter', () => { clearInterval(timer); timer = null })
+      }
+      let timer = setInterval(tick, intervalMs)
+      // Track every running interval on ctx so the host's removal observer
+      // can clear them — autoplay would otherwise keep ticking after the
+      // carousel is gone, stacking per variant swap.
+      ctx.autoplayTimers = ctx.autoplayTimers || []
+      ctx.autoplayTimers.push(() => {
+        if (timer) {
+          clearInterval(timer)
+          timer = null
+        }
+      })
+      group.addEventListener('mouseenter', () => {
+        if (timer) {
+          clearInterval(timer)
+          timer = null
+        }
+      })
       group.addEventListener('mouseleave', () => {
-        if (!timer) timer = setInterval(() => {
-          const atEnd = list.scrollLeft + list.clientWidth >= list.scrollWidth - 4
-          if (atEnd) list.scrollTo({ left: 0, behavior: 'smooth' })
-          else scrollByCards(1)
-        }, intervalMs)
+        if (!timer) timer = setInterval(tick, intervalMs)
       })
     }
   }
@@ -711,7 +835,9 @@
       if (!target.matches('[data-sai-overflow-expand]')) return
       const groupSelector = target.getAttribute('data-sai-target-group')
       const hidden = groupSelector
-        ? body.querySelectorAll(`.sai-c1mzmpkz__group--${groupSelector} .sai-c1mzmpkz__card[data-sai-overflow="hidden"]`)
+        ? body.querySelectorAll(
+            `.sai-c1mzmpkz__group--${groupSelector} .sai-c1mzmpkz__card[data-sai-overflow="hidden"]`,
+          )
         : body.querySelectorAll('.sai-c1mzmpkz__card[data-sai-overflow="hidden"]')
 
       ctx.track(`${FEATURE_SLUG}:overflow_expanded`, {
@@ -722,7 +848,7 @@
       if (ctx.config.overflowBehavior === 'open_popup') {
         openOverflowPopup(Array.from(hidden), ctx)
       } else {
-        hidden.forEach((c) => c.removeAttribute('data-sai-overflow'))
+        for (const c of hidden) c.removeAttribute('data-sai-overflow')
         target.remove()
       }
     })
@@ -732,12 +858,19 @@
     const root = el('div', 'sai-c1mzmpkz-popup', { role: 'dialog', 'aria-modal': 'true' })
     const backdrop = el('div', 'sai-c1mzmpkz-popup__backdrop', { 'data-sai-popup-dismiss': '' })
     const panel = el('div', 'sai-c1mzmpkz-popup__panel')
-    panel.appendChild(el('button', 'sai-c1mzmpkz-popup__close', { type: 'button', 'aria-label': 'Close', 'data-sai-popup-dismiss': '', html: '&times;' }))
-    cards.forEach((c) => {
+    panel.appendChild(
+      el('button', 'sai-c1mzmpkz-popup__close', {
+        type: 'button',
+        'aria-label': 'Close',
+        'data-sai-popup-dismiss': '',
+        html: '&times;',
+      }),
+    )
+    for (const c of cards) {
       const clone = c.cloneNode(true)
       clone.removeAttribute('data-sai-overflow')
       panel.appendChild(clone)
-    })
+    }
     root.appendChild(backdrop)
     root.appendChild(panel)
     document.body.appendChild(root)
@@ -751,9 +884,16 @@
       const t = e.target
       if (t instanceof Element && t.closest('[data-sai-popup-dismiss]')) close()
     })
-    document.addEventListener('keydown', function onKey(e) {
-      if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onKey, true) }
-    }, true)
+    document.addEventListener(
+      'keydown',
+      function onKey(e) {
+        if (e.key === 'Escape') {
+          close()
+          document.removeEventListener('keydown', onKey, true)
+        }
+      },
+      true,
+    )
   }
 
   // ── Copy CTA + description expand + dropdown ─────────────────────────
@@ -782,7 +922,9 @@
         tmp.style.left = '-9999px'
         document.body.appendChild(tmp)
         tmp.select()
-        try { copied = document.execCommand('copy') } catch (_) {}
+        try {
+          copied = document.execCommand('copy')
+        } catch (_) {}
         document.body.removeChild(tmp)
       }
       fire(`${FEATURE_SLUG}:copy_code`, {
@@ -804,9 +946,9 @@
   function attachDescriptionExpand(host, expandable) {
     if (!expandable) return
     const wraps = host.querySelectorAll('.sai-c1mzmpkz__description-wrap')
-    wraps.forEach((wrap) => {
+    for (const wrap of wraps) {
       const desc = wrap.querySelector('.sai-c1mzmpkz__description')
-      if (!desc) return
+      if (!desc) continue
 
       const fullText = desc.textContent || ''
       // First, measure with line-clamp on the full text to see if it overflows.
@@ -840,12 +982,14 @@
       desc.appendChild(ellipsisNode)
       desc.appendChild(toggle)
 
-      function visibleHeight() { return desc.getBoundingClientRect().height }
+      function visibleHeight() {
+        return desc.getBoundingClientRect().height
+      }
       function setText(len) {
         // Trim to whole-word boundary near `len` for a clean cut.
         let s = fullText.slice(0, len).replace(/\s+\S*$/, '')
         if (!s) s = fullText.slice(0, len)
-        desc.firstChild ? (desc.firstChild.nodeValue = s) : null
+        if (desc.firstChild) desc.firstChild.nodeValue = s
       }
 
       // Initialise the first text node.
@@ -880,7 +1024,7 @@
         const expanded = wrap.classList.toggle('sai-c1mzmpkz__description-wrap--expanded')
         if (expanded) {
           // Show the full text + "show less" inline.
-          desc.firstChild && (desc.firstChild.nodeValue = fullText + ' ')
+          if (desc.firstChild) desc.firstChild.nodeValue = `${fullText} `
           ellipsisNode.nodeValue = ''
           toggle.textContent = 'show less'
         } else {
@@ -890,7 +1034,7 @@
         }
         toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false')
       })
-    })
+    }
   }
 
   function attachDropdown(host, track) {
@@ -935,18 +1079,29 @@
 
   function trapFocus(container, event) {
     if (event.key !== 'Tab') return
-    const focusables = container.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
-    if (focusables.length === 0) { event.preventDefault(); return }
+    const focusables = container.querySelectorAll(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    )
+    if (focusables.length === 0) {
+      event.preventDefault()
+      return
+    }
     const first = focusables[0]
     const last = focusables[focusables.length - 1]
-    if (event.shiftKey && document.activeElement === first) { last.focus(); event.preventDefault() }
-    else if (!event.shiftKey && document.activeElement === last) { first.focus(); event.preventDefault() }
+    if (event.shiftKey && document.activeElement === first) {
+      last.focus()
+      event.preventDefault()
+    } else if (!event.shiftKey && document.activeElement === last) {
+      first.focus()
+      event.preventDefault()
+    }
   }
 
   function openTermsSurface(d, ctx) {
     const { labels, config } = ctx
     const isMobile = !window.matchMedia('(min-width: 768px)').matches
-    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const previouslyFocused =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null
 
     const root = el('div', 'sai-c1mzmpkz-tc', {
       role: 'dialog',
@@ -955,30 +1110,44 @@
       'data-state': 'closed',
     })
     const backdrop = el('div', 'sai-c1mzmpkz-tc__backdrop', { 'data-sai-tc-dismiss': '' })
-    const panel = el('div', `sai-c1mzmpkz-tc__panel sai-c1mzmpkz-tc__panel--${isMobile ? 'drawer' : 'modal'}`)
+    const panel = el(
+      'div',
+      `sai-c1mzmpkz-tc__panel sai-c1mzmpkz-tc__panel--${isMobile ? 'drawer' : 'modal'}`,
+    )
 
     if (isMobile) panel.appendChild(el('div', 'sai-c1mzmpkz-tc__handle'))
 
     const header = el('div', 'sai-c1mzmpkz-tc__header')
-    header.appendChild(el('h2', 'sai-c1mzmpkz-tc__title', {
-      id: `sai-tc-title-${SNIPPET_ID}`,
-      text: d.title || formatTypeLabel(d, config.currencyCode),
-    }))
-    header.appendChild(el('button', 'sai-c1mzmpkz-tc__close', { type: 'button', 'aria-label': 'Close', 'data-sai-tc-dismiss': '', html: '&times;' }))
+    header.appendChild(
+      el('h2', 'sai-c1mzmpkz-tc__title', {
+        id: `sai-tc-title-${SNIPPET_ID}`,
+        text: d.title || formatTypeLabel(d, config.currencyCode),
+      }),
+    )
+    header.appendChild(
+      el('button', 'sai-c1mzmpkz-tc__close', {
+        type: 'button',
+        'aria-label': 'Close',
+        'data-sai-tc-dismiss': '',
+        html: '&times;',
+      }),
+    )
     panel.appendChild(header)
 
     const body = el('div', 'sai-c1mzmpkz-tc__body')
-    body.appendChild(el('p', null, { text: interpolateTerms(config.termsTemplate, d, config.currencyCode) }))
+    body.appendChild(
+      el('p', null, { text: interpolateTerms(config.termsTemplate, d, config.currencyCode) }),
+    )
     panel.appendChild(body)
 
     const isAutomatic = d.applicationType === 'automatic'
-    const code = (d.codes && d.codes[0]) || null
+    const code = d.codes?.[0] || null
     const ctaBtn = el('button', 'sai-c1mzmpkz-tc__cta', { type: 'button' })
     if (isAutomatic || !code) {
       ctaBtn.textContent = 'Close'
       ctaBtn.setAttribute('data-sai-tc-dismiss', '')
     } else {
-      ctaBtn.textContent = labels.copyCtaLabel + ' ' + code
+      ctaBtn.textContent = `${labels.copyCtaLabel} ${code}`
       ctaBtn.setAttribute('data-sai-copy', code)
     }
     panel.appendChild(ctaBtn)
@@ -990,15 +1159,29 @@
     const prevBodyOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
 
+    // Surface choice (drawer vs modal) must follow viewport-width changes
+    // while the T&C is open — otherwise rotating a phone or resizing a
+    // window leaves the wrong surface frozen.
+    const mq = window.matchMedia('(min-width: 768px)')
+    function syncSurface() {
+      const nowMobile = !mq.matches
+      panel.className = `sai-c1mzmpkz-tc__panel sai-c1mzmpkz-tc__panel--${nowMobile ? 'drawer' : 'modal'}`
+    }
+    if (typeof mq.addEventListener === 'function') mq.addEventListener('change', syncSurface)
+    else mq.addListener(syncSurface)
+
     function close() {
       root.setAttribute('data-state', 'closed')
       const cleanup = () => {
         document.removeEventListener('keydown', onKey, true)
         root.removeEventListener('click', onClick)
         root.removeEventListener('keydown', onTrap, true)
+        if (typeof mq.removeEventListener === 'function')
+          mq.removeEventListener('change', syncSurface)
+        else mq.removeListener(syncSurface)
         if (root.parentNode) root.parentNode.removeChild(root)
         document.body.style.overflow = prevBodyOverflow
-        if (previouslyFocused) previouslyFocused.focus()
+        if (previouslyFocused && document.contains(previouslyFocused)) previouslyFocused.focus()
       }
       const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
       if (reduced) cleanup()
@@ -1008,10 +1191,17 @@
     function onClick(event) {
       const target = event.target
       if (!(target instanceof Element)) return
-      if (target.closest('[data-sai-tc-dismiss]')) { event.preventDefault(); close() }
+      if (target.closest('[data-sai-tc-dismiss]')) {
+        event.preventDefault()
+        close()
+      }
     }
-    function onKey(event) { if (event.key === 'Escape') close() }
-    function onTrap(event) { trapFocus(root, event) }
+    function onKey(event) {
+      if (event.key === 'Escape') close()
+    }
+    function onTrap(event) {
+      trapFocus(root, event)
+    }
 
     root.addEventListener('click', onClick)
     root.addEventListener('keydown', onTrap, true)
@@ -1027,7 +1217,9 @@
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         root.setAttribute('data-state', 'open')
-        const firstFocusable = panel.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
+        const firstFocusable = panel.querySelector(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        )
         if (firstFocusable instanceof HTMLElement) firstFocusable.focus()
       })
     })
@@ -1050,7 +1242,7 @@
       if (!d) return
       ctx.track(`${FEATURE_SLUG}:terms_opened`, {
         discount_id: d.id || null,
-        discount_code: (d.codes && d.codes[0]) || null,
+        discount_code: d.codes?.[0] || null,
         application_type: d.applicationType || null,
       })
       openTermsSurface(d, ctx)
@@ -1084,7 +1276,7 @@
       if (variantId != null && variantsById[String(variantId)]) {
         return extractDiscounts(variantsById[String(variantId)].discounts)
       }
-      return (payload.discounts && payload.discounts.discounts) || []
+      return payload.discounts?.discounts || []
     }
     function priceForVariant(variantId) {
       if (variantId != null && variantsById[String(variantId)]) {
@@ -1103,7 +1295,7 @@
     // isn't on the page (theme without app embed), analytics become a noop
     // and the widget still functions.
     const wrapper = host.closest('[data-spectrum-lq-snippet]') || host
-    const api = window.__spectrumAi && window.__spectrumAi.snippet
+    const api = window.__spectrumAi?.snippet
     let trackFn = noop
     let emitFn = noop
     if (api && typeof api.bind === 'function') {
@@ -1126,9 +1318,15 @@
           if (typeof handles.track === 'function') trackFn = safeFn(handles.track)
           if (typeof handles.emit === 'function') emitFn = safeFn(handles.emit)
         }
-      } catch (_) { /* keep noops */ }
+      } catch (_) {
+        /* keep noops */
+      }
     }
     const ctx = { config, labels, track: trackFn, emit: emitFn }
+    // Park ctx on the host so the removal observer (set up after init)
+    // can find autoplay timers + the AbortController for resize listeners
+    // and tear them down when this host leaves the DOM.
+    host._ctx = ctx
 
     const body = host.querySelector('[data-sai-body]')
     const headingEl = host.querySelector('[data-sai-heading]')
@@ -1145,14 +1343,23 @@
 
       // Heading interpolation ({count} placeholder)
       if (headingEl) {
-        const baseHeading = headingEl.getAttribute('data-sai-heading-template') || headingEl.textContent
+        const baseHeading =
+          headingEl.getAttribute('data-sai-heading-template') || headingEl.textContent
         headingEl.setAttribute('data-sai-heading-template', baseHeading)
         headingEl.textContent = interpolate(baseHeading, { count: String(totalCount) })
       }
 
       // Dropdown label
-      const maxSavings = maxSavingsString(applicable.length ? applicable : discounts, config.currencyCode)
-      setDropdownLabel(host, totalCount, maxSavings, config.dropdownCollapsedLabel || '{count} offers available')
+      const maxSavings = maxSavingsString(
+        applicable.length ? applicable : discounts,
+        config.currencyCode,
+      )
+      setDropdownLabel(
+        host,
+        totalCount,
+        maxSavings,
+        config.dropdownCollapsedLabel || '{count} offers available',
+      )
 
       // Empty state
       if (totalCount === 0) {
@@ -1163,8 +1370,14 @@
         }
         host.style.display = ''
         const empty = el('div', 'sai-c1mzmpkz__empty')
-        empty.appendChild(el('p', 'sai-c1mzmpkz__empty-heading', { text: labels.emptyStateHeading || 'No active offers' }))
-        empty.appendChild(el('p', 'sai-c1mzmpkz__empty-body', { text: labels.emptyStateBody || '' }))
+        empty.appendChild(
+          el('p', 'sai-c1mzmpkz__empty-heading', {
+            text: labels.emptyStateHeading || 'No active offers',
+          }),
+        )
+        empty.appendChild(
+          el('p', 'sai-c1mzmpkz__empty-body', { text: labels.emptyStateBody || '' }),
+        )
         body.appendChild(empty)
         return
       }
@@ -1173,7 +1386,11 @@
       function appendPromoBlocksAt(position) {
         if (!config.enablePromoBlocks) return
         for (const block of promoBlocks) {
-          if (block && block.position === position && (block.headline || block.body || block.imageUrl)) {
+          if (
+            block &&
+            block.position === position &&
+            (block.headline || block.body || block.imageUrl)
+          ) {
             body.appendChild(buildPromoBlock(block))
           }
         }
@@ -1195,29 +1412,54 @@
       let pShown = 0
       let aHidden = 0
       let pHidden = 0
-      combined.forEach((d) => {
+      for (const d of combined) {
         const card = buildCard(d, ctx)
         if (isApplicable(d)) {
-          if (aShown >= maxApplicable) { card.setAttribute('data-sai-overflow', 'hidden'); aHidden++ } else aShown++
+          if (aShown >= maxApplicable) {
+            card.setAttribute('data-sai-overflow', 'hidden')
+            aHidden++
+          } else aShown++
         } else {
-          if (pShown >= maxPotential) { card.setAttribute('data-sai-overflow', 'hidden'); pHidden++ } else pShown++
+          if (pShown >= maxPotential) {
+            card.setAttribute('data-sai-overflow', 'hidden')
+            pHidden++
+          } else pShown++
         }
         listInner.appendChild(card)
-      })
+      }
 
       if (config.listLayout === 'carousel') {
-        const viewportCls = 'sai-c1mzmpkz__carousel-viewport' + (config.carouselShowArrows ? ' sai-c1mzmpkz__carousel-viewport--has-arrows' : '')
+        const viewportCls = `sai-c1mzmpkz__carousel-viewport${config.carouselShowArrows ? ' sai-c1mzmpkz__carousel-viewport--has-arrows' : ''}`
         const viewport = el('div', viewportCls)
         viewport.appendChild(listInner)
         if (config.carouselShowArrows) {
-          viewport.appendChild(el('button', 'sai-c1mzmpkz__carousel-arrow sai-c1mzmpkz__carousel-arrow--prev', { type: 'button', 'aria-label': 'Previous', 'data-sai-carousel-prev': '' }))
-          viewport.appendChild(el('button', 'sai-c1mzmpkz__carousel-arrow sai-c1mzmpkz__carousel-arrow--next', { type: 'button', 'aria-label': 'Next', 'data-sai-carousel-next': '' }))
+          viewport.appendChild(
+            el('button', 'sai-c1mzmpkz__carousel-arrow sai-c1mzmpkz__carousel-arrow--prev', {
+              type: 'button',
+              'aria-label': 'Previous',
+              'data-sai-carousel-prev': '',
+            }),
+          )
+          viewport.appendChild(
+            el('button', 'sai-c1mzmpkz__carousel-arrow sai-c1mzmpkz__carousel-arrow--next', {
+              type: 'button',
+              'aria-label': 'Next',
+              'data-sai-carousel-next': '',
+            }),
+          )
         }
         list.appendChild(viewport)
         if (config.carouselShowDots) {
           const dots = el('div', 'sai-c1mzmpkz__dots', { 'data-sai-carousel-dots': '' })
           for (let i = 0; i < combined.length; i++) {
-            dots.appendChild(el('button', 'sai-c1mzmpkz__dot', { type: 'button', 'data-sai-dot-index': String(i), 'aria-label': `Go to offer ${i + 1}`, 'aria-current': i === 0 ? 'true' : 'false' }))
+            dots.appendChild(
+              el('button', 'sai-c1mzmpkz__dot', {
+                type: 'button',
+                'data-sai-dot-index': String(i),
+                'aria-label': `Go to offer ${i + 1}`,
+                'aria-current': i === 0 ? 'true' : 'false',
+              }),
+            )
           }
           list.appendChild(dots)
         }
@@ -1231,7 +1473,9 @@
       // Overflow CTA
       const totalHidden = aHidden + pHidden
       if (totalHidden > 0) {
-        const ctaText = interpolate(labels.overflowCtaLabel || 'View all ({count})', { count: String(totalHidden) })
+        const ctaText = interpolate(labels.overflowCtaLabel || 'View all ({count})', {
+          count: String(totalHidden),
+        })
         const cta = el('button', 'sai-c1mzmpkz__overflow-cta', {
           type: 'button',
           'data-sai-overflow-expand': '',
@@ -1278,12 +1522,14 @@
       fetchCartSubtotal().then((cartSubtotal) => {
         const updated = recomputeForCart(baseDiscounts, cartSubtotal, config.variantPrice)
         const changed = updated.some((d, i) => {
-          const before = lastRendered[i] && lastRendered[i].qualification
-          const after = d && d.qualification
+          const before = lastRendered[i]?.qualification
+          const after = d?.qualification
           if (!before || !after) return true
-          return before.isSatisfied !== after.isSatisfied
-            || before.applicability !== after.applicability
-            || before.progressPercent !== after.progressPercent
+          return (
+            before.isSatisfied !== after.isSatisfied ||
+            before.applicability !== after.applicability ||
+            before.progressPercent !== after.progressPercent
+          )
         })
         if (!changed) return
         const wasApplicableCount = partition(lastRendered).applicable.length
@@ -1301,12 +1547,62 @@
     }
 
     syncFromCart()
-    subscribeToCartChanges(syncFromCart)
+    const unsubscribeCart = subscribeToCartChanges(syncFromCart)
+    host._unsubscribeCart = unsubscribeCart
+
+    // Tear down on pagehide — covers bfcache, SPA navigation, and tab close.
+    // Tear down also on MutationObserver-detected removal of the host from
+    // the DOM (cart re-renders, variant swaps that re-render the section).
+    const onPageHide = () => {
+      try {
+        unsubscribeCart()
+      } catch (_) {
+        /* already torn down */
+      }
+    }
+    window.addEventListener('pagehide', onPageHide, { once: true })
+    const removalObserver = new MutationObserver(() => {
+      if (!document.contains(host)) {
+        try {
+          unsubscribeCart()
+        } catch (_) {
+          /* already torn down */
+        }
+        // Clear autoplay timers + abort window-resize listeners attached
+        // by attachCarousel — otherwise they keep firing into a detached
+        // host (and stack per variant swap).
+        const c = host._ctx
+        if (c) {
+          if (Array.isArray(c.autoplayTimers)) {
+            for (const stop of c.autoplayTimers) {
+              try {
+                stop()
+              } catch (_) {}
+            }
+            c.autoplayTimers.length = 0
+          }
+          if (c.abortController) {
+            try {
+              c.abortController.abort()
+            } catch (_) {}
+            c.abortController = null
+          }
+        }
+        window.removeEventListener('pagehide', onPageHide)
+        removalObserver.disconnect()
+      }
+    })
+    removalObserver.observe(document.body, { childList: true, subtree: true })
+    host._removalObserver = removalObserver
   }
 
   function waitForVis(host) {
     const root = host.closest('[data-spectrum-lq-snippet]') || host
-    if (!root || root.getAttribute('data-spectrum-vis') === 'on' || !root.hasAttribute('data-spectrum-vis')) {
+    if (
+      !root ||
+      root.getAttribute('data-spectrum-vis') === 'on' ||
+      !root.hasAttribute('data-spectrum-vis')
+    ) {
       initHost(host)
       return
     }
@@ -1320,8 +1616,11 @@
   }
 
   function bootAll() {
-    const hosts = document.querySelectorAll(TAG)
-    hosts.forEach((host) => waitForVis(host))
+    // Dedupe — bootAll runs once per script-tag execution, but the script
+    // is re-emitted by each snippet instance on the page. Track which hosts
+    // we've already booted so we don't double-init the same DOM node.
+    const hosts = document.querySelectorAll(HOST_SELECTOR)
+    for (const host of hosts) waitForVis(host)
   }
 
   if (document.readyState === 'loading') {

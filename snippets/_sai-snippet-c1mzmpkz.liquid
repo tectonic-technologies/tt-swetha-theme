@@ -53,8 +53,16 @@
   assign empty_state_body = content.empty_state_body | default: 'Check back soon for new promotions.'
 
   assign list_layout = content.list_layout | default: 'carousel'
-  assign grid_columns_desktop = content.grid_columns_desktop | default: 3
-  assign grid_columns_mobile = content.grid_columns_mobile | default: 1
+
+  # Numeric props are interpolated into inline `style="--var: N"` strings
+  # below. The storage layer doesn't enforce the meta.json min/max for
+  # numbers, so a merchant could write a CSS-injection payload into the
+  # field. Coerce to number with `| times: 1`, then clamp to the documented
+  # bounds, before they ever reach the style attribute.
+  assign grid_columns_desktop_raw = content.grid_columns_desktop | default: 3 | times: 1
+  assign grid_columns_desktop = grid_columns_desktop_raw | at_least: 1 | at_most: 6
+  assign grid_columns_mobile_raw = content.grid_columns_mobile | default: 1 | times: 1
+  assign grid_columns_mobile = grid_columns_mobile_raw | at_least: 1 | at_most: 3
 
   if content.carousel_autoplay == nil
     assign carousel_autoplay = false
@@ -75,7 +83,8 @@
     assign carousel_show_dots = content.carousel_show_dots
   endif
 
-  assign carousel_cards_visible = content.carousel_cards_visible | default: 1
+  assign carousel_cards_visible_raw = content.carousel_cards_visible | default: 1 | times: 1
+  assign carousel_cards_visible = carousel_cards_visible_raw | at_least: 1 | at_most: 5
 
   if content.carousel_show_peek == nil
     assign carousel_show_peek = true
@@ -150,7 +159,8 @@
   else
     assign show_description = content.show_description
   endif
-  assign description_max_lines = content.description_max_lines | default: 2
+  assign description_max_lines_raw = content.description_max_lines | default: 2 | times: 1
+  assign description_max_lines = description_max_lines_raw | at_least: 1 | at_most: 10
   if content.description_expandable == nil
     assign description_expandable = true
   else
@@ -1134,9 +1144,22 @@
 }
 {% endstylesheet %}
 
-{%- if enabled_on_pdp -%}
-<sai-c1mzmpkz
+{%- comment -%}
+  PDP-only widget. `product` is the page's main product drop (nil on
+  non-PDP templates). Without the guard the heading + dropdown trigger
+  would still emit over an empty container.
+
+  When the snippet is disabled (`enabled_on_pdp = false`) we still emit
+  an empty `[hidden]` host so the editor SDK's slot anchor stays
+  resolvable — short-circuiting the wrapper would leave Studio with no
+  drop target.
+{%- endcomment -%}
+{%- unless product and enabled_on_pdp -%}
+  <div class="sai-c1mzmpkz sai-c1mzmpkz--empty" data-mutation-handle="{{ mutation_handle }}" data-sai-empty hidden></div>
+{%- else -%}
+<div
   class="sai-c1mzmpkz sai-c1mzmpkz--{{ list_layout }}{% if carousel_show_peek and list_layout == 'carousel' %} sai-c1mzmpkz--peek{% endif %}"
+  data-sai-snippet-root="c1mzmpkz"
   data-mutation-handle="{{ mutation_handle }}"
   style="--sai-c1mzmpkz-cards-mobile: {{ grid_columns_mobile }}; --sai-c1mzmpkz-cards-desktop: {{ grid_columns_desktop }}; --sai-c1mzmpkz-cards-visible: {{ carousel_cards_visible }}; --sai-c1mzmpkz-desc-lines: {{ description_max_lines }};"
 >
@@ -1266,8 +1289,8 @@
   ]
 }
 </script>
-</sai-c1mzmpkz>
+</div>
 
-<script src="{{ 'sai-snippet-c1mzmpkz.js' | asset_url }}" async></script>
+<script src="{{ 'sai-snippet-c1mzmpkz.js' | asset_url }}" defer></script>
 
-{%- endif -%}
+{%- endunless -%}
