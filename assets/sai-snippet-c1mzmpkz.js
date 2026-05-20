@@ -1,14 +1,11 @@
 /* =============================================================================
  * PDP Promotion List (c1mzmpkz) — runtime.
  *
- * Reads the server-emitted JSON payload (data-sai-payload), applies the pool
- * mode + sort, renders the coupon card, wires Copy clipboard, the overflow
- * popup, dropdown, carousel autoplay/arrows/dots, and the T&C modal
- * (desktop) / drawer (mobile).
- *
- * Cart-blind by design: qualifications come from the metafield as the server
- * resolved them at sync time. There is no client-side recompute against the
- * live cart.
+ * Reads the server-emitted JSON payload (data-sai-payload), recomputes
+ * qualifications against the live cart subtotal, sorts each section, renders
+ * the 11-zone coupon card, wires Copy clipboard, overflow expand-inline /
+ * popup, dropdown, carousel autoplay/arrows/dots, T&C modal (desktop) /
+ * drawer (mobile), and live cart subscription.
  *
  * Container-scoped self-guard via data-mutation-handle. Reads
  * data-spectrum-vis before doing meaningful work.
@@ -360,6 +357,12 @@
       return `Expires in ${minutes}m`
     }
     return null
+  }
+
+  function progressPct(d) {
+    const q = d.qualification || {}
+    if (typeof q.progressPercent !== 'number') return 0
+    return clamp(q.progressPercent / 100, 0, 1)
   }
 
   function interpolateTerms(template, d, currency) {
@@ -1146,11 +1149,10 @@
     })
   }
 
-  // Attach T&C delegation ONCE per host. Re-binding on every re-render would
-  // stack listeners and open the drawer multiple times per click — the
-  // once-guard on host.dataset.saiTermsBound prevents that. The listener
-  // reads the current discounts off `ctx.currentDiscounts` so variant
-  // changes pick up the new payload without rebinding.
+  // Attach T&C delegation ONCE per host. The listener reads the live
+  // discounts list off `ctx.currentDiscounts` so subsequent cart-driven
+  // re-renders don't need to rebind (and re-binding would stack listeners
+  // → multiple drawers per click).
   function attachTermsTriggers(host, ctx) {
     if (host.dataset.saiTermsBound === '1') return
     host.dataset.saiTermsBound = '1'
@@ -1525,9 +1527,9 @@
   }
 
   function bootAll() {
-    // Per-host dedupe lives in bindContainer via host.dataset.saiBooted —
-    // bootAll just walks every matching host and calls waitForVis, which is
-    // a no-op once the host has already been bound.
+    // Dedupe — bootAll runs once per script-tag execution, but the script
+    // is re-emitted by each snippet instance on the page. Track which hosts
+    // we've already booted so we don't double-init the same DOM node.
     const hosts = document.querySelectorAll(HOST_SELECTOR)
     for (const host of hosts) waitForVis(host)
   }
