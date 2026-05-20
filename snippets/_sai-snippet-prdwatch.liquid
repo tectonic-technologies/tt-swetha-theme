@@ -1,0 +1,742 @@
+{%- comment -%}
+  Notify Me — Back in Stock — Spectrum snippet prdwatch.
+
+  Renders a PDP trigger button that opens a modal (desktop) or bottom drawer
+  (mobile) for back-in-stock subscriptions. The container always renders on
+  PDPs; the trigger button is hidden by default and the JS shows it only when
+  the currently-selected variant's `available` is false. Container is
+  inert (display: none) on non-PDP pages where `product` is nil.
+
+  Render args (from wrapper):
+    variant   resolved variant; variant.content holds prop values.
+
+  Globals consumed:
+    product   Shopify product object (handle, title, featured_image, variants).
+{%- endcomment -%}
+
+{% stylesheet %}
+/* Notify Me — Back in Stock — Spectrum snippet prdwatch */
+
+.sai-prdwatch {
+  display: block;
+  font-family: var(--sai-font-body, inherit);
+  color: var(--sai-color-fg, #1a1a1a);
+  --sai-prdwatch-trigger-bg: #000;
+  --sai-prdwatch-trigger-fg: #fff;
+  --sai-prdwatch-trigger-radius: 8px;
+  --sai-prdwatch-cta-bg: #000;
+  --sai-prdwatch-cta-fg: #fff;
+  --sai-prdwatch-cta-radius: 8px;
+  --sai-prdwatch-modal-width: 560px;
+}
+
+.sai-prdwatch[hidden],
+.sai-prdwatch__trigger[hidden] {
+  display: none !important;
+}
+
+/* ---- Trigger button ---- */
+
+.sai-prdwatch__trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.875rem 1.5rem;
+  background: var(--sai-prdwatch-trigger-bg);
+  color: var(--sai-prdwatch-trigger-fg);
+  border: none;
+  border-radius: var(--sai-prdwatch-trigger-radius);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.sai-prdwatch__trigger:hover {
+  opacity: 0.9;
+}
+
+.sai-prdwatch__trigger-icon {
+  display: inline-flex;
+  align-items: center;
+  line-height: 0;
+}
+
+.sai-prdwatch__trigger-icon img {
+  height: 18px;
+  width: auto;
+  display: block;
+}
+
+/* ---- Modal / Drawer ---- */
+
+/* The dialog goes edge-to-edge (full viewport) and centers its inner body
+   via flexbox. This is immune to:
+   - the page-scrollbar offset that `left: 50%; translate(-50%)` suffers from
+     when the dialog opens and the scrollbar disappears
+   - theme overrides on `dialog { margin: ... }`
+   The visible card is `.sai-prdwatch__modal-body`; the dialog itself is
+   transparent and only handles backdrop clicks. */
+dialog.sai-prdwatch__modal {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  max-width: 100vw;
+  max-height: 100vh;
+  margin: 0;
+  padding: 1.5rem;
+  border: none;
+  background: transparent;
+  overflow: hidden;
+}
+
+/* IMPORTANT: only apply flex layout when the dialog is actually open.
+   Without the [open] qualifier the rule outranks the UA's
+   `dialog:not([open]) { display: none }` and the closed dialog stays
+   in the layout, swallowing pointer events across the whole viewport. */
+dialog.sai-prdwatch__modal[open] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sai-prdwatch__modal::backdrop {
+  background: color-mix(in srgb, #000 50%, transparent);
+  opacity: 0;
+  transition: opacity 0.22s ease, display 0.22s ease allow-discrete,
+    overlay 0.22s ease allow-discrete;
+}
+
+.sai-prdwatch__modal[open]::backdrop {
+  opacity: 1;
+}
+
+@starting-style {
+  .sai-prdwatch__modal[open]::backdrop {
+    opacity: 0;
+  }
+}
+
+.sai-prdwatch__modal-body {
+  background: var(--sai-color-bg, #fff);
+  /* Subtle hairline + layered shadow for a more elevated, polished feel. */
+  border: 1px solid color-mix(in srgb, var(--sai-color-fg, #000) 6%, transparent);
+  border-radius: 20px;
+  /* Extra top padding so the absolute-positioned close button never overlaps
+     the heading on either desktop or mobile. */
+  padding: 2.5rem 2rem 2rem;
+  /* The body is the visible card. It owns its own scroll when content
+     exceeds the viewport — the dialog itself stays fixed. */
+  width: 100%;
+  max-width: var(--sai-prdwatch-modal-width);
+  max-height: calc(100vh - 3rem);
+  overflow-y: auto;
+  position: relative;
+  /* Two-layer shadow: tight contact + soft ambient. */
+  box-shadow:
+    0 1px 3px color-mix(in srgb, #000 8%, transparent),
+    0 28px 80px color-mix(in srgb, #000 22%, transparent);
+  opacity: 0;
+  transform: translateY(-8px) scale(0.97);
+  transition: opacity 0.22s ease, transform 0.22s ease;
+  pointer-events: auto;
+}
+
+.sai-prdwatch__modal[open] .sai-prdwatch__modal-body {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+@starting-style {
+  .sai-prdwatch__modal[open] .sai-prdwatch__modal-body {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.97);
+  }
+}
+
+.sai-prdwatch__modal[data-size="small"] { --sai-prdwatch-modal-width: 480px; }
+.sai-prdwatch__modal[data-size="medium"] { --sai-prdwatch-modal-width: 560px; }
+.sai-prdwatch__modal[data-size="large"] { --sai-prdwatch-modal-width: 680px; }
+
+@media (max-width: 767px) {
+  /* Bottom-drawer: align body to the bottom of the viewport with full width.
+     Only applied when [open] — same reason as the desktop rule above. */
+  dialog.sai-prdwatch__modal {
+    padding: 0;
+  }
+  dialog.sai-prdwatch__modal[open] {
+    align-items: flex-end;
+    justify-content: stretch;
+  }
+  .sai-prdwatch__modal-body {
+    width: 100%;
+    max-width: 100%;
+    border-radius: 16px 16px 0 0;
+    padding: 2.5rem 1.25rem 1.75rem;
+    max-height: 90vh;
+    transform: translateY(100%);
+    transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1),
+      opacity 0.2s ease;
+  }
+  .sai-prdwatch__modal[open] .sai-prdwatch__modal-body {
+    transform: translateY(0);
+  }
+  @starting-style {
+    .sai-prdwatch__modal[open] .sai-prdwatch__modal-body {
+      transform: translateY(100%);
+    }
+  }
+}
+
+/* Closing-class fallback for browsers without @starting-style support. */
+.sai-prdwatch__modal--closing .sai-prdwatch__modal-body {
+  opacity: 0 !important;
+  transform: translateY(-8px) scale(0.97) !important;
+}
+@media (max-width: 767px) {
+  .sai-prdwatch__modal--closing .sai-prdwatch__modal-body {
+    transform: translateY(100%) !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sai-prdwatch__modal-body,
+  .sai-prdwatch__modal::backdrop {
+    transition-duration: 0.001s;
+  }
+}
+
+.sai-prdwatch__close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  color: color-mix(in srgb, var(--sai-color-fg, #000) 60%, transparent);
+}
+
+.sai-prdwatch__close:hover {
+  color: var(--sai-color-fg, #1a1a1a);
+}
+
+/* ---- Heading + description ----
+   Defensive: many themes have `h2 { text-align: left }` baked in.
+   Specificity-bumped selectors + !important on the alignment attr below. */
+
+.sai-prdwatch .sai-prdwatch__heading {
+  /* Cap the heading width so a long sentence wraps to two lines on desktop,
+     matching the reference design. The dialog body still drives outer width. */
+  margin: 0 auto 0.75rem;
+  max-width: 22ch;
+  padding-right: 1.5rem;
+  padding-left: 1.5rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.3;
+  text-align: center;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--sai-color-fg, #1a1a1a);
+}
+
+.sai-prdwatch .sai-prdwatch__description {
+  margin: 0 0 1.25rem;
+  font-size: 0.875rem;
+  color: color-mix(in srgb, var(--sai-color-fg, #000) 70%, transparent);
+  text-align: center;
+}
+
+/* ---- Product card ---- */
+
+.sai-prdwatch__product {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+  border: 1px solid color-mix(in srgb, var(--sai-color-fg, #000) 10%, transparent);
+  border-radius: 12px;
+}
+
+.sai-prdwatch__product-image {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.sai-prdwatch__product-name {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--sai-color-fg, #1a1a1a);
+}
+
+/* ---- Variant selector ---- */
+
+.sai-prdwatch__variant {
+  display: block;
+  width: 100%;
+  margin-bottom: 1rem;
+  padding: 0.75rem 0.875rem;
+  font: inherit;
+  font-size: 0.875rem;
+  color: var(--sai-color-fg, #1a1a1a);
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--sai-color-fg, #000) 18%, transparent);
+  border-radius: 8px;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23555' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  cursor: pointer;
+}
+
+/* ---- Channel tabs ---- */
+
+.sai-prdwatch__tabs {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 0 auto 0.875rem;
+  padding: 0.25rem;
+  width: fit-content;
+  background: color-mix(in srgb, var(--sai-color-fg, #000) 5%, transparent);
+  border-radius: 999px;
+}
+
+.sai-prdwatch__tab {
+  padding: 0.375rem 1rem;
+  background: transparent;
+  border: none;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  color: color-mix(in srgb, var(--sai-color-fg, #000) 60%, transparent);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.sai-prdwatch__tab[aria-selected="true"] {
+  background: var(--sai-color-fg, #1a1a1a);
+  color: var(--sai-color-bg, #fff);
+}
+
+/* ---- Fields ---- */
+
+.sai-prdwatch__field {
+  margin-bottom: 0.75rem;
+}
+
+.sai-prdwatch__input {
+  display: block;
+  width: 100%;
+  padding: 0.75rem 0.875rem;
+  font: inherit;
+  font-size: 0.9375rem;
+  color: var(--sai-color-fg, #1a1a1a);
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--sai-color-fg, #000) 18%, transparent);
+  border-radius: 8px;
+  box-sizing: border-box;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.sai-prdwatch__input:focus {
+  border-color: var(--sai-color-fg, #1a1a1a);
+}
+
+.sai-prdwatch__input--error {
+  border-color: #ef4444;
+}
+
+.sai-prdwatch__error {
+  margin-top: 0.375rem;
+  font-size: 0.75rem;
+  color: #ef4444;
+}
+
+/* ---- Phone field (with country picker) ---- */
+
+.sai-prdwatch__phone {
+  display: flex;
+  align-items: stretch;
+  gap: 0.375rem;
+}
+
+.sai-prdwatch__country {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.sai-prdwatch__country-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  height: 100%;
+  padding: 0 0.75rem;
+  font: inherit;
+  font-size: 0.875rem;
+  color: var(--sai-color-fg, #1a1a1a);
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--sai-color-fg, #000) 18%, transparent);
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.sai-prdwatch__country-popover {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  z-index: 5;
+  width: 280px;
+  max-height: 280px;
+  background: var(--sai-color-bg, #fff);
+  border: 1px solid color-mix(in srgb, var(--sai-color-fg, #000) 12%, transparent);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px color-mix(in srgb, #000 12%, transparent);
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sai-prdwatch__country-popover[data-open="true"] {
+  display: flex;
+}
+
+.sai-prdwatch__country-search {
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  font: inherit;
+  font-size: 0.875rem;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--sai-color-fg, #000) 10%, transparent);
+  outline: none;
+  box-sizing: border-box;
+}
+
+.sai-prdwatch__country-list {
+  list-style: none;
+  margin: 0;
+  padding: 0.25rem 0;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.sai-prdwatch__country-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+  color: var(--sai-color-fg, #1a1a1a);
+}
+
+.sai-prdwatch__country-option[aria-selected="true"],
+.sai-prdwatch__country-option:hover {
+  background: color-mix(in srgb, var(--sai-color-fg, #000) 5%, transparent);
+}
+
+.sai-prdwatch__country-option-dial {
+  margin-left: auto;
+  color: color-mix(in srgb, var(--sai-color-fg, #000) 50%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+
+.sai-prdwatch__phone-input {
+  flex: 1;
+}
+
+/* ---- Submit button ---- */
+
+.sai-prdwatch__submit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 0.875rem 1.25rem;
+  background: var(--sai-prdwatch-cta-bg);
+  color: var(--sai-prdwatch-cta-fg);
+  border: none;
+  border-radius: var(--sai-prdwatch-cta-radius);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  margin-top: 0.25rem;
+  transition: opacity 0.15s ease;
+}
+
+.sai-prdwatch__submit:hover {
+  opacity: 0.9;
+}
+
+.sai-prdwatch__submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ---- Confirmation ----
+   Lives on the PDP (outside the modal), shown after a successful submission.
+   Slides in from above when the trigger button hides post-subscribe. */
+
+.sai-prdwatch__confirmation {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  background: color-mix(in srgb, #22c55e 12%, transparent);
+  color: #15803d;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  text-align: center;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.sai-prdwatch__confirmation[data-visible="true"] {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ---- Alignment helpers ---- */
+
+/* Alignment-attr overrides need !important to win against theme h2 rules
+   that may declare `text-align: left` with high specificity. */
+.sai-prdwatch__heading[data-align="left"],
+.sai-prdwatch__description[data-align="left"] {
+  text-align: left !important;
+}
+
+.sai-prdwatch__heading[data-align="right"],
+.sai-prdwatch__description[data-align="right"] {
+  text-align: right !important;
+}
+
+.sai-prdwatch__heading[data-align="center"],
+.sai-prdwatch__description[data-align="center"] {
+  text-align: center !important;
+}
+
+/* ---- Radius variants ---- */
+
+.sai-prdwatch[data-trigger-radius="pill"] { --sai-prdwatch-trigger-radius: 999px; }
+.sai-prdwatch[data-trigger-radius="square"] { --sai-prdwatch-trigger-radius: 0; }
+.sai-prdwatch[data-cta-radius="pill"] { --sai-prdwatch-cta-radius: 999px; }
+.sai-prdwatch[data-cta-radius="square"] { --sai-prdwatch-cta-radius: 0; }
+
+/* ---- Reduced motion ---- */
+
+@media (prefers-reduced-motion: reduce) {
+  .sai-prdwatch__trigger,
+  .sai-prdwatch__submit,
+  .sai-prdwatch__tab,
+  .sai-prdwatch__input {
+    transition: none;
+  }
+}
+{% endstylesheet %}
+
+<script src="{{ 'sai-snippet-prdwatch.js' | asset_url }}" async></script>
+
+{%- assign _c = variant.content -%}
+
+{%- if _c.collect_email == nil -%}
+  {%- assign _collect_email = true -%}
+{%- else -%}
+  {%- assign _collect_email = _c.collect_email -%}
+{%- endif -%}
+
+{%- if _c.collect_phone == nil -%}
+  {%- assign _collect_phone = false -%}
+{%- else -%}
+  {%- assign _collect_phone = _c.collect_phone -%}
+{%- endif -%}
+
+{%- if _c.show_product_image == nil -%}
+  {%- assign _show_image = true -%}
+{%- else -%}
+  {%- assign _show_image = _c.show_product_image -%}
+{%- endif -%}
+
+{%- if _c.show_variant_selector == nil -%}
+  {%- assign _show_variant = true -%}
+{%- else -%}
+  {%- assign _show_variant = _c.show_variant_selector -%}
+{%- endif -%}
+
+{%- assign _heading = _c.heading | default: 'Notify me when this product is available' -%}
+{%- assign _heading_align = _c.heading_alignment | default: 'center' -%}
+{%- assign _description = _c.description | default: '' -%}
+{%- assign _description_align = _c.description_alignment | default: 'center' -%}
+{%- assign _modal_size = _c.modal_max_width | default: 'medium' -%}
+{%- assign _email_placeholder = _c.email_placeholder | default: 'you@example.com' -%}
+{%- assign _phone_placeholder = _c.phone_placeholder | default: 'Phone number' -%}
+{%- assign _default_country = _c.default_country_code | default: 'IN' -%}
+{%- assign _cta_text = _c.cta_text | default: 'Notify me' -%}
+{%- assign _cta_bg = _c.cta_background_color | default: '#000000' -%}
+{%- assign _cta_fg = _c.cta_text_color | default: '#FFFFFF' -%}
+{%- assign _cta_radius = _c.cta_border_radius | default: 'rounded' -%}
+{%- assign _trigger_text = _c.trigger_cta_text | default: 'Notify me' -%}
+{%- assign _trigger_layout = _c.trigger_layout | default: 'text_image' -%}
+{%- assign _trigger_bg = _c.trigger_background_color | default: '#000000' -%}
+{%- assign _trigger_fg = _c.trigger_text_color | default: '#FFFFFF' -%}
+{%- assign _trigger_radius = _c.trigger_border_radius | default: 'rounded' -%}
+{%- assign _confirmation = _c.confirmation_message | default: "Thanks — we'll let you know as soon as it's back." -%}
+{%- if _c.confirmation_auto_dismiss_seconds == nil -%}
+  {%- assign _confirmation_dismiss_seconds = 15 -%}
+{%- else -%}
+  {%- assign _confirmation_dismiss_seconds = _c.confirmation_auto_dismiss_seconds -%}
+{%- endif -%}
+
+{%- assign _trigger_img_url = _c.trigger_image.url -%}
+{%- assign _trigger_img_alt = _c.trigger_image.alt | default: '' -%}
+
+{%- if product -%}
+  {%- if product.featured_image -%}
+    {%- assign _product_img = product.featured_image | image_url: width: 120 -%}
+  {%- elsif product.featured_media.preview_image -%}
+    {%- assign _product_img = product.featured_media.preview_image | image_url: width: 120 -%}
+  {%- else -%}
+    {%- assign _product_img = nil -%}
+  {%- endif -%}
+{%- endif -%}
+
+<div class="sai-prdwatch"
+     data-trigger-radius="{{ _trigger_radius }}"
+     data-cta-radius="{{ _cta_radius }}"
+     style="--sai-prdwatch-trigger-bg: {{ _trigger_bg }}; --sai-prdwatch-trigger-fg: {{ _trigger_fg }}; --sai-prdwatch-cta-bg: {{ _cta_bg }}; --sai-prdwatch-cta-fg: {{ _cta_fg }};"
+     {%- unless product %} hidden{% endunless -%}>
+
+  <button type="button" class="sai-prdwatch__trigger" data-trigger aria-haspopup="dialog">
+    {%- if _trigger_layout == 'image_text' -%}
+      <span class="sai-prdwatch__trigger-icon" data-trigger-icon>
+        {%- if _trigger_img_url != blank -%}
+          <img src="{{ _trigger_img_url }}" alt="{{ _trigger_img_alt | escape }}" />
+        {%- else -%}
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+        {%- endif -%}
+      </span>
+      <span class="sai-prdwatch__trigger-text">{{ _trigger_text | escape }}</span>
+    {%- else -%}
+      <span class="sai-prdwatch__trigger-text">{{ _trigger_text | escape }}</span>
+      <span class="sai-prdwatch__trigger-icon" data-trigger-icon>
+        {%- if _trigger_img_url != blank -%}
+          <img src="{{ _trigger_img_url }}" alt="{{ _trigger_img_alt | escape }}" />
+        {%- else -%}
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+        {%- endif -%}
+      </span>
+    {%- endif -%}
+  </button>
+
+  <dialog class="sai-prdwatch__modal" data-modal data-size="{{ _modal_size }}" aria-labelledby="sai-prdwatch-heading-{{ product.handle | default: 'pdp' }}">
+    <div class="sai-prdwatch__modal-body">
+      <button type="button" class="sai-prdwatch__close" data-close aria-label="Close">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+
+      <h2 class="sai-prdwatch__heading" id="sai-prdwatch-heading-{{ product.handle | default: 'pdp' }}" data-align="{{ _heading_align }}">{{ _heading | escape }}</h2>
+
+      {%- if _description != blank -%}
+        <p class="sai-prdwatch__description" data-align="{{ _description_align }}">{{ _description | escape }}</p>
+      {%- endif -%}
+
+      {%- if _show_image and product -%}
+        <div class="sai-prdwatch__product" data-product-card>
+          {%- if _product_img -%}
+            <img class="sai-prdwatch__product-image" src="{{ _product_img }}" alt="{{ product.title | escape }}" width="48" height="48" loading="lazy" />
+          {%- endif -%}
+          <p class="sai-prdwatch__product-name">{{ product.title | escape }}</p>
+        </div>
+      {%- endif -%}
+
+      {%- if _show_variant and product -%}
+        <select class="sai-prdwatch__variant" data-variant-select aria-label="Variant">
+          {%- for v in product.variants -%}
+            <option value="{{ v.id }}" data-available="{{ v.available | json }}">{{ v.title | escape }}{%- unless v.available %} (sold out){% endunless -%}</option>
+          {%- endfor -%}
+        </select>
+      {%- endif -%}
+
+      {%- if _collect_email and _collect_phone -%}
+        <div class="sai-prdwatch__tabs" role="tablist" data-tabs>
+          <button type="button" class="sai-prdwatch__tab" role="tab" aria-selected="true" data-tab="email">Email</button>
+          <button type="button" class="sai-prdwatch__tab" role="tab" aria-selected="false" data-tab="sms">SMS</button>
+        </div>
+      {%- endif -%}
+
+      <form class="sai-prdwatch__form" data-form novalidate>
+        {%- if _collect_email -%}
+          <div class="sai-prdwatch__field" data-channel-field="email">
+            <input type="email" class="sai-prdwatch__input" data-input="email" placeholder="{{ _email_placeholder | escape }}" autocomplete="email" />
+            <div class="sai-prdwatch__error" data-error="email" hidden></div>
+          </div>
+        {%- endif -%}
+
+        {%- if _collect_phone -%}
+          <div class="sai-prdwatch__field" data-channel-field="phone"{% if _collect_email %} hidden{% endif %}>
+            <div class="sai-prdwatch__phone">
+              <div class="sai-prdwatch__country" data-country>
+                <button type="button" class="sai-prdwatch__country-button" data-country-button aria-haspopup="listbox" aria-expanded="false">
+                  <span data-country-flag>🌐</span>
+                  <span data-country-dial>+91</span>
+                </button>
+                <div class="sai-prdwatch__country-popover" data-country-popover role="listbox">
+                  <input type="text" class="sai-prdwatch__country-search" data-country-search placeholder="Search country" />
+                  <ul class="sai-prdwatch__country-list" data-country-list></ul>
+                </div>
+              </div>
+              <input type="tel" class="sai-prdwatch__input sai-prdwatch__phone-input" data-input="phone" placeholder="{{ _phone_placeholder | escape }}" autocomplete="tel-national" inputmode="numeric" maxlength="13" pattern="[0-9+\s-]*" />
+            </div>
+            <div class="sai-prdwatch__error" data-error="phone" hidden></div>
+          </div>
+        {%- endif -%}
+
+        <button type="submit" class="sai-prdwatch__submit" data-submit>{{ _cta_text | escape }}</button>
+      </form>
+    </div>
+  </dialog>
+
+  <div class="sai-prdwatch__confirmation" data-confirmation hidden>{{ _confirmation | escape }}</div>
+
+  <script type="application/json" data-spectrum-snippet-pool>
+{
+  "product": {
+    "id": {{ product.id | json }},
+    "handle": {{ product.handle | json }},
+    "title": {{ product.title | json }},
+    "imageUrl": {{ _product_img | json }}
+  },
+  "variants": [
+    {%- for v in product.variants -%}
+    { "id": {{ v.id | json }}, "title": {{ v.title | json }}, "available": {{ v.available | json }} }{%- unless forloop.last -%},{%- endunless -%}
+    {%- endfor -%}
+  ],
+  "currentVariantId": {{ product.selected_or_first_available_variant.id | json }},
+  "defaultCountryCode": {{ _default_country | json }},
+  "confirmationDismissSeconds": {{ _confirmation_dismiss_seconds | json }},
+  "customer": {
+    "email": {{ customer.email | json }},
+    "phone": {{ customer.phone | default: customer.default_address.phone | json }}
+  }
+}
+  </script>
+</div>
