@@ -12,8 +12,7 @@
 
   All snippet behaviour is driven from variant.content props (see meta.json).
   The Liquid template renders an SSR shell + a JSON payload; runtime JS does
-  the actual card rendering and sorting. Cart-blind by design — qualifications
-  come from the server-baked metafield and are stable for the page lifetime.
+  the actual card rendering, sorting, and cart-aware recompute.
 
   @example
   {% render '_sai-snippet-c1mzmpkz',
@@ -63,6 +62,14 @@
   else
     assign promote_product_specific_above_storewide = content.promote_product_specific_above_storewide
   endif
+
+  # ── User-specific coupons (Phase 2) ─────────────────────────────────────
+  if content.enable_user_specific_coupons == nil
+    assign enable_user_specific_coupons = false
+  else
+    assign enable_user_specific_coupons = content.enable_user_specific_coupons
+  endif
+  assign user_section_badge_text = content.user_section_badge_text | default: 'Just for you ({count})'
 
   assign list_layout = content.list_layout | default: 'carousel'
 
@@ -249,7 +256,8 @@
   --sai-c1mzmpkz-code-fg: #121212;
   --sai-c1mzmpkz-copy-bg: transparent;
   --sai-c1mzmpkz-copy-fg: #121212;
-  --sai-c1mzmpkz-copy-pressed-bg: #121212;
+  --sai-c1mzmpkz-progress-track: rgba(0, 0, 0, 0.08);
+  --sai-c1mzmpkz-progress-fill: #121212;
   --sai-c1mzmpkz-muted-fg: rgba(0, 0, 0, 0.55);
   --sai-c1mzmpkz-fg: #121212;
   --sai-c1mzmpkz-cta-bg: #121212;
@@ -781,7 +789,7 @@
 }
 
 .sai-c1mzmpkz__copy-btn[aria-pressed='true'] {
-  background: var(--sai-c1mzmpkz-copy-pressed-bg);
+  background: var(--sai-c1mzmpkz-progress-fill);
   color: #ffffff;
   border-color: transparent;
 }
@@ -1190,6 +1198,8 @@
     "manualCouponList": {{ manual_coupon_list | json }},
     "manualSort": {{ manual_sort | json }},
     "promoteProductSpecificAboveStorewide": {{ promote_product_specific_above_storewide | json }},
+    "enableUserSpecificCoupons": {{ enable_user_specific_coupons | json }},
+    "userSectionBadgeText": {{ user_section_badge_text | json }},
     "listLayout": {{ list_layout | json }},
     "gridColumnsDesktop": {{ grid_columns_desktop | json }},
     "gridColumnsMobile": {{ grid_columns_mobile | json }},
