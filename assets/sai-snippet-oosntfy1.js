@@ -699,10 +699,9 @@
       })
 
       // Close the modal, then surface the confirmation under the trigger.
-      // The trigger is hidden post-subscribe so the shopper can't re-enter
-      // the modal on the same variant. Variant switch resets both.
+      // The trigger stays visible — the shopper can re-open and switch
+      // channels/variants if needed. Variant change clears the confirmation.
       this._closeModal()
-      if (this.triggerBtn) this.triggerBtn.hidden = true
       if (this.confirmation) {
         this.confirmation.hidden = false
         // Force a frame so the [data-visible] transition fires.
@@ -850,6 +849,9 @@
         variant_id: this.currentVariantId,
         surface,
       })
+      // Lock page scroll so wheel/touchmove on the backdrop doesn't move the
+      // PDP behind the dialog. Restored in _onModalClosed.
+      this._lockBodyScroll(true)
       if (typeof this.modal.showModal === 'function') {
         this.modal.showModal()
       } else {
@@ -857,8 +859,20 @@
       }
       // Focus first input.
       const firstInput =
-        this.activeChannel === 'phone' && this.phoneInput ? this.phoneInput : this.emailInput
+        this.activeChannel === 'sms' && this.phoneInput ? this.phoneInput : this.emailInput
       if (firstInput) setTimeout(() => firstInput.focus(), 0)
+    }
+
+    _lockBodyScroll(lock) {
+      const body = document.body
+      if (!body) return
+      if (lock) {
+        this._prevBodyOverflow = body.style.overflow
+        body.style.overflow = 'hidden'
+      } else if (this._prevBodyOverflow !== undefined) {
+        body.style.overflow = this._prevBodyOverflow
+        this._prevBodyOverflow = undefined
+      }
     }
 
     _closeModal() {
@@ -880,6 +894,7 @@
     }
 
     _onModalClosed() {
+      this._lockBodyScroll(false)
       const dwell = this.modalOpenedAt ? Date.now() - this.modalOpenedAt : 0
       this.modalOpenedAt = 0
       this.track(`${FEATURE_SLUG}:modal_close`, {
