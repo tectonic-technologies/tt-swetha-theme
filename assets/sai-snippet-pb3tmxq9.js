@@ -26,7 +26,7 @@
 
   const SNIPPET_ID = 'pb3tmxq9'
   const TAG = 'sai-pb3tmxq9'
-  const FEATURE_SLUG = 'recommendations_fbt'
+  const FEATURE_SLUG = 'fbt'
   const LOW_STOCK_THRESHOLD = 10
   const MODAL_CLOSE_TIMEOUT_MS = 360
   // After a successful add, hold the CTA in "Added" state briefly. Long
@@ -370,21 +370,43 @@
         this._track(`${FEATURE_SLUG}:add_to_cart`, atcPayload)
         this._emit(`${FEATURE_SLUG}:add_to_cart`, atcPayload)
 
+        // Section IDs we ask Shopify to render server-side and return inline
+        // in the cart-add response. Two lists:
+        //   - Standard Dawn-style section names (cart-drawer, etc.) — match
+        //     by literal ID on themes that follow the convention.
+        //   - Runtime-detected section IDs that enclose the live drawer or
+        //     cart-icon — covers Sense / Sense-derivatives / Spotlight / any
+        //     theme where the drawer lives inside the header section with a
+        //     theme-generated id like `sections--29085379559584__header_section`.
+        // Shopify caps `sections` at 5 — detected wins on overlap.
+        const standardSections = ['cart-drawer', 'cart-notification', 'cart-icon-bubble']
+        const detectedSections = this._detectThemeCartSections()
+        const sectionsToRequest = [...new Set([...detectedSections, ...standardSections])].slice(
+          0,
+          5,
+        )
+
         let succeeded = false
+        let cartResponse = null
         try {
           const cartApi = window.Spectrum?.cart
-          if (!cartApi || typeof cartApi.addAndOpen !== 'function') {
-            throw new Error('Spectrum cart API unavailable')
-          }
-          // addAndOpen performs the section detection, server-side render
-          // request, section-swap, drawer-open cascade, and cart-update
-          // event firehose. This snippet was the original reference for
-          // that flow; it now lives in spectrum-sdk.js.
-          const cartResponse = await cartApi.addAndOpen(items, {
-            sourceId: `spectrum-${SNIPPET_ID}`,
-          })
-          if (cartResponse && cartResponse.ok === false) {
-            throw new Error(cartResponse.error?.message || 'Could not add to cart')
+          if (!cartApi || typeof cartApi.add !== 'function') {
+            const res = await fetch('/cart/add.js', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'same-origin',
+              body: JSON.stringify({ items, sections: sectionsToRequest }),
+            })
+            if (!res.ok) {
+              const body = await res.json().catch(() => ({}))
+              throw new Error(body?.description || body?.message || 'Could not add to cart')
+            }
+            cartResponse = await res.json().catch(() => null)
+          } else {
+            cartResponse = await cartApi.add(items, { sections: sectionsToRequest })
+            if (cartResponse && cartResponse.ok === false) {
+              throw new Error(cartResponse.error?.message || 'Could not add to cart')
+            }
           }
 
           succeeded = true
@@ -393,6 +415,35 @@
           // without any field-level matching.
           this._track(`${FEATURE_SLUG}:added_to_cart`, atcPayload)
           this._emit(`${FEATURE_SLUG}:added_to_cart`, atcPayload)
+
+          // Theme integration. Three-pronged because no single mechanism
+          // works across the long tail of Shopify themes:
+          //   1. Swap rendered section HTML into the DOM (works on every
+          //      theme that follows Shopify's modern section pattern —
+          //      Dawn, Symmetry, Impulse, Prestige, etc.).
+          //   2. Try to open the drawer via the most common patterns
+          //      (Dawn's <cart-drawer>, [aria-controls="cart-drawer"], etc.).
+          //   3. Dispatch a wide net of cart-update events so themes with
+          //      their own pub/sub catch the change even if their drawer
+          //      isn't section-rendered.
+          this._applyCartSections(cartResponse?.sections)
+          // For themes whose drawer/cart-icon live inside a section whose
+          // theme-generated id we can't reliably name in the POST body
+          // (Sense / Shopify 2.0 themes), do a follow-up GET to the
+          // section-render endpoint. Two requests total; the second only
+          // fires when we detected at least one section to refresh.
+          await this._refreshDetectedSections()
+          this._openCartDrawer()
+          const cartRefreshEvents = [
+            'cart:refresh',
+            'cart:build',
+            'cart:item-added',
+            'cart:updated',
+          ]
+          for (const name of cartRefreshEvents) {
+            window.dispatchEvent(new CustomEvent(name, { detail: { items } }))
+            document.dispatchEvent(new CustomEvent(name, { detail: { items } }))
+          }
 
           // `_afterAddAction` was resolved at init from `_data.afterAddAction`
           // — `_enterSuccessState` reads it in the `finally` block below to
@@ -420,6 +471,163 @@
             cta.toggleAttribute('aria-disabled', empty)
           }
         }
+      }
+
+      // Fetch fresh rendered HTML for the cart-related sections we detected
+      // in the live DOM, then swap them in. Uses Shopify's GET
+      // `/?sections=…` endpoint, which returns
+      // `{ "<id>": "<rendered html>", … }`. Network failure is swallowed —
+      // the drawer will still open via _openCartDrawer, just with the
+      // post-add but pre-refresh state.
+      async _refreshDetectedSections() {
+        const detected = this._detectThemeCartSections()
+        if (detected.length === 0) return
+        // Hit the current URL with `?sections=…` rather than `/?sections=…`.
+        // `?sections=` works on any URL and returns the same body, but the
+        // PDP template is cheaper to render than the homepage on most
+        // themes.
+        const path = window.location.pathname || '/'
+        try {
+          const res = await fetch(
+            `${path}?sections=${encodeURIComponent(detected.slice(0, 5).join(','))}`,
+            { credentials: 'same-origin' },
+          )
+          if (!res.ok) return
+          const sections = await res.json().catch(() => null)
+          this._applyCartSections(sections)
+        } catch (_) {
+          /* network blip — leave the DOM untouched */
+        }
+      }
+
+      // Inspect the live DOM and return the section IDs (`<id-without-prefix>`
+      // from `shopify-section-{id}`) that contain the cart drawer or the
+      // cart-icon. Used to ask Shopify's section-render API for the right
+      // chunks of HTML when the theme uses non-standard section names —
+      // common on Shopify 2.0 themes where section IDs encode their schema
+      // location (e.g. `sections--12345__header_section`).
+      _detectThemeCartSections() {
+        const ids = new Set()
+        const addEnclosingSection = (el) => {
+          const section = el?.closest?.('[id^="shopify-section-"]')
+          if (section?.id) ids.add(section.id.replace('shopify-section-', ''))
+        }
+        addEnclosingSection(
+          document.querySelector(
+            'cart-drawer, dialog.cart-drawer__dialog, dialog[class*="cart-drawer" i], [class*="cart-drawer__inner" i]',
+          ),
+        )
+        addEnclosingSection(document.querySelector('cart-icon, [class*="cart-icon" i]'))
+        return [...ids]
+      }
+
+      // Replace the inner HTML of every section the merchant theme has
+      // installed under one of the standard cart-section names. Shopify's
+      // section response includes the full `<div id="shopify-section-...">`
+      // wrapper; we extract just the inner content so we don't double-wrap
+      // and we preserve the wrapper element's existing custom-element
+      // upgrade / event bindings.
+      //
+      // Trust boundary: the HTML comes from the same-origin Shopify
+      // section-render endpoint, where merchant- and shopper-controlled
+      // fields are server-side `| escape`'d by the theme. This is the
+      // canonical cart-drawer swap pattern (Dawn, Symmetry, etc. all do
+      // this) so the surface here matches the rest of the ecosystem.
+      _applyCartSections(sections) {
+        if (!sections || typeof sections !== 'object') return
+        for (const [sectionId, html] of Object.entries(sections)) {
+          if (typeof html !== 'string' || !html) continue
+          const target = document.getElementById(`shopify-section-${sectionId}`)
+          if (!target) continue
+          try {
+            const doc = new DOMParser().parseFromString(html, 'text/html')
+            const incoming = doc.getElementById(`shopify-section-${sectionId}`)
+            if (incoming) {
+              target.innerHTML = incoming.innerHTML
+            }
+          } catch (_) {
+            /* malformed section html — leave the DOM untouched */
+          }
+        }
+      }
+
+      // Try the handful of patterns mainstream Shopify themes use to expose
+      // their cart drawer. Each attempt no-ops if the element isn't there.
+      // Returns true on the first successful open so we don't fire two
+      // mechanisms at once.
+      _openCartDrawer() {
+        // 1. Dawn-derived: <cart-drawer> custom element with an open() method.
+        const cartDrawerEl = document.querySelector('cart-drawer')
+        if (cartDrawerEl && typeof cartDrawerEl.open === 'function') {
+          try {
+            cartDrawerEl.open()
+            return true
+          } catch (_) {
+            /* fall through to next pattern */
+          }
+        }
+
+        // 2. <cart-notification> bubble (Dawn's non-drawer variant).
+        const cartNotificationEl = document.querySelector('cart-notification')
+        if (cartNotificationEl && typeof cartNotificationEl.open === 'function') {
+          try {
+            cartNotificationEl.open()
+            return true
+          } catch (_) {
+            /* fall through */
+          }
+        }
+
+        // 3. ARIA-wired toggle button. Many themes mark their cart drawer
+        //    trigger with aria-controls pointing at the drawer's id.
+        const ariaToggle = document.querySelector(
+          '[aria-controls="cart-drawer"], [aria-controls="CartDrawer"]',
+        )
+        if (ariaToggle instanceof HTMLElement) {
+          ariaToggle.click()
+          return true
+        }
+
+        // 4. data-attribute toggles seen in third-party themes.
+        const dataToggle = document.querySelector(
+          '[data-cart-drawer-toggle], [data-action="open-cart"]',
+        )
+        if (dataToggle instanceof HTMLElement) {
+          dataToggle.click()
+          return true
+        }
+
+        // 5. Sense-style themes: a <cart-icon> custom element wrapped in the
+        //    header's cart button. Clicking the button is what the theme's
+        //    own header click-handler expects — it re-fetches the cart and
+        //    opens its <dialog class="cart-drawer__dialog"> via showModal().
+        //    Tried after the standard patterns above because <cart-icon> is
+        //    theme-specific.
+        const cartIconEl = document.querySelector('cart-icon')
+        const cartIconButton =
+          cartIconEl?.closest('button, a') ||
+          document.querySelector('button:has(cart-icon), a:has(cart-icon)')
+        if (cartIconButton instanceof HTMLElement) {
+          cartIconButton.click()
+          return true
+        }
+
+        // 6. Native HTML5 <dialog> drawer — last-ditch direct open. Skips
+        //    theme JS, so the drawer may show stale cart content until the
+        //    theme re-fetches; only fire if every other pattern missed.
+        const cartDialog = document.querySelector(
+          'dialog.cart-drawer__dialog, dialog[class*="cart-drawer" i]',
+        )
+        if (cartDialog instanceof HTMLDialogElement && !cartDialog.open) {
+          try {
+            cartDialog.showModal()
+            return true
+          } catch (_) {
+            /* dialog not ready — fall through */
+          }
+        }
+
+        return false
       }
 
       _setLoading(loading) {
