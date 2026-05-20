@@ -6,7 +6,8 @@
  * or related systems. Please exercise caution as any changes
  * made to this file may be overwritten.
  * ------------------------------------------------------------
- */{
+ */
+{
   "sections": {
     "main": {
       "type": "product-information",
@@ -24,7 +25,7 @@
             "slideshow_mobile_controls_style": "dots",
             "thumbnail_position": "bottom",
             "thumbnail_width": 48,
-            "aspect_ratio": "1/1.25",
+            "aspect_ratio": "1\/1.25",
             "constrain_to_viewport": false,
             "media_fit": "cover",
             "media_radius": 0,
@@ -109,7 +110,7 @@
                   "type": "text",
                   "name": "t:names.title",
                   "settings": {
-                    "text": "<h1>{{ closest.product.title }}</h1>",
+                    "text": "<h1>{{ closest.product.title }}<\/h1>",
                     "width": "fit-content",
                     "max_width": "normal",
                     "alignment": "left",
@@ -329,7 +330,7 @@
           "type": "text",
           "name": "t:names.header",
           "settings": {
-            "text": "<h3>Goes well with...</h3>",
+            "text": "<h3>Goes well with...<\/h3>",
             "width": "fit-content",
             "max_width": "normal",
             "alignment": "left",
