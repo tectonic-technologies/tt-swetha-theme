@@ -112,7 +112,9 @@ dialog.sai-oosntfy1__modal {
 .sai-oosntfy1__modal-body {
   background: var(--sai-color-bg, #fff);
   border-radius: 16px;
-  padding: 2rem;
+  /* Extra top padding so the absolute-positioned close button never overlaps
+     the heading on either desktop or mobile. */
+  padding: 2.5rem 2rem 2rem;
   width: var(--sai-oosntfy1-modal-width);
   max-width: 92vw;
   max-height: 90vh;
@@ -154,7 +156,8 @@ dialog.sai-oosntfy1__modal {
     width: 100%;
     max-width: 100%;
     border-radius: 16px 16px 0 0;
-    padding: 1.5rem 1.25rem 1.75rem;
+    /* Same top padding as desktop so the close X clears the heading. */
+    padding: 2.5rem 1.25rem 1.75rem;
     max-height: 90vh;
     transform: translateY(100%);
     transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1),
@@ -213,7 +216,12 @@ dialog.sai-oosntfy1__modal {
    Specificity-bumped selectors + !important on the alignment attr below. */
 
 .sai-oosntfy1 .sai-oosntfy1__heading {
-  margin: 0 0 0.5rem;
+  /* Cap the heading width so a long sentence wraps to two lines on desktop,
+     matching the reference design. The dialog body still drives outer width. */
+  margin: 0 auto 0.75rem;
+  max-width: 22ch;
+  padding-right: 1.5rem;
+  padding-left: 1.5rem;
   font-size: 1.25rem;
   font-weight: 600;
   line-height: 1.3;

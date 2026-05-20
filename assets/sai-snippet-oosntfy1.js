@@ -336,7 +336,10 @@
       this.emailInput = this.modal && this.modal.querySelector('[data-input="email"]')
       this.phoneInput = this.modal && this.modal.querySelector('[data-input="phone"]')
       this.submitBtn = this.modal && this.modal.querySelector('[data-submit]')
-      this.confirmation = this.modal && this.modal.querySelector('[data-confirmation]')
+      // Confirmation lives OUTSIDE the dialog (sibling of the trigger button)
+      // so it can stay visible after the modal closes. Query from the root, not
+      // the modal. This was the bug behind the disappearing-snippet report.
+      this.confirmation = this.root && this.root.querySelector('[data-confirmation]')
 
       this.activeChannel = this._defaultChannel()
     }
@@ -431,6 +434,10 @@
       }
       if (this.emailField) this.emailField.hidden = next !== 'email'
       if (this.phoneField) this.phoneField.hidden = next !== 'sms'
+      // Hide any stale error from the previous channel so the inactive tab
+      // doesn't carry red text into the next interaction.
+      this._clearError('email')
+      this._clearError('phone')
       this.track(`${FEATURE_SLUG}:channel_switch`, { from_channel: from, to_channel: next })
       this.emit(`${FEATURE_SLUG}:channel_switch`, { from_channel: from, to_channel: next })
       // Move focus into the newly-active input for keyboard users.
@@ -539,12 +546,12 @@
     }
 
     _wireValidation() {
+      // Validation fires only on submit. Input event clears any prior error
+      // as the shopper corrects their entry — no surprise red-text on blur.
       if (this.emailInput) {
-        this.emailInput.addEventListener('blur', () => this._validateEmail(true))
         this.emailInput.addEventListener('input', () => this._clearError('email'))
       }
       if (this.phoneInput) {
-        this.phoneInput.addEventListener('blur', () => this._validatePhone(true))
         this.phoneInput.addEventListener('input', () => this._clearError('phone'))
       }
     }
@@ -809,6 +816,8 @@
     _openModal() {
       this._prefillFromCustomer()
       this.submitted = false
+      this._clearError('email')
+      this._clearError('phone')
       // Reset any stale confirmation state from a prior session, but DO NOT
       // hide the trigger here — the trigger stays visible until a successful
       // subscribe (see _handleSubmit) or until the variant changes.
