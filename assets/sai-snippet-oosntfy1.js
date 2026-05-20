@@ -317,6 +317,13 @@
       this.variantsById = this._buildVariantsMap(this.pool.variants)
       this.currentVariantId = this._resolveInitialVariantId()
       this.defaultCountry = this.pool.defaultCountryCode || 'IN'
+      // Confirmation auto-dismiss; 0 disables the timer (stays visible until
+      // variant change). Bounded to a sane upper limit so a typo can't pin it
+      // for an hour.
+      const dismissRaw = this.pool.confirmationDismissSeconds
+      this.confirmationDismissMs =
+        typeof dismissRaw === 'number' && dismissRaw >= 0 ? Math.min(dismissRaw, 600) * 1000 : 15000
+      this.confirmationTimer = null
       this.activeChannel = null
       this.modalOpenedAt = 0
       this.submitted = false
@@ -702,13 +709,35 @@
       // The trigger stays visible — the shopper can re-open and switch
       // channels/variants if needed. Variant change clears the confirmation.
       this._closeModal()
-      if (this.confirmation) {
-        this.confirmation.hidden = false
-        // Force a frame so the [data-visible] transition fires.
-        requestAnimationFrame(() => {
-          this.confirmation.setAttribute('data-visible', 'true')
-        })
+      this._showConfirmation()
+    }
+
+    _showConfirmation() {
+      if (!this.confirmation) return
+      this.confirmation.hidden = false
+      // Force a frame so the [data-visible] transition fires.
+      requestAnimationFrame(() => {
+        if (this.confirmation) this.confirmation.setAttribute('data-visible', 'true')
+      })
+      if (this.confirmationTimer) clearTimeout(this.confirmationTimer)
+      if (this.confirmationDismissMs > 0) {
+        this.confirmationTimer = setTimeout(() => {
+          this._hideConfirmation()
+        }, this.confirmationDismissMs)
       }
+    }
+
+    _hideConfirmation() {
+      if (this.confirmationTimer) {
+        clearTimeout(this.confirmationTimer)
+        this.confirmationTimer = null
+      }
+      if (!this.confirmation) return
+      this.confirmation.removeAttribute('data-visible')
+      // Wait for the fade-out transition before hiding.
+      setTimeout(() => {
+        if (this.confirmation) this.confirmation.hidden = true
+      }, 260)
     }
 
     _subscribeVariantChanges() {
@@ -800,10 +829,7 @@
 
     _resetForm() {
       this.submitted = false
-      if (this.confirmation) {
-        this.confirmation.removeAttribute('data-visible')
-        this.confirmation.hidden = true
-      }
+      this._hideConfirmation()
       if (this.submitBtn) this.submitBtn.disabled = false
       if (this.form) {
         for (const input of this.form.querySelectorAll('input')) {
@@ -867,11 +893,22 @@
       const body = document.body
       if (!body) return
       if (lock) {
+        // Compensate for the vanishing scrollbar so the page doesn't jolt
+        // sideways when overflow flips to hidden — that visible shift is what
+        // reads as "modal-open jitter" on stores with body-level scrolling.
+        const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth
         this._prevBodyOverflow = body.style.overflow
+        this._prevBodyPaddingRight = body.style.paddingRight
+        if (scrollbarWidth > 0) {
+          const current = Number.parseFloat(getComputedStyle(body).paddingRight) || 0
+          body.style.paddingRight = `${current + scrollbarWidth}px`
+        }
         body.style.overflow = 'hidden'
       } else if (this._prevBodyOverflow !== undefined) {
         body.style.overflow = this._prevBodyOverflow
+        body.style.paddingRight = this._prevBodyPaddingRight ?? ''
         this._prevBodyOverflow = undefined
+        this._prevBodyPaddingRight = undefined
       }
     }
 

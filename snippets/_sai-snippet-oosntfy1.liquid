@@ -496,7 +496,7 @@ dialog.sai-oosntfy1__modal[open] {
    Slides in from above when the trigger button hides post-subscribe. */
 
 .sai-oosntfy1__confirmation {
-  margin-top: 0.625rem;
+  margin: 0;
   padding: 0.75rem 1rem;
   background: color-mix(in srgb, #22c55e 12%, transparent);
   color: #15803d;
@@ -505,7 +505,7 @@ dialog.sai-oosntfy1__modal[open] {
   text-align: center;
   opacity: 0;
   transform: translateY(-4px);
-  transition: opacity 0.25s ease 0.1s, transform 0.25s ease 0.1s;
+  transition: opacity 0.25s ease, transform 0.25s ease;
 }
 
 .sai-oosntfy1__confirmation[data-visible="true"] {
@@ -597,6 +597,11 @@ dialog.sai-oosntfy1__modal[open] {
 {%- assign _trigger_fg = _c.trigger_text_color | default: '#FFFFFF' -%}
 {%- assign _trigger_radius = _c.trigger_border_radius | default: 'rounded' -%}
 {%- assign _confirmation = _c.confirmation_message | default: "Thanks — we'll let you know as soon as it's back." -%}
+{%- if _c.confirmation_auto_dismiss_seconds == nil -%}
+  {%- assign _confirmation_dismiss_seconds = 15 -%}
+{%- else -%}
+  {%- assign _confirmation_dismiss_seconds = _c.confirmation_auto_dismiss_seconds -%}
+{%- endif -%}
 
 {%- assign _trigger_img_url = _c.trigger_image.url -%}
 {%- assign _trigger_img_alt = _c.trigger_image.alt | default: '' -%}
@@ -723,7 +728,8 @@ dialog.sai-oosntfy1__modal[open] {
     {%- endfor -%}
   ],
   "currentVariantId": {{ product.selected_or_first_available_variant.id | json }},
-  "defaultCountryCode": {{ _default_country | json }}
+  "defaultCountryCode": {{ _default_country | json }},
+  "confirmationDismissSeconds": {{ _confirmation_dismiss_seconds | json }}
 }
   </script>
 </div>
