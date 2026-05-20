@@ -255,7 +255,10 @@
 .sai-pb3tmxq9--vertical .sai-pb3tmxq9__media {
   display: block;
   inline-size: var(--sai-pb3tmxq9-image-size);
-  block-size: var(--sai-pb3tmxq9-image-size);
+  /* block-size driven by the inline `aspect-ratio` style on this element
+     (set from the merchant's image_aspect_ratio prop). Fixed block-size
+     here would override the prop. */
+  block-size: auto;
   border-radius: var(--sai-radius-2);
   overflow: hidden;
   background: rgba(0, 0, 0, 0.04);
@@ -475,9 +478,11 @@
 .sai-pb3tmxq9--horizontal .sai-pb3tmxq9__media {
   display: block;
   inline-size: 100%;
-  aspect-ratio: 1 / 1;
+  /* aspect-ratio set inline from the merchant's image_aspect_ratio prop.
+     Don't hardcode it here — the inline style would still win, but a CSS
+     default here makes the prop look broken when the inline value isn't
+     present (e.g. during template edits). */
   block-size: auto;
-  max-block-size: var(--sai-pb3tmxq9-image-h);
   border-radius: 8px;
   overflow: hidden;
   background: rgba(0, 0, 0, 0.04);
@@ -969,7 +974,15 @@
   {%- assign image_object_fit = 'cover' -%}
 {%- endif -%}
 
-{%- assign image_style = 'aspect-ratio: ' | append: aspect_css | append: '; object-fit: ' | append: image_object_fit | append: ';' -%}
+{%- comment -%}
+  aspect-ratio drives the *box* shape, so it must be applied to the parent
+  `<a class="__media">` element. object-fit applies to the <img> itself —
+  CSS only respects object-fit on replaced elements. Without this split, the
+  inline style sits on a 100%×100%-filling img inside a fixed-shape parent,
+  and aspect-ratio has nowhere to take effect.
+{%- endcomment -%}
+{%- assign media_style = 'aspect-ratio: ' | append: aspect_css | append: ';' -%}
+{%- assign image_style = 'object-fit: ' | append: image_object_fit | append: ';' -%}
 
 {%- assign fbt_handles = entry.content.recommendations -%}
 
@@ -1037,7 +1050,7 @@
               </svg>
             </span>
           </label>
-          <a class="sai-pb3tmxq9__media" href="{{ product.url }}" tabindex="-1" aria-hidden="true">
+          <a class="sai-pb3tmxq9__media" href="{{ product.url }}" style="{{ media_style }}" tabindex="-1" aria-hidden="true">
             {%- if product.featured_image -%}
               <img
                 class="sai-pb3tmxq9__image"
@@ -1089,7 +1102,7 @@
                 </svg>
               </span>
             </label>
-            <a class="sai-pb3tmxq9__media" href="{{ r.url }}" tabindex="-1" aria-hidden="true">
+            <a class="sai-pb3tmxq9__media" href="{{ r.url }}" style="{{ media_style }}" tabindex="-1" aria-hidden="true">
               {%- if r.featured_image -%}
                 <img
                   class="sai-pb3tmxq9__image"
@@ -1151,7 +1164,7 @@
     <div class="sai-pb3tmxq9__card sai-pb3tmxq9__card--main" data-product-id="{{ product.id }}">
       <div class="sai-pb3tmxq9__sub-header">Product on this page</div>
       <div class="sai-pb3tmxq9__row">
-        <a class="sai-pb3tmxq9__media" href="{{ product.url }}" tabindex="-1" aria-hidden="true">
+        <a class="sai-pb3tmxq9__media" href="{{ product.url }}" style="{{ media_style }}" tabindex="-1" aria-hidden="true">
           {%- if product.featured_image -%}
             <img
               class="sai-pb3tmxq9__image"
@@ -1213,7 +1226,7 @@
       {%- if r == empty -%}{%- continue -%}{%- endif -%}
       <div class="sai-pb3tmxq9__card sai-pb3tmxq9__card--reco" data-product-id="{{ r.id }}">
         <div class="sai-pb3tmxq9__row">
-          <a class="sai-pb3tmxq9__media" href="{{ r.url }}" tabindex="-1" aria-hidden="true">
+          <a class="sai-pb3tmxq9__media" href="{{ r.url }}" style="{{ media_style }}" tabindex="-1" aria-hidden="true">
             {%- if r.featured_image -%}
               <img
                 class="sai-pb3tmxq9__image"
