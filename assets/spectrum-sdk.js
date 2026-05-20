@@ -160,7 +160,7 @@
 
 // ─── Configuration ───────────────────────────────────────────────────
 
-const VERSION = '1.6.0';
+const VERSION = '1.5.0';
 
 const _config = {};
 
@@ -469,6 +469,8 @@ const cart = {
     const body = { items: payload };
     if (sections) body.sections = sections;
     const result = await _request('cart/add.js', { method: 'POST', body, signal });
+    _emit('cart:added', { items: payload, response: result });
+    _emit('cart:updated', { source: 'add', response: result });
     _autoApplyBestCoupon();
     return result;
   },
@@ -483,6 +485,8 @@ const cart = {
    */
   async addFromForm(formData, { signal } = {}) {
     const result = await _request('cart/add.js', { method: 'POST', body: formData, signal });
+    _emit('cart:added', { source: 'form', response: result });
+    _emit('cart:updated', { source: 'add', response: result });
     _autoApplyBestCoupon();
     return result;
   },
@@ -496,9 +500,12 @@ const cart = {
    * @returns {Promise<Object>} Updated cart (includes `sections` if requested)
    * @throws {Error} On failure (including quantity limits, out-of-stock, etc.)
    */
-  change(data, { signal, sections } = {}) {
+  async change(data, { signal, sections } = {}) {
     const body = sections ? { ...data, sections } : data;
-    return _request('cart/change.js', { method: 'POST', body, signal });
+    const result = await _request('cart/change.js', { method: 'POST', body, signal });
+    const removed = Number(data && data.quantity) === 0;
+    _emit(removed ? 'cart:removed' : 'cart:updated', { source: 'change', request: data, response: result });
+    return result;
   },
 
   /**
@@ -509,9 +516,11 @@ const cart = {
    * @param {AbortSignal}      [opts.signal]
    * @returns {Promise<Object>} Updated cart (includes `sections` if requested)
    */
-  update(data, { signal, sections } = {}) {
+  async update(data, { signal, sections } = {}) {
     const body = sections ? { ...data, sections } : data;
-    return _request('cart/update.js', { method: 'POST', body, signal });
+    const result = await _request('cart/update.js', { method: 'POST', body, signal });
+    _emit('cart:updated', { source: 'update', request: data, response: result });
+    return result;
   },
 
   /**
@@ -520,8 +529,11 @@ const cart = {
    * @param {AbortSignal}  [opts.signal]
    * @returns {Promise<Object>} Empty cart
    */
-  clear({ signal } = {}) {
-    return _request('cart/clear.js', { method: 'POST', signal });
+  async clear({ signal } = {}) {
+    const result = await _request('cart/clear.js', { method: 'POST', signal });
+    _emit('cart:removed', { source: 'clear', response: result });
+    _emit('cart:updated', { source: 'clear', response: result });
+    return result;
   },
 
   /**
@@ -533,6 +545,7 @@ const cart = {
     if (!code) return false;
     try {
       await fetch(`${_root()}discount/${encodeURIComponent(code)}`);
+      _emit('cart:updated', { source: 'applyCoupon', code });
       return true;
     } catch {
       return false;
@@ -1592,20 +1605,6 @@ class SpectrumVideo extends HTMLElement {
   _setupVisibility() {
     if (!this.dataset.autoplay) return;
 
-    // `data-visibility-threshold` lets snippets opt out of the default 0.5
-    // pause heuristic. The default (0.5) suits hero-on-a-marketing-page
-    // surfaces where you don't want a half-clipped video burning bandwidth.
-    // Surfaces where any visibility should keep playback alive (e.g. a
-    // shop-the-look hero embedded mid-PDP, where the user scrolls the hero
-    // partially in and out as they read product details) can set
-    // `data-visibility-threshold="0"` — the IO then fires on a single
-    // intersecting pixel and pauses only when the element is fully clipped.
-    // Accepted: any number in [0, 1]; anything else falls back to 0.5.
-    const rawThreshold = this.dataset.visibilityThreshold;
-    const parsed = rawThreshold == null ? 0.5 : parseFloat(rawThreshold);
-    const threshold =
-      Number.isFinite(parsed) && parsed >= 0 && parsed <= 1 ? parsed : 0.5;
-
     this._visibilityObserver = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
@@ -1616,7 +1615,7 @@ class SpectrumVideo extends HTMLElement {
           this._dispatch('pause');
         }
       },
-      { threshold }
+      { threshold: 0.5 }
     );
     this._visibilityObserver.observe(this);
   }
