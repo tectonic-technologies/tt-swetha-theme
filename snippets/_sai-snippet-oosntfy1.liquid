@@ -73,18 +73,40 @@
 
 /* ---- Modal / Drawer ---- */
 
-.sai-oosntfy1__modal {
+/* Desktop centering is explicit (translate). Some themes ship a
+   `dialog { margin: 0 }` rule that beats the UA `margin: auto`, so we
+   force the position here. The animation runs on the inner body so the
+   centering transform on the dialog itself never changes. */
+dialog.sai-oosntfy1__modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  margin: 0;
   padding: 0;
   border: none;
   background: transparent;
   max-width: none;
   max-height: none;
   width: auto;
-  margin: 0;
+  overflow: visible;
 }
 
 .sai-oosntfy1__modal::backdrop {
   background: color-mix(in srgb, #000 50%, transparent);
+  opacity: 0;
+  transition: opacity 0.22s ease, display 0.22s ease allow-discrete,
+    overlay 0.22s ease allow-discrete;
+}
+
+.sai-oosntfy1__modal[open]::backdrop {
+  opacity: 1;
+}
+
+@starting-style {
+  .sai-oosntfy1__modal[open]::backdrop {
+    opacity: 0;
+  }
 }
 
 .sai-oosntfy1__modal-body {
@@ -97,6 +119,21 @@
   overflow-y: auto;
   position: relative;
   box-shadow: 0 20px 60px color-mix(in srgb, #000 15%, transparent);
+  opacity: 0;
+  transform: translateY(-8px) scale(0.97);
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+.sai-oosntfy1__modal[open] .sai-oosntfy1__modal-body {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+@starting-style {
+  .sai-oosntfy1__modal[open] .sai-oosntfy1__modal-body {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.97);
+  }
 }
 
 .sai-oosntfy1__modal[data-size="small"] { --sai-oosntfy1-modal-width: 480px; }
@@ -104,9 +141,12 @@
 .sai-oosntfy1__modal[data-size="large"] { --sai-oosntfy1-modal-width: 680px; }
 
 @media (max-width: 767px) {
-  .sai-oosntfy1__modal {
-    position: fixed;
-    inset: auto 0 0 0;
+  dialog.sai-oosntfy1__modal {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    transform: none;
     width: 100%;
     margin: 0;
   }
@@ -116,6 +156,35 @@
     border-radius: 16px 16px 0 0;
     padding: 1.5rem 1.25rem 1.75rem;
     max-height: 90vh;
+    transform: translateY(100%);
+    transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1),
+      opacity 0.2s ease;
+  }
+  .sai-oosntfy1__modal[open] .sai-oosntfy1__modal-body {
+    transform: translateY(0);
+  }
+  @starting-style {
+    .sai-oosntfy1__modal[open] .sai-oosntfy1__modal-body {
+      transform: translateY(100%);
+    }
+  }
+}
+
+/* Closing-class fallback for browsers without @starting-style support. */
+.sai-oosntfy1__modal--closing .sai-oosntfy1__modal-body {
+  opacity: 0 !important;
+  transform: translateY(-8px) scale(0.97) !important;
+}
+@media (max-width: 767px) {
+  .sai-oosntfy1__modal--closing .sai-oosntfy1__modal-body {
+    transform: translateY(100%) !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sai-oosntfy1__modal-body,
+  .sai-oosntfy1__modal::backdrop {
+    transition-duration: 0.001s;
   }
 }
 
@@ -139,17 +208,22 @@
   color: var(--sai-color-fg, #1a1a1a);
 }
 
-/* ---- Heading + description ---- */
+/* ---- Heading + description ----
+   Defensive: many themes have `h2 { text-align: left }` baked in.
+   Specificity-bumped selectors + !important on the alignment attr below. */
 
-.sai-oosntfy1__heading {
+.sai-oosntfy1 .sai-oosntfy1__heading {
   margin: 0 0 0.5rem;
   font-size: 1.25rem;
   font-weight: 600;
+  line-height: 1.3;
   text-align: center;
+  text-transform: none;
+  letter-spacing: normal;
   color: var(--sai-color-fg, #1a1a1a);
 }
 
-.sai-oosntfy1__description {
+.sai-oosntfy1 .sai-oosntfy1__description {
   margin: 0 0 1.25rem;
   font-size: 0.875rem;
   color: color-mix(in srgb, var(--sai-color-fg, #000) 70%, transparent);
@@ -207,10 +281,12 @@
 /* ---- Channel tabs ---- */
 
 .sai-oosntfy1__tabs {
-  display: inline-flex;
+  display: flex;
+  justify-content: center;
   gap: 0.5rem;
-  margin-bottom: 0.875rem;
+  margin: 0 auto 0.875rem;
   padding: 0.25rem;
+  width: fit-content;
   background: color-mix(in srgb, var(--sai-color-fg, #000) 5%, transparent);
   border-radius: 999px;
 }
@@ -391,28 +467,45 @@
   cursor: not-allowed;
 }
 
-/* ---- Confirmation ---- */
+/* ---- Confirmation ----
+   Lives on the PDP (outside the modal), shown after a successful submission.
+   Slides in from above when the trigger button hides post-subscribe. */
 
 .sai-oosntfy1__confirmation {
-  margin-top: 0.75rem;
+  margin-top: 0.625rem;
   padding: 0.75rem 1rem;
   background: color-mix(in srgb, #22c55e 12%, transparent);
   color: #15803d;
   border-radius: 8px;
   font-size: 0.875rem;
   text-align: center;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 0.25s ease 0.1s, transform 0.25s ease 0.1s;
+}
+
+.sai-oosntfy1__confirmation[data-visible="true"] {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 /* ---- Alignment helpers ---- */
 
+/* Alignment-attr overrides need !important to win against theme h2 rules
+   that may declare `text-align: left` with high specificity. */
 .sai-oosntfy1__heading[data-align="left"],
 .sai-oosntfy1__description[data-align="left"] {
-  text-align: left;
+  text-align: left !important;
 }
 
 .sai-oosntfy1__heading[data-align="right"],
 .sai-oosntfy1__description[data-align="right"] {
-  text-align: right;
+  text-align: right !important;
+}
+
+.sai-oosntfy1__heading[data-align="center"],
+.sai-oosntfy1__description[data-align="center"] {
+  text-align: center !important;
 }
 
 /* ---- Radius variants ---- */
@@ -586,11 +679,11 @@
         {%- endif -%}
 
         <button type="submit" class="sai-oosntfy1__submit" data-submit>{{ _cta_text | escape }}</button>
-
-        <div class="sai-oosntfy1__confirmation" data-confirmation hidden>{{ _confirmation | escape }}</div>
       </form>
     </div>
   </dialog>
+
+  <div class="sai-oosntfy1__confirmation" data-confirmation hidden>{{ _confirmation | escape }}</div>
 
   <script type="application/json" data-spectrum-snippet-pool>
 {
