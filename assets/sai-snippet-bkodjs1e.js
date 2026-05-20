@@ -383,8 +383,9 @@
           }
           this._cartUnsubs = null
         }
-        // Close any open popup we own + restore body overflow if we set it.
-        if (typeof this._closeOpenPopup === 'function') this._closeOpenPopup()
+        // Synchronous close — skip the 240ms slide-out so body.overflow is
+        // restored before the host is fully detached (SPA themes).
+        if (typeof this._closeOpenPopup === 'function') this._closeOpenPopup(true)
       }
 
       setAnalytics(track, emit) {
@@ -566,21 +567,32 @@
         if (typeof mq.addEventListener === 'function') mq.addEventListener('change', onMq)
         else mq.addListener(onMq)
 
-        const close = () => {
+        // Capture the close-animation timer so disconnectedCallback can cancel
+        // it synchronously and restore body.overflow immediately — SPA themes
+        // detach the host before the 240ms timer fires, which would otherwise
+        // leak `overflow: hidden` on <body> forever.
+        let cleanupTimerId = null
+        const cleanup = () => {
+          cleanupTimerId = null
+          document.removeEventListener('keydown', onKey, true)
+          if (typeof mq.removeEventListener === 'function') mq.removeEventListener('change', onMq)
+          else mq.removeListener(onMq)
+          if (root.parentNode) root.parentNode.removeChild(root)
+          document.body.style.overflow = prevOverflow
+          if (previouslyFocused && document.contains(previouslyFocused)) previouslyFocused.focus()
+          if (this._closeOpenPopup === close) this._closeOpenPopup = null
+        }
+        const close = (immediate) => {
           if (root.getAttribute('data-state') === 'closed') return
           root.setAttribute('data-state', 'closed')
-          const cleanup = () => {
-            document.removeEventListener('keydown', onKey, true)
-            if (typeof mq.removeEventListener === 'function') mq.removeEventListener('change', onMq)
-            else mq.removeListener(onMq)
-            if (root.parentNode) root.parentNode.removeChild(root)
-            document.body.style.overflow = prevOverflow
-            if (previouslyFocused && document.contains(previouslyFocused)) previouslyFocused.focus()
-            if (this._closeOpenPopup === close) this._closeOpenPopup = null
+          if (cleanupTimerId !== null) {
+            clearTimeout(cleanupTimerId)
+            cleanupTimerId = null
           }
-          const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+          const reduced =
+            immediate === true || window.matchMedia('(prefers-reduced-motion: reduce)').matches
           if (reduced) cleanup()
-          else setTimeout(cleanup, 240)
+          else cleanupTimerId = setTimeout(cleanup, 240)
         }
         this._closeOpenPopup = close
 
