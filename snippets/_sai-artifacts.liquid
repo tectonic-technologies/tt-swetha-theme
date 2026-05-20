@@ -9,6 +9,37 @@
 <script src="{{ 'spectrum-sdk.js' | asset_url }}" defer></script>
 
 {% stylesheet %}
+@property --sai-color-fg {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #121212;
+}
+@property --sai-color-bg {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #ffffff;
+}
+@property --sai-color-primary {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #121212;
+}
+@property --sai-color-primary-fg {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #ffffff;
+}
+@property --sai-color-error {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #c53030;
+}
+@property --sai-color-error-fg {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #ffffff;
+}
+
 :where(html) {
   /* ───── Size ramp (open-props inspired) ───── */
   --sai-size-1: .25rem;
@@ -57,10 +88,13 @@
      Spectrum literals. Authors reference --sai-color-* only. Values resolve
      inside a .color-{scheme.id} scope (inherited from the host Shopify
      section); outside that scope the literal fallback wins. */
-  --sai-color-bg: var(--color-background, var(--color-body-background, #ffffff));
-  --sai-color-fg: var(--color-foreground, var(--color-text, #121212));
-  --sai-color-primary: var(--color-primary, var(--color-button, #121212));
-  --sai-color-primary-fg: var(--color-primary-contrast, var(--color-button-text, #ffffff));
+  --sai-color-bg: var(--color-body-background, rgb(var(--color-background, 255, 255, 255)));
+  --sai-color-fg: var(--color-text, rgb(var(--color-foreground, 18, 18, 18)));
+  --sai-color-primary: var(--color-button, rgb(var(--color-primary, 18, 18, 18)));
+  --sai-color-primary-fg: var(
+    --color-button-text,
+    rgb(var(--color-primary-contrast, 255, 255, 255))
+  );
   --sai-color-link: var(--color-link, var(--sai-color-primary));
   --sai-color-error: var(--color-error, #c53030);
   --sai-color-error-fg: var(--color-error-contrast, #ffffff);
