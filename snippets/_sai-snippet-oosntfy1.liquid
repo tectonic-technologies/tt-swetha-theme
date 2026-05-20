@@ -91,10 +91,17 @@ dialog.sai-oosntfy1__modal {
   padding: 1.5rem;
   border: none;
   background: transparent;
+  overflow: hidden;
+}
+
+/* IMPORTANT: only apply flex layout when the dialog is actually open.
+   Without the [open] qualifier the rule outranks the UA's
+   `dialog:not([open]) { display: none }` and the closed dialog stays
+   in the layout, swallowing pointer events across the whole viewport. */
+dialog.sai-oosntfy1__modal[open] {
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
 }
 
 .sai-oosntfy1__modal::backdrop {
@@ -153,9 +160,12 @@ dialog.sai-oosntfy1__modal {
 .sai-oosntfy1__modal[data-size="large"] { --sai-oosntfy1-modal-width: 680px; }
 
 @media (max-width: 767px) {
-  /* Bottom-drawer: align body to the bottom of the viewport with full width. */
+  /* Bottom-drawer: align body to the bottom of the viewport with full width.
+     Only applied when [open] — same reason as the desktop rule above. */
   dialog.sai-oosntfy1__modal {
     padding: 0;
+  }
+  dialog.sai-oosntfy1__modal[open] {
     align-items: flex-end;
     justify-content: stretch;
   }
