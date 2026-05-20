@@ -23,8 +23,6 @@
  *   Spectrum.cart.get()                          → cart JSON
  *   Spectrum.cart.add(items, { sections })        → add items (JSON body)
  *   Spectrum.cart.addFromForm(formData)            → add items (FormData body)
- *   Spectrum.cart.addAndOpen(items, opts)          → add + theme cart UI refresh
- *   Spectrum.cart.integrateAfterAdd(response, opts) → theme UI refresh from existing response
  *   Spectrum.cart.change(data, { sections })       → change line item qty
  *   Spectrum.cart.update(data, { sections })       → update attributes/note
  *   Spectrum.cart.clear()                          → empty the cart
@@ -33,9 +31,6 @@
  *   Pass { sections: ['cart-drawer'] } to get rendered HTML in response.
  *   cart.add / cart.addFromForm auto-apply the best PA coupon code
  *   by scanning pa-data-* tags in the DOM (fire-and-forget).
- *   cart.addAndOpen / cart.integrateAfterAdd handle drawer-open + icon
- *   refresh + cart-update events brand-agnostically (Dawn-family native
- *   renderer + Horizon-family event dispatch + custom-theme cascade).
  *
  * ── Products ────────────────────────────────────────────────────────
  *   Spectrum.products.getByHandle(handle)         → product JSON
@@ -165,7 +160,7 @@
 
 // ─── Configuration ───────────────────────────────────────────────────
 
-const VERSION = '1.7.0';
+const VERSION = '1.6.0';
 
 const _config = {};
 
@@ -446,288 +441,6 @@ function _autoApplyBestCoupon() {
   } catch {}
 }
 
-// ─── Internal — Cart Theme Integration ───────────────────────────────
-//
-// Shared post-cart-add behavior for snippets that ship their own ATC button
-// and therefore bypass the theme's product form. Replays the moves the
-// theme's native chain would have done — section refresh + drawer open +
-// cart-update event dispatch — across Dawn-family, Horizon-family, and the
-// long tail of customized themes.
-//
-// Two entry shapes:
-//   Spectrum.cart.addAndOpen(items, opts)   → the common case
-//   Spectrum.cart.integrateAfterAdd(response, items) → if the caller already
-//                                              did the add and wants only
-//                                              the post-add integration
-//
-// Design notes:
-//   - Native render path tried first. Dawn-family <cart-drawer> /
-//     <cart-notification> expose renderContents(parsedState) which does
-//     section-swap + remove-is-empty + open in one call. Piggy-backing on
-//     that gives parity with the theme's own product-form.js after-add
-//     chain (right anchor selectors, right class state, right focus trap).
-//   - Manual fallback covers Horizon (its <cart-drawer> auto-opens on
-//     document `cart:update` when auto-open attr is set) and custom themes
-//     (best-effort section swap + 6-tier drawer-open cascade).
-//   - Defensive Dawn error-icon hide compensates for an async CSS race:
-//     Dawn loads component-cart-items.css with `media="print"
-//     onload="this.media='all'"`, so on a fast ATC the inline error <svg>
-//     can render at container-fill size before its width:1.2rem and
-//     :empty+svg{display:none} rules apply. We mirror that rule
-//     programmatically.
-
-function _detectThemeCartSections() {
-  const ids = new Set();
-  const addEnclosingSection = (el) => {
-    const section = el?.closest?.('[id^="shopify-section-"]');
-    if (section?.id) ids.add(section.id.replace('shopify-section-', ''));
-  };
-  addEnclosingSection(
-    document.querySelector(
-      'cart-drawer, dialog.cart-drawer__dialog, dialog[class*="cart-drawer" i], [class*="cart-drawer__inner" i]',
-    ),
-  );
-  addEnclosingSection(document.querySelector('cart-icon, [class*="cart-icon" i]'));
-  return [...ids];
-}
-
-function _cartSectionsToRequest() {
-  // Shopify caps `sections` at 5. Pick names matching the theme's cart mode
-  // — Dawn merchants choose drawer OR notification in theme settings and
-  // only one is rendered. Detected IDs cover Sense / Shopify 2.0 where the
-  // drawer or icon lives inside a theme-generated section id like
-  // `sections--12345__header_section`.
-  const hasNotification = !!document.querySelector('cart-notification');
-  const hasDrawer = !!document.querySelector('cart-drawer');
-  const standard =
-    hasNotification && !hasDrawer
-      ? ['cart-notification-product', 'cart-notification-button', 'cart-icon-bubble']
-      : ['cart-drawer', 'cart-icon-bubble', 'cart-notification'];
-  const detected = _detectThemeCartSections();
-  return [...new Set([...detected, ...standard])].slice(0, 5);
-}
-
-function _applyCartSections(sections) {
-  // Replace inner HTML of every section the theme has installed under one
-  // of the returned names. Trust boundary: HTML comes from the same-origin
-  // Shopify section-render endpoint where merchant- and shopper-controlled
-  // fields are server-side `| escape`'d by the theme.
-  if (!sections || typeof sections !== 'object') return;
-  for (const [sectionId, html] of Object.entries(sections)) {
-    if (typeof html !== 'string' || !html) continue;
-    const target = document.getElementById(`shopify-section-${sectionId}`);
-    if (!target) continue;
-    try {
-      const doc = new DOMParser().parseFromString(html, 'text/html');
-      const incoming = doc.getElementById(`shopify-section-${sectionId}`);
-      if (incoming) target.innerHTML = incoming.innerHTML;
-    } catch {
-      /* malformed section html — leave DOM untouched */
-    }
-  }
-}
-
-async function _refreshDetectedSections() {
-  const detected = _detectThemeCartSections();
-  if (detected.length === 0) return;
-  const path = window.location.pathname || '/';
-  try {
-    const res = await fetch(
-      `${path}?sections=${encodeURIComponent(detected.slice(0, 5).join(','))}`,
-      { credentials: 'same-origin' },
-    );
-    if (!res.ok) return;
-    const sections = await res.json().catch(() => null);
-    _applyCartSections(sections);
-  } catch {
-    /* network blip — leave DOM untouched */
-  }
-}
-
-function _openCartDrawer() {
-  // 1. Dawn-derived: <cart-drawer> with open()/show()/showDialog()/openDrawer().
-  //    Horizon's element exposes showDialog(), not open() — try all four so
-  //    we cover Dawn-family AND Horizon-family with one tier.
-  const cartDrawerEl = document.querySelector('cart-drawer');
-  if (cartDrawerEl) {
-    for (const method of ['open', 'show', 'showDialog', 'openDrawer']) {
-      if (typeof cartDrawerEl[method] === 'function') {
-        try {
-          cartDrawerEl[method]();
-          return true;
-        } catch {
-          /* try next method */
-        }
-      }
-    }
-  }
-  // 2. <cart-notification> bubble (Dawn's non-drawer variant).
-  const cartNotificationEl = document.querySelector('cart-notification');
-  if (cartNotificationEl && typeof cartNotificationEl.open === 'function') {
-    try {
-      cartNotificationEl.open();
-      return true;
-    } catch {
-      /* fall through */
-    }
-  }
-  // 3. ARIA-wired toggle.
-  const ariaToggle = document.querySelector(
-    '[aria-controls="cart-drawer"], [aria-controls="CartDrawer"]',
-  );
-  if (ariaToggle instanceof HTMLElement) {
-    ariaToggle.click();
-    return true;
-  }
-  // 4. data-attribute toggles seen in third-party themes.
-  const dataToggle = document.querySelector(
-    '[data-cart-drawer-toggle], [data-action="open-cart"]',
-  );
-  if (dataToggle instanceof HTMLElement) {
-    dataToggle.click();
-    return true;
-  }
-  // 5. Sense-style: <cart-icon> wrapped in a header button.
-  const cartIconEl = document.querySelector('cart-icon');
-  const cartIconButton =
-    cartIconEl?.closest('button, a') ||
-    document.querySelector('button:has(cart-icon), a:has(cart-icon)');
-  if (cartIconButton instanceof HTMLElement) {
-    cartIconButton.click();
-    return true;
-  }
-  // 6. Native <dialog> last-ditch.
-  const cartDialog = document.querySelector(
-    'dialog.cart-drawer__dialog, dialog[class*="cart-drawer" i]',
-  );
-  if (cartDialog instanceof HTMLDialogElement && !cartDialog.open) {
-    try {
-      cartDialog.showModal();
-      return true;
-    } catch {
-      /* dialog not ready */
-    }
-  }
-  return false;
-}
-
-function _dispatchCartUpdateEvents({ items, sections, sourceId }) {
-  // `cart:update` is load-bearing for Horizon (matches its
-  // CartAddEvent.eventName). The rest cover Dawn-family and themes with
-  // their own pub/sub bridges (Klaviyo, etc.).
-  const detail = {
-    resource: 'cart',
-    sourceId: sourceId || 'spectrum-sdk',
-    data: { items, sections },
-  };
-  const names = ['cart:update', 'cart:updated', 'cart:refresh', 'cart:item-added', 'cart:build'];
-  for (const name of names) {
-    try {
-      document.dispatchEvent(new CustomEvent(name, { detail, bubbles: true }));
-    } catch {
-      /* ignore */
-    }
-    try {
-      window.dispatchEvent(new CustomEvent(name, { detail }));
-    } catch {
-      /* ignore */
-    }
-  }
-}
-
-// Dawn-family themes load `component-cart-items.css` via the async
-// `media="print" onload="this.media='all'"` pattern in their header
-// section. When the snippet's ATC fires fast and the theme's
-// renderContents() injects new line-item DOM, that stylesheet may not
-// have applied yet — which produces two visible regressions we keep
-// seeing in the field:
-//
-//   - The line-item error <svg viewBox="0 0 13 13"> has no width/height
-//     attributes. Without `.cart-item__error-text + svg { width: 1.2rem }`
-//     and `.cart-item__error-text:empty + svg { display: none }`, it
-//     renders at container-fill size — a giant red "!" icon takes over
-//     the line.
-//   - The product-option dt/dd pairs (e.g. "Color: Ice") expect
-//     `.product-option * { display: inline }`. Without it they fall back
-//     to default block display and stack vertically with `<dl>` margins.
-//
-// We mirror the offending rules into an inline `<style>` injected into
-// the document head once on first integration call. The block is
-// idempotent (data-attribute guarded), Dawn-specific (the class names
-// don't collide with non-Dawn themes), and class-name-keyed so it
-// no-ops on themes that don't use the markup.
-
-let _dawnCartFixInjected = false;
-
-function _ensureDawnCartFixStyle() {
-  if (_dawnCartFixInjected) return;
-  if (document.querySelector('style[data-spectrum-cart-fix]')) {
-    _dawnCartFixInjected = true;
-    return;
-  }
-  const style = document.createElement('style');
-  style.setAttribute('data-spectrum-cart-fix', '');
-  style.textContent = `
-    .product-option { font-size: 1.4rem; word-break: break-word; }
-    .product-option * { display: inline; margin: 0; }
-    .product-option + .product-option { margin-top: 0.4rem; }
-    .cart-item__error { display: flex; align-items: flex-start; margin-top: 1rem; }
-    .cart-item__error-text { font-size: 1.2rem; }
-    .cart-item__error-text + svg { flex-shrink: 0; width: 1.2rem; margin-right: 0.7rem; }
-    .cart-item__error-text:empty + svg { display: none; }
-  `;
-  (document.head || document.documentElement).appendChild(style);
-  _dawnCartFixInjected = true;
-}
-
-async function _integrateCartAdd(cartResponse, items, sourceId) {
-  // Inject the Dawn cart-fix style once per page before any DOM mutation.
-  // Idempotent; no-op on non-Dawn themes (class-name-keyed).
-  _ensureDawnCartFixStyle();
-
-  const sections = cartResponse?.sections;
-
-  // Preferred path: hand the response to the theme's own renderer. Dawn-
-  // family `<cart-drawer>.renderContents()` / `<cart-notification>
-  // .renderContents()` do section-swap + remove `is-empty` from
-  // `.drawer__inner` + call `.open()` in one call. We additionally clear
-  // `is-empty` from the host element (stock Dawn's product-form.js does
-  // this in its `finally{}`) — `renderContents` itself doesn't.
-  if (sections) {
-    const drawer = document.querySelector('cart-drawer');
-    if (drawer && typeof drawer.renderContents === 'function') {
-      try {
-        drawer.renderContents(cartResponse);
-        if (drawer.classList.contains('is-empty')) drawer.classList.remove('is-empty');
-        _dispatchCartUpdateEvents({ items, sections, sourceId });
-        return;
-      } catch {
-        /* fall through to manual path */
-      }
-    }
-    const notification = document.querySelector('cart-notification');
-    if (notification && typeof notification.renderContents === 'function') {
-      try {
-        notification.renderContents(cartResponse);
-        if (notification.classList.contains('is-empty')) notification.classList.remove('is-empty');
-        _dispatchCartUpdateEvents({ items, sections, sourceId });
-        return;
-      } catch {
-        /* fall through to manual path */
-      }
-    }
-  }
-
-  // Manual fallback: section swap + cascade open + event firehose. Covers
-  // Horizon-family (drawer auto-opens on document `cart:update`), themes
-  // whose drawer doesn't expose `renderContents`, and any theme with its
-  // own pub/sub.
-  _applyCartSections(sections);
-  await _refreshDetectedSections();
-  _openCartDrawer();
-  _dispatchCartUpdateEvents({ items, sections, sourceId });
-}
-
 // ─── Cart ────────────────────────────────────────────────────────────
 
 const cart = {
@@ -756,8 +469,6 @@ const cart = {
     const body = { items: payload };
     if (sections) body.sections = sections;
     const result = await _request('cart/add.js', { method: 'POST', body, signal });
-    _emit('cart:added', { items: payload, response: result });
-    _emit('cart:updated', { source: 'add', response: result });
     _autoApplyBestCoupon();
     return result;
   },
@@ -772,54 +483,8 @@ const cart = {
    */
   async addFromForm(formData, { signal } = {}) {
     const result = await _request('cart/add.js', { method: 'POST', body: formData, signal });
-    _emit('cart:added', { source: 'form', response: result });
-    _emit('cart:updated', { source: 'add', response: result });
     _autoApplyBestCoupon();
     return result;
-  },
-
-  /**
-   * Add items, then integrate with the theme's cart UI: section refresh +
-   * drawer (or notification) open + cart-update events. Use this from any
-   * snippet that ships its own ATC button and therefore bypasses the
-   * theme's product form.
-   *
-   * Behavior is brand-agnostic — picks the theme's native renderer when
-   * available (Dawn-family `<cart-drawer>.renderContents()` / `<cart-
-   * notification>.renderContents()`) and falls back to a manual section
-   * swap + a tiered drawer-open cascade + a cart-update event firehose
-   * (covers Horizon-family and the long tail). On failure to add, throws
-   * via `cart.add`'s existing behavior.
-   *
-   * @param {Object|Object[]} items  Single item or array of { id, quantity, properties? }
-   * @param {Object}           [opts]
-   * @param {string|string[]}  [opts.sections] Override the auto-detected section list (rarely needed)
-   * @param {string}           [opts.sourceId] Tag for the cart-update events (default: 'spectrum-sdk')
-   * @param {AbortSignal}      [opts.signal]
-   * @returns {Promise<Object>} The cart-add response (includes `sections`)
-   */
-  async addAndOpen(items, { signal, sections, sourceId } = {}) {
-    const itemsArray = Array.isArray(items) ? items : [items];
-    const sectionsToRequest = sections || _cartSectionsToRequest();
-    const response = await this.add(itemsArray, { signal, sections: sectionsToRequest });
-    if (response && response.ok === false) return response;
-    await _integrateCartAdd(response, itemsArray, sourceId);
-    return response;
-  },
-
-  /**
-   * Run only the post-add integration on an existing cart-add response.
-   * Useful when the caller already invoked `cart.add` (or `cart.addFromForm`)
-   * and now wants the drawer/icon/events handled.
-   *
-   * @param {Object} cartResponse  The response returned by cart.add / cart.addFromForm
-   * @param {Object} [opts]
-   * @param {Object|Object[]} [opts.items]    Original items (passed to cart-update event payload)
-   * @param {string}          [opts.sourceId] Tag for the cart-update events (default: 'spectrum-sdk')
-   */
-  async integrateAfterAdd(cartResponse, { items, sourceId } = {}) {
-    const itemsArray = items ? (Array.isArray(items) ? items : [items]) : [];
-    await _integrateCartAdd(cartResponse, itemsArray, sourceId);
   },
 
   /**
@@ -831,12 +496,9 @@ const cart = {
    * @returns {Promise<Object>} Updated cart (includes `sections` if requested)
    * @throws {Error} On failure (including quantity limits, out-of-stock, etc.)
    */
-  async change(data, { signal, sections } = {}) {
+  change(data, { signal, sections } = {}) {
     const body = sections ? { ...data, sections } : data;
-    const result = await _request('cart/change.js', { method: 'POST', body, signal });
-    const removed = Number(data && data.quantity) === 0;
-    _emit(removed ? 'cart:removed' : 'cart:updated', { source: 'change', request: data, response: result });
-    return result;
+    return _request('cart/change.js', { method: 'POST', body, signal });
   },
 
   /**
@@ -847,11 +509,9 @@ const cart = {
    * @param {AbortSignal}      [opts.signal]
    * @returns {Promise<Object>} Updated cart (includes `sections` if requested)
    */
-  async update(data, { signal, sections } = {}) {
+  update(data, { signal, sections } = {}) {
     const body = sections ? { ...data, sections } : data;
-    const result = await _request('cart/update.js', { method: 'POST', body, signal });
-    _emit('cart:updated', { source: 'update', request: data, response: result });
-    return result;
+    return _request('cart/update.js', { method: 'POST', body, signal });
   },
 
   /**
@@ -860,11 +520,8 @@ const cart = {
    * @param {AbortSignal}  [opts.signal]
    * @returns {Promise<Object>} Empty cart
    */
-  async clear({ signal } = {}) {
-    const result = await _request('cart/clear.js', { method: 'POST', signal });
-    _emit('cart:removed', { source: 'clear', response: result });
-    _emit('cart:updated', { source: 'clear', response: result });
-    return result;
+  clear({ signal } = {}) {
+    return _request('cart/clear.js', { method: 'POST', signal });
   },
 
   /**
@@ -876,7 +533,6 @@ const cart = {
     if (!code) return false;
     try {
       await fetch(`${_root()}discount/${encodeURIComponent(code)}`);
-      _emit('cart:updated', { source: 'applyCoupon', code });
       return true;
     } catch {
       return false;
