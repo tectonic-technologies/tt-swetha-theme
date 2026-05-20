@@ -123,7 +123,9 @@ dialog.sai-oosntfy1__modal[open] {
 
 .sai-oosntfy1__modal-body {
   background: var(--sai-color-bg, #fff);
-  border-radius: 16px;
+  /* Subtle hairline + layered shadow for a more elevated, polished feel. */
+  border: 1px solid color-mix(in srgb, var(--sai-color-fg, #000) 6%, transparent);
+  border-radius: 20px;
   /* Extra top padding so the absolute-positioned close button never overlaps
      the heading on either desktop or mobile. */
   padding: 2.5rem 2rem 2rem;
@@ -134,12 +136,13 @@ dialog.sai-oosntfy1__modal[open] {
   max-height: calc(100vh - 3rem);
   overflow-y: auto;
   position: relative;
-  box-shadow: 0 20px 60px color-mix(in srgb, #000 15%, transparent);
+  /* Two-layer shadow: tight contact + soft ambient. */
+  box-shadow:
+    0 1px 3px color-mix(in srgb, #000 8%, transparent),
+    0 28px 80px color-mix(in srgb, #000 22%, transparent);
   opacity: 0;
   transform: translateY(-8px) scale(0.97);
   transition: opacity 0.22s ease, transform 0.22s ease;
-  /* Block backdrop clicks from reaching the body — only the dialog itself
-     dismisses on click outside the card. */
   pointer-events: auto;
 }
 
@@ -701,7 +704,7 @@ dialog.sai-oosntfy1__modal[open] {
                   <ul class="sai-oosntfy1__country-list" data-country-list></ul>
                 </div>
               </div>
-              <input type="tel" class="sai-oosntfy1__input sai-oosntfy1__phone-input" data-input="phone" placeholder="{{ _phone_placeholder | escape }}" autocomplete="tel-national" />
+              <input type="tel" class="sai-oosntfy1__input sai-oosntfy1__phone-input" data-input="phone" placeholder="{{ _phone_placeholder | escape }}" autocomplete="tel-national" inputmode="numeric" maxlength="13" pattern="[0-9+\s-]*" />
             </div>
             <div class="sai-oosntfy1__error" data-error="phone" hidden></div>
           </div>
@@ -729,7 +732,11 @@ dialog.sai-oosntfy1__modal[open] {
   ],
   "currentVariantId": {{ product.selected_or_first_available_variant.id | json }},
   "defaultCountryCode": {{ _default_country | json }},
-  "confirmationDismissSeconds": {{ _confirmation_dismiss_seconds | json }}
+  "confirmationDismissSeconds": {{ _confirmation_dismiss_seconds | json }},
+  "customer": {
+    "email": {{ customer.email | json }},
+    "phone": {{ customer.phone | default: customer.default_address.phone | json }}
+  }
 }
   </script>
 </div>

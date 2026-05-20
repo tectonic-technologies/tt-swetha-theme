@@ -264,7 +264,13 @@
   }, {})
 
   const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-  const PHONE_REGEX = /^\+?\d{7,15}$/
+  // National-portion regex: user types the local number only (country code is
+  // contributed by the picker). 6 covers Solomon Islands / Niue; 12 covers
+  // long Russian/Chinese formats. Tighter than the legacy 7-15 which let
+  // 13-digit garbage pass when concatenated with a dial code.
+  const PHONE_NATIONAL_REGEX = /^\d{6,12}$/
+  // Full-international fallback (only if the shopper pastes with a +).
+  const PHONE_INTL_REGEX = /^\+\d{8,15}$/
 
   function safeTrack(track) {
     return (name, payload) => {
@@ -583,9 +589,12 @@
         if (showError) this._showError('phone', 'Please enter your phone number.')
         return false
       }
-      const dial = this.selectedCountry ? this.selectedCountry.d : ''
-      const fullNumber = value.startsWith('+') ? value : `${dial}${value}`
-      if (!PHONE_REGEX.test(fullNumber)) {
+      // If the shopper pasted international format ("+91…"), validate the
+      // full string. Otherwise treat the typed value as the national portion
+      // (6–12 digits) — the picker contributes the dial code at submit time.
+      const isIntl = value.startsWith('+')
+      const ok = isIntl ? PHONE_INTL_REGEX.test(value) : PHONE_NATIONAL_REGEX.test(value)
+      if (!ok) {
         if (showError) this._showError('phone', 'Enter a valid phone number.')
         return false
       }
@@ -846,11 +855,15 @@
       // Reset any stale confirmation state from a prior session, but DO NOT
       // hide the trigger here — the trigger stays visible until a successful
       // subscribe (see _handleSubmit) or until the variant changes.
-      if (this.confirmation) {
-        this.confirmation.removeAttribute('data-visible')
-        this.confirmation.hidden = true
-      }
+      this._hideConfirmation()
       if (this.submitBtn) this.submitBtn.disabled = false
+      // Re-enable every input — _handleSubmit locks them all after a
+      // successful submit, and re-opening must restore a usable form.
+      if (this.form) {
+        for (const input of this.form.querySelectorAll('input')) {
+          input.disabled = false
+        }
+      }
       this.modalOpenedAt = Date.now()
       const productId = this.pool.product && this.pool.product.id
       this.track(`${FEATURE_SLUG}:trigger_click`, {
@@ -949,7 +962,17 @@
     }
 
     _prefillFromCustomer() {
-      const customer = (window.__spectrumAi && window.__spectrumAi.customer) || null
+      // Liquid SSRs `customer.email` / `customer.phone` into the pool when the
+      // shopper is logged in — that's the reliable source on a Shopify storefront.
+      // `__spectrumAi.customer` is a fallback for stores that have the runtime
+      // SDK populating it but no theme-side identity.
+      const poolCustomer =
+        (this.pool && this.pool.customer && (this.pool.customer.email || this.pool.customer.phone))
+          ? this.pool.customer
+          : null
+      const sdkCustomer =
+        (window.__spectrumAi && window.__spectrumAi.customer) || null
+      const customer = poolCustomer || sdkCustomer
       if (!customer) return
       if (this.emailInput && customer.email && !this.emailInput.value) {
         this.emailInput.value = customer.email
@@ -1008,7 +1031,8 @@
       COUNTRIES,
       COUNTRIES_BY_CODE,
       EMAIL_REGEX,
-      PHONE_REGEX,
+      PHONE_NATIONAL_REGEX,
+      PHONE_INTL_REGEX,
       NotifyMeInstance,
     }
   }
