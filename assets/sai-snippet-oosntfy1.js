@@ -888,22 +888,34 @@
         variant_id: this.currentVariantId,
         surface,
       })
-      // Open the modal FIRST so its animation gets a clean first frame,
-      // THEN lock body scroll in the next animation frame. Otherwise the
-      // scrollbar-disappearance + padding compensation paints at the same
-      // moment as the modal's opening transform, producing a visible
-      // shudder. With this order, the body lock is masked by the modal
-      // overlay that's already animating in.
+      // Deterministic open animation:
+      // 1. Add `--opening` class so the body's CLOSED state is applied
+      //    instantly (the class disables the transition).
+      // 2. Show the dialog (top layer, [open] attribute).
+      // 3. Force a synchronous reflow so the closed state is committed
+      //    before the next paint.
+      // 4. In the next animation frame, remove the class — default OPEN
+      //    styles take over with the normal transition.
+      // This avoids the @starting-style race where some browsers
+      // painted the open state for one frame before the starting style
+      // applied (the source of the perceived vibration).
+      this.modal.classList.add(`${CLS}__modal--opening`)
       if (typeof this.modal.showModal === 'function') {
         this.modal.showModal()
       } else {
         this.modal.setAttribute('open', '')
       }
-      requestAnimationFrame(() => this._lockBodyScroll(true))
-      // Focus first input.
+      void this.modal.offsetHeight
+      requestAnimationFrame(() => {
+        this.modal.classList.remove(`${CLS}__modal--opening`)
+        this._lockBodyScroll(true)
+      })
+      // Move focus to the first input AFTER the open animation completes.
+      // Doing it earlier causes the focus ring to flash mid-animation and
+      // contributes to the perceived jitter on open.
       const firstInput =
         this.activeChannel === 'sms' && this.phoneInput ? this.phoneInput : this.emailInput
-      if (firstInput) setTimeout(() => firstInput.focus(), 0)
+      if (firstInput) setTimeout(() => firstInput.focus(), 320)
     }
 
     _lockBodyScroll(lock) {

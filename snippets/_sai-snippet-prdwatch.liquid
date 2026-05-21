@@ -143,24 +143,28 @@ dialog.sai-prdwatch__modal[open] {
   max-height: calc(100vh - 3rem);
   overflow-y: auto;
   position: relative;
-  box-shadow:
-    0 1px 3px color-mix(in srgb, #000 8%, transparent),
-    0 28px 80px color-mix(in srgb, #000 22%, transparent);
+  /* Single-layer shadow with moderate blur — the previous 80px blur was
+     expensive to repaint per animation frame and contributed to the
+     perceived vibration. */
+  box-shadow: 0 12px 40px color-mix(in srgb, #000 18%, transparent);
   /* Default = OPEN state. The closed state is applied via the
      `__modal--opening` / `__modal--closing` classes. */
   opacity: 1;
-  transform: translate3d(0, 0, 0) scale(1);
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
-  transition: opacity 0.32s cubic-bezier(0.2, 0, 0, 1),
-    transform 0.32s cubic-bezier(0.2, 0, 0, 1);
+  /* Pure opacity fade — no transform animation. Transform interpolation
+     caused sub-pixel resampling of text and the heavy shadow on every
+     animation frame, which is the source of the perceived jitter. */
+  transition: opacity 0.28s cubic-bezier(0.2, 0, 0, 1);
+  will-change: opacity;
+  /* Isolate the body as its own stacking + paint context so its shadow
+     and contents don't trigger repaints of the page below. */
+  isolation: isolate;
+  contain: layout style paint;
   pointer-events: auto;
 }
 
 .sai-prdwatch__modal--opening .sai-prdwatch__modal-body,
 .sai-prdwatch__modal--closing .sai-prdwatch__modal-body {
   opacity: 0;
-  transform: translate3d(0, -4px, 0) scale(0.985);
 }
 
 /* The --opening class disables the transition so the body is committed
@@ -186,10 +190,12 @@ dialog.sai-prdwatch__modal[open] {
     border-radius: 16px 16px 0 0;
     padding: 2.5rem 1.25rem 1.75rem;
     max-height: 90vh;
-    transition: transform 0.36s cubic-bezier(0.2, 0, 0, 1),
+    /* Mobile slides up; transform animation here is OK because the body
+       is full-width — no sub-pixel scaling artifacts. */
+    transition: transform 0.32s cubic-bezier(0.2, 0, 0, 1),
       opacity 0.28s cubic-bezier(0.2, 0, 0, 1);
+    will-change: transform, opacity;
   }
-  /* Mobile drawer: slide up from bottom instead of fade-lift. */
   .sai-prdwatch__modal--opening .sai-prdwatch__modal-body,
   .sai-prdwatch__modal--closing .sai-prdwatch__modal-body {
     opacity: 1;
