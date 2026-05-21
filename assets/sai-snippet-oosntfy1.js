@@ -888,6 +888,15 @@
         variant_id: this.currentVariantId,
         surface,
       })
+      // Cancel any in-flight close animation AND its safety-net timer
+      // so re-opening within the close window doesn't get re-closed by
+      // the late-firing timeout. This is the cause of the "modal opens
+      // then immediately closes" bug on second open.
+      if (this._modalAnim) this._modalAnim.cancel()
+      if (this._modalCloseTimer) {
+        clearTimeout(this._modalCloseTimer)
+        this._modalCloseTimer = null
+      }
       // WAAPI-driven open animation:
       // Element.animate() runs on the compositor with deterministic timing
       // and `fill: 'backwards'` applies the first keyframe's styles
@@ -901,9 +910,6 @@
       }
       const body = this.modal.querySelector(`.${CLS}__modal-body`)
       if (body && typeof body.animate === 'function') {
-        // Cancel any in-flight close animation so re-opening mid-fade
-        // doesn't compose with an existing one.
-        if (this._modalAnim) this._modalAnim.cancel()
         const isMobile = window.matchMedia('(max-width: 767px)').matches
         const from = isMobile
           ? { opacity: 1, transform: 'translate3d(0, 100%, 0)' }
@@ -948,7 +954,14 @@
 
     _closeModal() {
       // WAAPI-driven close — same animation engine as open, just reversed.
+      // The safety-net timer is stored on `this` so re-opening before the
+      // timer fires can cancel it (otherwise the late timer calls
+      // dialog.close() on the freshly re-opened modal).
       const finalize = () => {
+        if (this._modalCloseTimer) {
+          clearTimeout(this._modalCloseTimer)
+          this._modalCloseTimer = null
+        }
         this._modalAnim = null
         if (typeof this.modal.close === 'function') {
           this.modal.close()
@@ -960,6 +973,7 @@
       const body = this.modal.querySelector(`.${CLS}__modal-body`)
       if (body && typeof body.animate === 'function') {
         if (this._modalAnim) this._modalAnim.cancel()
+        if (this._modalCloseTimer) clearTimeout(this._modalCloseTimer)
         const isMobile = window.matchMedia('(max-width: 767px)').matches
         const from = { opacity: 1, transform: 'translate3d(0, 0, 0)' }
         const to = isMobile
@@ -973,8 +987,9 @@
         this._modalAnim = anim
         anim.onfinish = finalize
         // Safety net in case onfinish never fires (animation cancelled
-        // externally, etc.).
-        setTimeout(finalize, 360)
+        // externally, etc.) — cancelled in _openModal so re-opening
+        // during the close window doesn't re-close the new dialog.
+        this._modalCloseTimer = setTimeout(finalize, 360)
       } else {
         finalize()
       }
