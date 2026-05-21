@@ -135,31 +135,17 @@ dialog.sai-oosntfy1__modal[open] {
   display: flex;
 }
 
-/* --- Class-based animation (deterministic across all browsers) ---
-   Rationale: the CSS starting-style at-rule had race conditions where
-   some browsers painted the open state for one frame before the starting
-   style applied, producing the perceived vibration. This approach is bullet-proof:
-   1. JS adds `__modal--opening` class BEFORE calling showModal — the body
-      starts at its CLOSED state with `transition: none` (no animation).
-   2. JS forces a synchronous reflow (`void offsetHeight`).
-   3. Next animation frame, JS removes the class — the body's default
-      OPEN-state styles apply, and the normal transition fades them in.
-   For close, the JS adds `__modal--closing`, which transitions to the
-   closed state; after the duration elapses, JS calls dialog.close(). */
+/* --- WAAPI-driven animation ---
+   The modal body is animated entirely from JS via Element.animate(),
+   which runs on the compositor with deterministic timing. CSS
+   transitions had an intermittent first-paint race on Safari/iOS where
+   the body would briefly render at its final state before the
+   transition started — that's the source of the perceived jump. The
+   backdrop is shown instantly (no fade) so it never competes with the
+   body's animation for a frame. */
 
 .sai-oosntfy1__modal::backdrop {
   background: color-mix(in srgb, #000 50%, transparent);
-  opacity: 1;
-  transition: opacity 0.32s cubic-bezier(0.2, 0, 0, 1);
-}
-
-.sai-oosntfy1__modal--opening::backdrop,
-.sai-oosntfy1__modal--closing::backdrop {
-  opacity: 0;
-}
-
-.sai-oosntfy1__modal--opening::backdrop {
-  transition: none !important;
 }
 
 .sai-oosntfy1__modal-body {
@@ -172,35 +158,14 @@ dialog.sai-oosntfy1__modal[open] {
   max-height: calc(100vh - 3rem);
   overflow-y: auto;
   position: relative;
-  /* Single-layer shadow with moderate blur — the previous 80px blur was
-     expensive to repaint per animation frame and contributed to the
-     perceived vibration. */
   box-shadow: 0 12px 40px color-mix(in srgb, #000 18%, transparent);
-  /* Default = OPEN state. The closed state is applied via the
-     `__modal--opening` / `__modal--closing` classes. */
   opacity: 1;
-  /* Pure opacity fade — no transform animation. Transform interpolation
-     caused sub-pixel resampling of text and the heavy shadow on every
-     animation frame, which is the source of the perceived jitter. */
-  transition: opacity 0.28s cubic-bezier(0.2, 0, 0, 1);
-  will-change: opacity;
-  /* Isolate the body as its own stacking + paint context so its shadow
-     and contents don't trigger repaints of the page below. */
+  /* No CSS transition here — JS drives the fade via Element.animate()
+     (WAAPI), which runs on the compositor with deterministic timing and
+     no first-paint race that the CSS-transition approach had on Safari. */
   isolation: isolate;
   contain: layout style paint;
   pointer-events: auto;
-}
-
-.sai-oosntfy1__modal--opening .sai-oosntfy1__modal-body,
-.sai-oosntfy1__modal--closing .sai-oosntfy1__modal-body {
-  opacity: 0;
-}
-
-/* The --opening class disables the transition so the body is committed
-   instantly at the closed state. Removing the class re-enables the
-   transition and animates to the open state. */
-.sai-oosntfy1__modal--opening .sai-oosntfy1__modal-body {
-  transition: none !important;
 }
 
 .sai-oosntfy1__modal[data-size="small"] { --sai-oosntfy1-modal-width: 480px; }
@@ -219,25 +184,10 @@ dialog.sai-oosntfy1__modal[open] {
     border-radius: 16px 16px 0 0;
     padding: 2.5rem 1.25rem 1.75rem;
     max-height: 90vh;
-    /* Mobile slides up; transform animation here is OK because the body
-       is full-width — no sub-pixel scaling artifacts. */
-    transition: transform 0.32s cubic-bezier(0.2, 0, 0, 1),
-      opacity 0.28s cubic-bezier(0.2, 0, 0, 1);
-    will-change: transform, opacity;
-  }
-  .sai-oosntfy1__modal--opening .sai-oosntfy1__modal-body,
-  .sai-oosntfy1__modal--closing .sai-oosntfy1__modal-body {
-    opacity: 1;
-    transform: translate3d(0, 100%, 0);
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .sai-oosntfy1__modal-body,
-  .sai-oosntfy1__modal::backdrop {
-    transition-duration: 0.001s;
-  }
-}
+/* WAAPI handles animation entirely — there are no CSS transitions to disable. */
 
 .sai-oosntfy1__close {
   position: absolute;

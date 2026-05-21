@@ -870,34 +870,35 @@
         variant_id: this.currentVariantId,
         surface,
       })
-      // Deterministic open animation:
-      // 1. Add `--opening` class so the body's CLOSED state is applied
-      //    instantly (the class disables the transition).
-      // 2. Show the dialog (top layer, [open] attribute).
-      // 3. Force a synchronous reflow so the closed state is committed
-      //    before the next paint.
-      // 4. In the next animation frame, remove the class — default OPEN
-      //    styles take over with the normal transition.
-      // This avoids the @starting-style race where some browsers
-      // painted the open state for one frame before the starting style
-      // applied (the source of the perceived vibration).
-      this.modal.classList.add(`${CLS}__modal--opening`)
+      // WAAPI-driven open animation:
+      // Element.animate() runs on the compositor with deterministic timing
+      // and `fill: 'backwards'` applies the first keyframe's styles
+      // immediately, so there's no first-paint race. The body therefore
+      // starts at opacity 0 the instant showModal() opens the dialog and
+      // animates to opacity 1 over 240ms.
       if (typeof this.modal.showModal === 'function') {
         this.modal.showModal()
       } else {
         this.modal.setAttribute('open', '')
       }
-      void this.modal.offsetHeight
-      requestAnimationFrame(() => {
-        this.modal.classList.remove(`${CLS}__modal--opening`)
-        this._lockBodyScroll(true)
-      })
-      // Move focus to the first input AFTER the open animation completes.
-      // Doing it earlier causes the focus ring to flash mid-animation and
-      // contributes to the perceived jitter on open.
+      const body = this.modal.querySelector(`.${CLS}__modal-body`)
+      if (body && typeof body.animate === 'function') {
+        if (this._modalAnim) this._modalAnim.cancel()
+        const isMobile = window.matchMedia('(max-width: 767px)').matches
+        const from = isMobile
+          ? { opacity: 1, transform: 'translate3d(0, 100%, 0)' }
+          : { opacity: 0, transform: 'translate3d(0, 0, 0)' }
+        const to = { opacity: 1, transform: 'translate3d(0, 0, 0)' }
+        this._modalAnim = body.animate([from, to], {
+          duration: isMobile ? 320 : 240,
+          easing: 'cubic-bezier(0.2, 0, 0, 1)',
+          fill: 'backwards',
+        })
+      }
+      requestAnimationFrame(() => this._lockBodyScroll(true))
       const firstInput =
         this.activeChannel === 'sms' && this.phoneInput ? this.phoneInput : this.emailInput
-      if (firstInput) setTimeout(() => firstInput.focus(), 320)
+      if (firstInput) setTimeout(() => firstInput.focus(), 280)
     }
 
     _lockBodyScroll(lock) {
@@ -924,11 +925,8 @@
     }
 
     _closeModal() {
-      // Closing-class drives the transition in browsers without @starting-style
-      // support; the [open] attribute remains true during the transition so
-      // CSS transitions run on the same display:block element.
       const finalize = () => {
-        this.modal.classList.remove(`${CLS}__modal--closing`)
+        this._modalAnim = null
         if (typeof this.modal.close === 'function') {
           this.modal.close()
         } else {
@@ -936,9 +934,25 @@
           this._onModalClosed()
         }
       }
-      this.modal.classList.add(`${CLS}__modal--closing`)
-      // Match the longest declared transition (drawer = 0.36s).
-      setTimeout(finalize, 360)
+      const body = this.modal.querySelector(`.${CLS}__modal-body`)
+      if (body && typeof body.animate === 'function') {
+        if (this._modalAnim) this._modalAnim.cancel()
+        const isMobile = window.matchMedia('(max-width: 767px)').matches
+        const from = { opacity: 1, transform: 'translate3d(0, 0, 0)' }
+        const to = isMobile
+          ? { opacity: 1, transform: 'translate3d(0, 100%, 0)' }
+          : { opacity: 0, transform: 'translate3d(0, 0, 0)' }
+        const anim = body.animate([from, to], {
+          duration: isMobile ? 280 : 200,
+          easing: 'cubic-bezier(0.4, 0, 1, 1)',
+          fill: 'forwards',
+        })
+        this._modalAnim = anim
+        anim.onfinish = finalize
+        setTimeout(finalize, 360)
+      } else {
+        finalize()
+      }
     }
 
     _onModalClosed() {
