@@ -884,24 +884,31 @@
         clearTimeout(this._modalCloseTimer)
         this._modalCloseTimer = null
       }
-      // Defensive: explicitly clear any inline opacity/transform on the
-      // body in case a prior WAAPI animation persisted a fill effect
-      // that wasn't fully cleared by cancel().
+      // Defensive: clear any inline opacity/transform on the body in case
+      // a prior WAAPI animation persisted a fill effect.
       const modalBodyReset = this.modal.querySelector(`.${CLS}__modal-body`)
       if (modalBodyReset) {
         modalBodyReset.style.removeProperty('opacity')
         modalBodyReset.style.removeProperty('transform')
       }
+      // Remove the close-animation attribute so the CSS keyframes stop
+      // if the user re-opened mid-close. The dialog might still be
+      // [open] in that case — we skip showModal further down for that.
+      this.modal.removeAttribute('data-closing')
       // WAAPI-driven open animation:
       // Element.animate() runs on the compositor with deterministic timing
       // and `fill: 'backwards'` applies the first keyframe's styles
       // immediately, so there's no first-paint race. The body therefore
       // starts at opacity 0 the instant showModal() opens the dialog and
       // animates to opacity 1 over 240ms.
-      if (typeof this.modal.showModal === 'function') {
-        this.modal.showModal()
-      } else {
-        this.modal.setAttribute('open', '')
+      // Skip showModal if the dialog is still open (close animation in
+      // progress) — showModal on an already-open dialog throws.
+      if (!this.modal.open) {
+        if (typeof this.modal.showModal === 'function') {
+          this.modal.showModal()
+        } else {
+          this.modal.setAttribute('open', '')
+        }
       }
       const body = this.modal.querySelector(`.${CLS}__modal-body`)
       if (body && typeof body.animate === 'function') {
@@ -946,55 +953,31 @@
     }
 
     _closeModal() {
-      // Generation counter: every open OR close increments this. The
-      // finalize callback captures its generation at scheduling time and
-      // bails out if the counter has moved on. This makes the close
-      // animation safe against re-opens — if the user re-opens while the
-      // close is mid-fade, the new open bumps the generation and any
-      // late-firing finalize becomes a no-op instead of closing the
-      // freshly opened dialog.
+      // CSS-driven close — see oosntfy1 for the rationale.
       this._modalGen = (this._modalGen || 0) + 1
       const gen = this._modalGen
-      if (this._modalAnim) {
-        this._modalAnim.cancel()
-        this._modalAnim = null
-      }
       if (this._modalCloseTimer) {
         clearTimeout(this._modalCloseTimer)
         this._modalCloseTimer = null
       }
-      const finalize = () => {
-        if (gen !== this._modalGen) return
-        if (this._modalCloseTimer) {
-          clearTimeout(this._modalCloseTimer)
-          this._modalCloseTimer = null
-        }
+      if (this._modalAnim) {
+        this._modalAnim.cancel()
         this._modalAnim = null
+      }
+      const isMobile = window.matchMedia('(max-width: 767px)').matches
+      const duration = isMobile ? 240 : 180
+      this.modal.setAttribute('data-closing', 'true')
+      this._modalCloseTimer = setTimeout(() => {
+        this._modalCloseTimer = null
+        if (gen !== this._modalGen) return
+        this.modal.removeAttribute('data-closing')
         if (typeof this.modal.close === 'function') {
           this.modal.close()
         } else {
           this.modal.removeAttribute('open')
           this._onModalClosed()
         }
-      }
-      const body = this.modal.querySelector(`.${CLS}__modal-body`)
-      if (body && typeof body.animate === 'function') {
-        const isMobile = window.matchMedia('(max-width: 767px)').matches
-        const from = { opacity: 1, transform: 'translate3d(0, 0, 0)' }
-        const to = isMobile
-          ? { opacity: 1, transform: 'translate3d(0, 100%, 0)' }
-          : { opacity: 0, transform: 'translate3d(0, 0, 0)' }
-        const anim = body.animate([from, to], {
-          duration: isMobile ? 240 : 180,
-          easing: 'cubic-bezier(0.4, 0, 1, 1)',
-          fill: 'forwards',
-        })
-        this._modalAnim = anim
-        anim.onfinish = finalize
-        this._modalCloseTimer = setTimeout(finalize, 320)
-      } else {
-        finalize()
-      }
+      }, duration)
     }
 
     _onModalClosed() {

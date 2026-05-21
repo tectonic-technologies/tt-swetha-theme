@@ -902,25 +902,34 @@
         clearTimeout(this._modalCloseTimer)
         this._modalCloseTimer = null
       }
-      // Defensive: explicitly clear any inline opacity/transform on the
-      // body in case a prior WAAPI animation persisted a fill effect
-      // that wasn't fully cleared by cancel(). Without this, Safari can
-      // re-open the modal with the body stuck at opacity 0.
+      // Defensive: clear any inline opacity/transform on the body in case
+      // a prior WAAPI animation persisted a fill effect.
       const modalBodyReset = this.modal.querySelector(`.${CLS}__modal-body`)
       if (modalBodyReset) {
         modalBodyReset.style.removeProperty('opacity')
         modalBodyReset.style.removeProperty('transform')
       }
+      // Remove the close-animation attribute so the CSS keyframes stop
+      // if the user re-opened mid-close. The dialog might still be
+      // [open] in that case (close hasn't called dialog.close() yet) —
+      // we skip showModal further down for that path.
+      this.modal.removeAttribute('data-closing')
       // WAAPI-driven open animation:
       // Element.animate() runs on the compositor with deterministic timing
       // and `fill: 'backwards'` applies the first keyframe's styles
       // immediately, so there's no first-paint race. The body therefore
       // starts at opacity 0 the instant showModal() opens the dialog and
       // animates to opacity 1 over 280ms.
-      if (typeof this.modal.showModal === 'function') {
-        this.modal.showModal()
-      } else {
-        this.modal.setAttribute('open', '')
+      // showModal throws InvalidStateError on an already-open dialog.
+      // If the close animation was in progress (dialog still [open],
+      // close attribute removed above), skip the call — the existing
+      // open dialog gets the new open animation overlaid on top.
+      if (!this.modal.open) {
+        if (typeof this.modal.showModal === 'function') {
+          this.modal.showModal()
+        } else {
+          this.modal.setAttribute('open', '')
+        }
       }
       const body = this.modal.querySelector(`.${CLS}__modal-body`)
       if (body && typeof body.animate === 'function') {
@@ -967,57 +976,38 @@
     }
 
     _closeModal() {
-      // Generation counter: every open OR close increments this. The
-      // finalize callback captures its generation at scheduling time and
-      // bails out if the counter has moved on. This makes the close
-      // animation safe against re-opens — if the user re-opens while the
-      // close is mid-fade, the new open bumps the generation and any
-      // late-firing finalize (from onfinish or the safety-net timeout)
-      // becomes a no-op instead of closing the freshly opened dialog.
+      // CSS-driven close animation. Setting data-closing="true" triggers
+      // the @keyframes rule in the stylesheet (fade out on desktop, slide
+      // down on mobile). After the animation runs, JS calls dialog.close().
+      // Generation counter guards against re-open during the animation:
+      // a fresh open bumps the counter and the captured-gen check below
+      // turns the late timer into a no-op.
       this._modalGen = (this._modalGen || 0) + 1
       const gen = this._modalGen
-      if (this._modalAnim) {
-        this._modalAnim.cancel()
-        this._modalAnim = null
-      }
       if (this._modalCloseTimer) {
         clearTimeout(this._modalCloseTimer)
         this._modalCloseTimer = null
       }
-      const finalize = () => {
-        if (gen !== this._modalGen) return // stale — a new open/close cycle has begun
-        if (this._modalCloseTimer) {
-          clearTimeout(this._modalCloseTimer)
-          this._modalCloseTimer = null
-        }
+      // Cancel any in-flight open animation so it doesn't fight with the
+      // close keyframes.
+      if (this._modalAnim) {
+        this._modalAnim.cancel()
         this._modalAnim = null
+      }
+      const isMobile = window.matchMedia('(max-width: 767px)').matches
+      const duration = isMobile ? 240 : 180
+      this.modal.setAttribute('data-closing', 'true')
+      this._modalCloseTimer = setTimeout(() => {
+        this._modalCloseTimer = null
+        if (gen !== this._modalGen) return // stale — user re-opened
+        this.modal.removeAttribute('data-closing')
         if (typeof this.modal.close === 'function') {
           this.modal.close()
         } else {
           this.modal.removeAttribute('open')
           this._onModalClosed()
         }
-      }
-      const body = this.modal.querySelector(`.${CLS}__modal-body`)
-      if (body && typeof body.animate === 'function') {
-        const isMobile = window.matchMedia('(max-width: 767px)').matches
-        const from = { opacity: 1, transform: 'translate3d(0, 0, 0)' }
-        const to = isMobile
-          ? { opacity: 1, transform: 'translate3d(0, 100%, 0)' }
-          : { opacity: 0, transform: 'translate3d(0, 0, 0)' }
-        const anim = body.animate([from, to], {
-          duration: isMobile ? 240 : 180,
-          easing: 'cubic-bezier(0.4, 0, 1, 1)',
-          fill: 'forwards',
-        })
-        this._modalAnim = anim
-        anim.onfinish = finalize
-        // Safety net — generation check makes this safe even if onfinish
-        // and the user's re-open race for the same frame.
-        this._modalCloseTimer = setTimeout(finalize, 320)
-      } else {
-        finalize()
-      }
+      }, duration)
     }
 
     _onModalClosed() {

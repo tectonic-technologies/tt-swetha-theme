@@ -172,6 +172,23 @@ dialog.sai-oosntfy1__modal[open] {
 .sai-oosntfy1__modal[data-size="medium"] { --sai-oosntfy1-modal-width: 560px; }
 .sai-oosntfy1__modal[data-size="large"] { --sai-oosntfy1-modal-width: 680px; }
 
+/* --- CSS close animation ---
+   Triggered by the `data-closing="true"` attribute the JS sets in
+   _closeModal. The JS then calls dialog.close() after the animation
+   duration. The open animation stays in JS (WAAPI) because it needs
+   `fill: 'backwards'` to avoid a first-paint race; close has no such
+   race so CSS is fine and simpler. */
+.sai-oosntfy1__modal[data-closing="true"] .sai-oosntfy1__modal-body {
+  animation: sai-oosntfy1-close 180ms cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+@keyframes sai-oosntfy1-close {
+  to {
+    opacity: 0;
+    transform: translate3d(0, -4px, 0);
+  }
+}
+
 @media (max-width: 767px) {
   dialog.sai-oosntfy1__modal {
     padding: 0;
@@ -184,6 +201,15 @@ dialog.sai-oosntfy1__modal[open] {
     border-radius: 16px 16px 0 0;
     padding: 2.5rem 1.25rem 1.75rem;
     max-height: 90vh;
+  }
+  /* Mobile drawer: slide down on close instead of fade. */
+  .sai-oosntfy1__modal[data-closing="true"] .sai-oosntfy1__modal-body {
+    animation: sai-oosntfy1-close-drawer 240ms cubic-bezier(0.4, 0, 1, 1) forwards;
+  }
+  @keyframes sai-oosntfy1-close-drawer {
+    to {
+      transform: translate3d(0, 100%, 0);
+    }
   }
 }
 
