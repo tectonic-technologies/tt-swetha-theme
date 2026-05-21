@@ -756,8 +756,6 @@ const cart = {
     const body = { items: payload };
     if (sections) body.sections = sections;
     const result = await _request('cart/add.js', { method: 'POST', body, signal });
-    _emit('cart:added', { items: payload, response: result });
-    _emit('cart:updated', { source: 'add', response: result });
     _autoApplyBestCoupon();
     return result;
   },
@@ -772,8 +770,6 @@ const cart = {
    */
   async addFromForm(formData, { signal } = {}) {
     const result = await _request('cart/add.js', { method: 'POST', body: formData, signal });
-    _emit('cart:added', { source: 'form', response: result });
-    _emit('cart:updated', { source: 'add', response: result });
     _autoApplyBestCoupon();
     return result;
   },
@@ -831,12 +827,9 @@ const cart = {
    * @returns {Promise<Object>} Updated cart (includes `sections` if requested)
    * @throws {Error} On failure (including quantity limits, out-of-stock, etc.)
    */
-  async change(data, { signal, sections } = {}) {
+  change(data, { signal, sections } = {}) {
     const body = sections ? { ...data, sections } : data;
-    const result = await _request('cart/change.js', { method: 'POST', body, signal });
-    const removed = Number(data && data.quantity) === 0;
-    _emit(removed ? 'cart:removed' : 'cart:updated', { source: 'change', request: data, response: result });
-    return result;
+    return _request('cart/change.js', { method: 'POST', body, signal });
   },
 
   /**
@@ -847,11 +840,9 @@ const cart = {
    * @param {AbortSignal}      [opts.signal]
    * @returns {Promise<Object>} Updated cart (includes `sections` if requested)
    */
-  async update(data, { signal, sections } = {}) {
+  update(data, { signal, sections } = {}) {
     const body = sections ? { ...data, sections } : data;
-    const result = await _request('cart/update.js', { method: 'POST', body, signal });
-    _emit('cart:updated', { source: 'update', request: data, response: result });
-    return result;
+    return _request('cart/update.js', { method: 'POST', body, signal });
   },
 
   /**
@@ -860,11 +851,8 @@ const cart = {
    * @param {AbortSignal}  [opts.signal]
    * @returns {Promise<Object>} Empty cart
    */
-  async clear({ signal } = {}) {
-    const result = await _request('cart/clear.js', { method: 'POST', signal });
-    _emit('cart:removed', { source: 'clear', response: result });
-    _emit('cart:updated', { source: 'clear', response: result });
-    return result;
+  clear({ signal } = {}) {
+    return _request('cart/clear.js', { method: 'POST', signal });
   },
 
   /**
@@ -876,7 +864,6 @@ const cart = {
     if (!code) return false;
     try {
       await fetch(`${_root()}discount/${encodeURIComponent(code)}`);
-      _emit('cart:updated', { source: 'applyCoupon', code });
       return true;
     } catch {
       return false;
