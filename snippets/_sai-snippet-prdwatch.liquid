@@ -92,16 +92,18 @@ dialog.sai-prdwatch__modal {
   border: none;
   background: transparent;
   overflow: hidden;
+  /* Pre-set flex alignment so opening doesn't compute these for the first
+     time — the only thing that changes is display:none→flex from the UA. */
+  align-items: center;
+  justify-content: center;
 }
 
-/* IMPORTANT: only apply flex layout when the dialog is actually open.
-   Without the [open] qualifier the rule outranks the UA's
+/* IMPORTANT: only apply `display: flex` when the dialog is actually open.
+   Without the [open] qualifier this rule outranks the UA's
    `dialog:not([open]) { display: none }` and the closed dialog stays
    in the layout, swallowing pointer events across the whole viewport. */
 dialog.sai-prdwatch__modal[open] {
   display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .sai-prdwatch__modal::backdrop {
@@ -144,25 +146,27 @@ dialog.sai-prdwatch__modal[open] {
     0 1px 3px color-mix(in srgb, #000 8%, transparent),
     0 28px 80px color-mix(in srgb, #000 22%, transparent);
   opacity: 0;
-  transform: translateY(-4px) scale(0.985);
-  /* Smaller starting transform + slower duration + ease-out curve =
-     no perceptible snap. `will-change` hints the browser to promote this
-     to its own compositing layer before the animation starts. */
+  /* translate3d forces compositor-layer promotion at parse time (not at
+     animation start) — eliminates the first-frame paint that reads as
+     vibration. Combined with backface-visibility:hidden, the body
+     animates entirely on the GPU. */
+  transform: translate3d(0, -4px, 0) scale(0.985);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
   transition: opacity 0.32s cubic-bezier(0.2, 0, 0, 1),
     transform 0.32s cubic-bezier(0.2, 0, 0, 1);
-  will-change: opacity, transform;
   pointer-events: auto;
 }
 
 .sai-prdwatch__modal[open] .sai-prdwatch__modal-body {
   opacity: 1;
-  transform: translateY(0) scale(1);
+  transform: translate3d(0, 0, 0) scale(1);
 }
 
 @starting-style {
   .sai-prdwatch__modal[open] .sai-prdwatch__modal-body {
     opacity: 0;
-    transform: translateY(-4px) scale(0.985);
+    transform: translate3d(0, -4px, 0) scale(0.985);
   }
 }
 
@@ -186,16 +190,16 @@ dialog.sai-prdwatch__modal[open] {
     border-radius: 16px 16px 0 0;
     padding: 2.5rem 1.25rem 1.75rem;
     max-height: 90vh;
-    transform: translateY(100%);
+    transform: translate3d(0, 100%, 0);
     transition: transform 0.36s cubic-bezier(0.2, 0, 0, 1),
       opacity 0.28s cubic-bezier(0.2, 0, 0, 1);
   }
   .sai-prdwatch__modal[open] .sai-prdwatch__modal-body {
-    transform: translateY(0);
+    transform: translate3d(0, 0, 0);
   }
   @starting-style {
     .sai-prdwatch__modal[open] .sai-prdwatch__modal-body {
-      transform: translateY(100%);
+      transform: translate3d(0, 100%, 0);
     }
   }
 }
@@ -203,11 +207,11 @@ dialog.sai-prdwatch__modal[open] {
 /* Closing-class fallback for browsers without @starting-style support. */
 .sai-prdwatch__modal--closing .sai-prdwatch__modal-body {
   opacity: 0 !important;
-  transform: translateY(-4px) scale(0.985) !important;
+  transform: translate3d(0, -4px, 0) scale(0.985) !important;
 }
 @media (max-width: 767px) {
   .sai-prdwatch__modal--closing .sai-prdwatch__modal-body {
-    transform: translateY(100%) !important;
+    transform: translate3d(0, 100%, 0) !important;
   }
 }
 

@@ -888,14 +888,18 @@
         variant_id: this.currentVariantId,
         surface,
       })
-      // Lock page scroll so wheel/touchmove on the backdrop doesn't move the
-      // PDP behind the dialog. Restored in _onModalClosed.
-      this._lockBodyScroll(true)
+      // Open the modal FIRST so its animation gets a clean first frame,
+      // THEN lock body scroll in the next animation frame. Otherwise the
+      // scrollbar-disappearance + padding compensation paints at the same
+      // moment as the modal's opening transform, producing a visible
+      // shudder. With this order, the body lock is masked by the modal
+      // overlay that's already animating in.
       if (typeof this.modal.showModal === 'function') {
         this.modal.showModal()
       } else {
         this.modal.setAttribute('open', '')
       }
+      requestAnimationFrame(() => this._lockBodyScroll(true))
       // Focus first input.
       const firstInput =
         this.activeChannel === 'sms' && this.phoneInput ? this.phoneInput : this.emailInput
