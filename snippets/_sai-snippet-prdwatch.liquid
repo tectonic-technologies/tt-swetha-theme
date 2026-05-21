@@ -106,51 +106,50 @@ dialog.sai-prdwatch__modal[open] {
   display: flex;
 }
 
+/* --- Class-based animation (deterministic across all browsers) ---
+   Rationale: the CSS starting-style at-rule had race conditions where
+   some browsers painted the open state for one frame before the starting
+   style applied, producing the perceived vibration. This approach is bullet-proof:
+   1. JS adds `__modal--opening` class BEFORE calling showModal — the body
+      starts at its CLOSED state with `transition: none` (no animation).
+   2. JS forces a synchronous reflow (`void offsetHeight`).
+   3. Next animation frame, JS removes the class — the body's default
+      OPEN-state styles apply, and the normal transition fades them in.
+   For close, the JS adds `__modal--closing`, which transitions to the
+   closed state; after the duration elapses, JS calls dialog.close(). */
+
 .sai-prdwatch__modal::backdrop {
   background: color-mix(in srgb, #000 50%, transparent);
-  opacity: 0;
-  /* Smooth, slightly longer fade with an ease-out curve so the backdrop
-     darkens in lockstep with the body's lift, no perceptible flash. */
-  transition: opacity 0.32s cubic-bezier(0.2, 0, 0, 1),
-    display 0.32s cubic-bezier(0.2, 0, 0, 1) allow-discrete,
-    overlay 0.32s cubic-bezier(0.2, 0, 0, 1) allow-discrete;
-}
-
-.sai-prdwatch__modal[open]::backdrop {
   opacity: 1;
+  transition: opacity 0.32s cubic-bezier(0.2, 0, 0, 1);
 }
 
-@starting-style {
-  .sai-prdwatch__modal[open]::backdrop {
-    opacity: 0;
-  }
+.sai-prdwatch__modal--opening::backdrop,
+.sai-prdwatch__modal--closing::backdrop {
+  opacity: 0;
+}
+
+.sai-prdwatch__modal--opening::backdrop {
+  transition: none !important;
 }
 
 .sai-prdwatch__modal-body {
   background: var(--sai-color-bg, #fff);
-  /* Subtle hairline + layered shadow for a more elevated, polished feel. */
   border: 1px solid color-mix(in srgb, var(--sai-color-fg, #000) 6%, transparent);
   border-radius: 20px;
-  /* Extra top padding so the absolute-positioned close button never overlaps
-     the heading on either desktop or mobile. */
   padding: 2.5rem 2rem 2rem;
-  /* The body is the visible card. It owns its own scroll when content
-     exceeds the viewport — the dialog itself stays fixed. */
   width: 100%;
   max-width: var(--sai-prdwatch-modal-width);
   max-height: calc(100vh - 3rem);
   overflow-y: auto;
   position: relative;
-  /* Two-layer shadow: tight contact + soft ambient. */
   box-shadow:
     0 1px 3px color-mix(in srgb, #000 8%, transparent),
     0 28px 80px color-mix(in srgb, #000 22%, transparent);
-  opacity: 0;
-  /* translate3d forces compositor-layer promotion at parse time (not at
-     animation start) — eliminates the first-frame paint that reads as
-     vibration. Combined with backface-visibility:hidden, the body
-     animates entirely on the GPU. */
-  transform: translate3d(0, -4px, 0) scale(0.985);
+  /* Default = OPEN state. The closed state is applied via the
+     `__modal--opening` / `__modal--closing` classes. */
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
   transition: opacity 0.32s cubic-bezier(0.2, 0, 0, 1),
@@ -158,16 +157,17 @@ dialog.sai-prdwatch__modal[open] {
   pointer-events: auto;
 }
 
-.sai-prdwatch__modal[open] .sai-prdwatch__modal-body {
-  opacity: 1;
-  transform: translate3d(0, 0, 0) scale(1);
+.sai-prdwatch__modal--opening .sai-prdwatch__modal-body,
+.sai-prdwatch__modal--closing .sai-prdwatch__modal-body {
+  opacity: 0;
+  transform: translate3d(0, -4px, 0) scale(0.985);
 }
 
-@starting-style {
-  .sai-prdwatch__modal[open] .sai-prdwatch__modal-body {
-    opacity: 0;
-    transform: translate3d(0, -4px, 0) scale(0.985);
-  }
+/* The --opening class disables the transition so the body is committed
+   instantly at the closed state. Removing the class re-enables the
+   transition and animates to the open state. */
+.sai-prdwatch__modal--opening .sai-prdwatch__modal-body {
+  transition: none !important;
 }
 
 .sai-prdwatch__modal[data-size="small"] { --sai-prdwatch-modal-width: 480px; }
@@ -175,12 +175,8 @@ dialog.sai-prdwatch__modal[open] {
 .sai-prdwatch__modal[data-size="large"] { --sai-prdwatch-modal-width: 680px; }
 
 @media (max-width: 767px) {
-  /* Bottom-drawer: align body to the bottom of the viewport with full width.
-     Only applied when [open] — same reason as the desktop rule above. */
   dialog.sai-prdwatch__modal {
     padding: 0;
-  }
-  dialog.sai-prdwatch__modal[open] {
     align-items: flex-end;
     justify-content: stretch;
   }
@@ -190,28 +186,14 @@ dialog.sai-prdwatch__modal[open] {
     border-radius: 16px 16px 0 0;
     padding: 2.5rem 1.25rem 1.75rem;
     max-height: 90vh;
-    transform: translate3d(0, 100%, 0);
     transition: transform 0.36s cubic-bezier(0.2, 0, 0, 1),
       opacity 0.28s cubic-bezier(0.2, 0, 0, 1);
   }
-  .sai-prdwatch__modal[open] .sai-prdwatch__modal-body {
-    transform: translate3d(0, 0, 0);
-  }
-  @starting-style {
-    .sai-prdwatch__modal[open] .sai-prdwatch__modal-body {
-      transform: translate3d(0, 100%, 0);
-    }
-  }
-}
-
-/* Closing-class fallback for browsers without @starting-style support. */
-.sai-prdwatch__modal--closing .sai-prdwatch__modal-body {
-  opacity: 0 !important;
-  transform: translate3d(0, -4px, 0) scale(0.985) !important;
-}
-@media (max-width: 767px) {
+  /* Mobile drawer: slide up from bottom instead of fade-lift. */
+  .sai-prdwatch__modal--opening .sai-prdwatch__modal-body,
   .sai-prdwatch__modal--closing .sai-prdwatch__modal-body {
-    transform: translate3d(0, 100%, 0) !important;
+    opacity: 1;
+    transform: translate3d(0, 100%, 0);
   }
 }
 
