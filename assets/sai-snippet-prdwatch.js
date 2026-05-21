@@ -870,6 +870,10 @@
         variant_id: this.currentVariantId,
         surface,
       })
+      // Bump the modal generation counter so any pending finalize from a
+      // prior close cycle (in-flight WAAPI onfinish or safety-net timer)
+      // becomes a no-op when it eventually fires.
+      this._modalGen = (this._modalGen || 0) + 1
       // Cancel any prior animation + clear its safety-net timer so a fresh
       // open doesn't inherit any stale state from the previous cycle.
       if (this._modalAnim) {
@@ -942,8 +946,15 @@
     }
 
     _closeModal() {
-      // Close instantly — no animation. See oosntfy1 _closeModal comment
-      // for the rationale (close-anim state machine caused re-open bugs).
+      // Generation counter: every open OR close increments this. The
+      // finalize callback captures its generation at scheduling time and
+      // bails out if the counter has moved on. This makes the close
+      // animation safe against re-opens — if the user re-opens while the
+      // close is mid-fade, the new open bumps the generation and any
+      // late-firing finalize becomes a no-op instead of closing the
+      // freshly opened dialog.
+      this._modalGen = (this._modalGen || 0) + 1
+      const gen = this._modalGen
       if (this._modalAnim) {
         this._modalAnim.cancel()
         this._modalAnim = null
@@ -952,11 +963,37 @@
         clearTimeout(this._modalCloseTimer)
         this._modalCloseTimer = null
       }
-      if (typeof this.modal.close === 'function') {
-        this.modal.close()
+      const finalize = () => {
+        if (gen !== this._modalGen) return
+        if (this._modalCloseTimer) {
+          clearTimeout(this._modalCloseTimer)
+          this._modalCloseTimer = null
+        }
+        this._modalAnim = null
+        if (typeof this.modal.close === 'function') {
+          this.modal.close()
+        } else {
+          this.modal.removeAttribute('open')
+          this._onModalClosed()
+        }
+      }
+      const body = this.modal.querySelector(`.${CLS}__modal-body`)
+      if (body && typeof body.animate === 'function') {
+        const isMobile = window.matchMedia('(max-width: 767px)').matches
+        const from = { opacity: 1, transform: 'translate3d(0, 0, 0)' }
+        const to = isMobile
+          ? { opacity: 1, transform: 'translate3d(0, 100%, 0)' }
+          : { opacity: 0, transform: 'translate3d(0, 0, 0)' }
+        const anim = body.animate([from, to], {
+          duration: isMobile ? 240 : 180,
+          easing: 'cubic-bezier(0.4, 0, 1, 1)',
+          fill: 'forwards',
+        })
+        this._modalAnim = anim
+        anim.onfinish = finalize
+        this._modalCloseTimer = setTimeout(finalize, 320)
       } else {
-        this.modal.removeAttribute('open')
-        this._onModalClosed()
+        finalize()
       }
     }
 
