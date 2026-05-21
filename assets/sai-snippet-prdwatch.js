@@ -1,10 +1,10 @@
 ;(() => {
-  if (window.__sai_oosntfy1_initialized__) return
-  window.__sai_oosntfy1_initialized__ = true
+  if (window.__sai_prdwatch_initialized__) return
+  window.__sai_prdwatch_initialized__ = true
 
-  const SNIPPET_ID = 'oosntfy1'
-  const CLS = 'sai-oosntfy1'
-  const FEATURE_SLUG = 'oos_notify_me'
+  const SNIPPET_ID = 'prdwatch'
+  const CLS = 'sai-prdwatch'
+  const FEATURE_SLUG = 'product_watchlist'
 
   // Theme event names a few popular themes fire on variant selection.
   // Best-effort; no-op when the theme is silent.
@@ -788,38 +788,20 @@
     }
 
     _applyVariant(variantId, opts) {
+      // Product Watchlist is NOT availability-gated — the trigger is always
+      // visible whenever the snippet is on the page. We still listen for
+      // variant changes so the modal's variant dropdown stays in sync with
+      // whatever's selected on the PDP when the shopper opens it.
       const options = opts || {}
-      if (!variantId) {
-        if (this.triggerBtn) this.triggerBtn.hidden = true
-        return
-      }
+      if (!variantId) return
       const meta = this.variantsById[variantId]
-      if (!meta) {
-        if (this.triggerBtn) this.triggerBtn.hidden = true
-        return
-      }
+      if (!meta) return
       const prevVariantId = this.currentVariantId
       this.currentVariantId = variantId
-      const wasHidden = this.triggerBtn ? this.triggerBtn.hidden : true
-      const shouldShow = meta.available === false
-      if (this.triggerBtn) this.triggerBtn.hidden = !shouldShow
       if (this.variantSelect && this.variantSelect.value !== variantId) {
         this.variantSelect.value = variantId
       }
-      if (!options.silent && shouldShow && wasHidden) {
-        this.track(`${FEATURE_SLUG}:trigger_impression`, {
-          product_id: this.pool.product && this.pool.product.id,
-          variant_id: variantId,
-          variant_title: meta.title,
-        })
-        this.emit(`${FEATURE_SLUG}:trigger_impression`, {
-          product_id: this.pool.product && this.pool.product.id,
-          variant_id: variantId,
-          variant_title: meta.title,
-        })
-      }
-      // Initial paint: still announce trigger_impression once if visible on mount.
-      if (options.silent && shouldShow) {
+      if (options.silent) {
         this.track(`${FEATURE_SLUG}:trigger_impression`, {
           product_id: this.pool.product && this.pool.product.id,
           variant_id: variantId,
@@ -1003,8 +985,8 @@
     const snippetApi = window.__spectrumAi && window.__spectrumAi.snippet
 
     for (const wrapper of containers) {
-      if (wrapper.__sai_oosntfy1_bound__) continue
-      wrapper.__sai_oosntfy1_bound__ = true
+      if (wrapper.__sai_prdwatch_bound__) continue
+      wrapper.__sai_prdwatch_bound__ = true
 
       const inst = new NotifyMeInstance(wrapper)
       inst.init()
@@ -1027,7 +1009,7 @@
   }
 
   if (typeof globalThis !== 'undefined' && globalThis.__SAI_TEST_HARNESS__ === true) {
-    globalThis.__saiOosntfy1 = {
+    globalThis.__saiPrdwatch = {
       COUNTRIES,
       COUNTRIES_BY_CODE,
       EMAIL_REGEX,

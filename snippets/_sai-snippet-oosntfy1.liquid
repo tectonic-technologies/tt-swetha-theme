@@ -107,8 +107,11 @@ dialog.sai-oosntfy1__modal[open] {
 .sai-oosntfy1__modal::backdrop {
   background: color-mix(in srgb, #000 50%, transparent);
   opacity: 0;
-  transition: opacity 0.22s ease, display 0.22s ease allow-discrete,
-    overlay 0.22s ease allow-discrete;
+  /* Smooth, slightly longer fade with an ease-out curve so the backdrop
+     darkens in lockstep with the body's lift, no perceptible flash. */
+  transition: opacity 0.32s cubic-bezier(0.2, 0, 0, 1),
+    display 0.32s cubic-bezier(0.2, 0, 0, 1) allow-discrete,
+    overlay 0.32s cubic-bezier(0.2, 0, 0, 1) allow-discrete;
 }
 
 .sai-oosntfy1__modal[open]::backdrop {
@@ -141,8 +144,13 @@ dialog.sai-oosntfy1__modal[open] {
     0 1px 3px color-mix(in srgb, #000 8%, transparent),
     0 28px 80px color-mix(in srgb, #000 22%, transparent);
   opacity: 0;
-  transform: translateY(-8px) scale(0.97);
-  transition: opacity 0.22s ease, transform 0.22s ease;
+  transform: translateY(-4px) scale(0.985);
+  /* Smaller starting transform + slower duration + ease-out curve =
+     no perceptible snap. `will-change` hints the browser to promote this
+     to its own compositing layer before the animation starts. */
+  transition: opacity 0.32s cubic-bezier(0.2, 0, 0, 1),
+    transform 0.32s cubic-bezier(0.2, 0, 0, 1);
+  will-change: opacity, transform;
   pointer-events: auto;
 }
 
@@ -154,7 +162,7 @@ dialog.sai-oosntfy1__modal[open] {
 @starting-style {
   .sai-oosntfy1__modal[open] .sai-oosntfy1__modal-body {
     opacity: 0;
-    transform: translateY(-8px) scale(0.97);
+    transform: translateY(-4px) scale(0.985);
   }
 }
 
@@ -179,8 +187,8 @@ dialog.sai-oosntfy1__modal[open] {
     padding: 2.5rem 1.25rem 1.75rem;
     max-height: 90vh;
     transform: translateY(100%);
-    transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1),
-      opacity 0.2s ease;
+    transition: transform 0.36s cubic-bezier(0.2, 0, 0, 1),
+      opacity 0.28s cubic-bezier(0.2, 0, 0, 1);
   }
   .sai-oosntfy1__modal[open] .sai-oosntfy1__modal-body {
     transform: translateY(0);
@@ -195,7 +203,7 @@ dialog.sai-oosntfy1__modal[open] {
 /* Closing-class fallback for browsers without @starting-style support. */
 .sai-oosntfy1__modal--closing .sai-oosntfy1__modal-body {
   opacity: 0 !important;
-  transform: translateY(-8px) scale(0.97) !important;
+  transform: translateY(-4px) scale(0.985) !important;
 }
 @media (max-width: 767px) {
   .sai-oosntfy1__modal--closing .sai-oosntfy1__modal-body {
