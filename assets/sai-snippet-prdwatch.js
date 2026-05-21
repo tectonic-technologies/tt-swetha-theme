@@ -870,13 +870,23 @@
         variant_id: this.currentVariantId,
         surface,
       })
-      // Cancel any in-flight close animation AND its safety-net timer
-      // so re-opening within the close window doesn't get re-closed by
-      // the late-firing timeout.
-      if (this._modalAnim) this._modalAnim.cancel()
+      // Cancel any prior animation + clear its safety-net timer so a fresh
+      // open doesn't inherit any stale state from the previous cycle.
+      if (this._modalAnim) {
+        this._modalAnim.cancel()
+        this._modalAnim = null
+      }
       if (this._modalCloseTimer) {
         clearTimeout(this._modalCloseTimer)
         this._modalCloseTimer = null
+      }
+      // Defensive: explicitly clear any inline opacity/transform on the
+      // body in case a prior WAAPI animation persisted a fill effect
+      // that wasn't fully cleared by cancel().
+      const modalBodyReset = this.modal.querySelector(`.${CLS}__modal-body`)
+      if (modalBodyReset) {
+        modalBodyReset.style.removeProperty('opacity')
+        modalBodyReset.style.removeProperty('transform')
       }
       // WAAPI-driven open animation:
       // Element.animate() runs on the compositor with deterministic timing
@@ -932,41 +942,21 @@
     }
 
     _closeModal() {
-      // The safety-net timer is stored on `this` so re-opening before the
-      // timer fires can cancel it (otherwise the late timer calls
-      // dialog.close() on the freshly re-opened modal).
-      const finalize = () => {
-        if (this._modalCloseTimer) {
-          clearTimeout(this._modalCloseTimer)
-          this._modalCloseTimer = null
-        }
+      // Close instantly — no animation. See oosntfy1 _closeModal comment
+      // for the rationale (close-anim state machine caused re-open bugs).
+      if (this._modalAnim) {
+        this._modalAnim.cancel()
         this._modalAnim = null
-        if (typeof this.modal.close === 'function') {
-          this.modal.close()
-        } else {
-          this.modal.removeAttribute('open')
-          this._onModalClosed()
-        }
       }
-      const body = this.modal.querySelector(`.${CLS}__modal-body`)
-      if (body && typeof body.animate === 'function') {
-        if (this._modalAnim) this._modalAnim.cancel()
-        if (this._modalCloseTimer) clearTimeout(this._modalCloseTimer)
-        const isMobile = window.matchMedia('(max-width: 767px)').matches
-        const from = { opacity: 1, transform: 'translate3d(0, 0, 0)' }
-        const to = isMobile
-          ? { opacity: 1, transform: 'translate3d(0, 100%, 0)' }
-          : { opacity: 0, transform: 'translate3d(0, 0, 0)' }
-        const anim = body.animate([from, to], {
-          duration: isMobile ? 280 : 200,
-          easing: 'cubic-bezier(0.4, 0, 1, 1)',
-          fill: 'forwards',
-        })
-        this._modalAnim = anim
-        anim.onfinish = finalize
-        this._modalCloseTimer = setTimeout(finalize, 360)
+      if (this._modalCloseTimer) {
+        clearTimeout(this._modalCloseTimer)
+        this._modalCloseTimer = null
+      }
+      if (typeof this.modal.close === 'function') {
+        this.modal.close()
       } else {
-        finalize()
+        this.modal.removeAttribute('open')
+        this._onModalClosed()
       }
     }
 
