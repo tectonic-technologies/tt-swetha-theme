@@ -8,11 +8,7 @@
 
   // Theme event names a few popular themes fire on variant selection.
   // Best-effort; no-op when the theme is silent.
-  const THEME_VARIANT_EVENT_NAMES = [
-    'variant:change',
-    'product:variant-change',
-    'variantChange',
-  ]
+  const THEME_VARIANT_EVENT_NAMES = ['variant:change', 'product:variant-change', 'variantChange']
 
   // Hidden input on the theme's add-to-cart form; widely standardized.
   const VARIANT_FORM_SELECTOR = 'form[action*="/cart/add"] [name="id"]'
@@ -315,7 +311,7 @@
 
   // ---- Instance ----
 
-  class NotifyMeInstance {
+  class PrdwatchInstance {
     constructor(wrapper) {
       this.wrapper = wrapper
       this.root = wrapper.querySelector(`.${CLS}`)
@@ -338,28 +334,28 @@
       this.track = safeTrack(null)
       this.emit = safeEmit(null)
 
-      this.triggerBtn = this.root && this.root.querySelector('[data-trigger]')
-      this.modal = this.root && this.root.querySelector('[data-modal]')
-      this.closeBtn = this.modal && this.modal.querySelector('[data-close]')
-      this.form = this.modal && this.modal.querySelector('[data-form]')
-      this.variantSelect = this.modal && this.modal.querySelector('[data-variant-select]')
-      this.tabsEl = this.modal && this.modal.querySelector('[data-tabs]')
-      this.emailField = this.modal && this.modal.querySelector('[data-channel-field="email"]')
-      this.phoneField = this.modal && this.modal.querySelector('[data-channel-field="phone"]')
-      this.emailInput = this.modal && this.modal.querySelector('[data-input="email"]')
-      this.phoneInput = this.modal && this.modal.querySelector('[data-input="phone"]')
-      this.submitBtn = this.modal && this.modal.querySelector('[data-submit]')
+      this.triggerBtn = this.root?.querySelector('[data-trigger]')
+      this.modal = this.root?.querySelector('[data-modal]')
+      this.closeBtn = this.modal?.querySelector('[data-close]')
+      this.form = this.modal?.querySelector('[data-form]')
+      this.variantSelect = this.modal?.querySelector('[data-variant-select]')
+      this.tabsEl = this.modal?.querySelector('[data-tabs]')
+      this.emailField = this.modal?.querySelector('[data-channel-field="email"]')
+      this.phoneField = this.modal?.querySelector('[data-channel-field="phone"]')
+      this.emailInput = this.modal?.querySelector('[data-input="email"]')
+      this.phoneInput = this.modal?.querySelector('[data-input="phone"]')
+      this.submitBtn = this.modal?.querySelector('[data-submit]')
       // Confirmation lives OUTSIDE the dialog (sibling of the trigger button)
       // so it can stay visible after the modal closes. Query from the root, not
       // the modal. This was the bug behind the disappearing-snippet report.
-      this.confirmation = this.root && this.root.querySelector('[data-confirmation]')
+      this.confirmation = this.root?.querySelector('[data-confirmation]')
 
       this.activeChannel = this._defaultChannel()
     }
 
     setAnalytics(handles) {
-      this.track = safeTrack(handles && handles.track)
-      this.emit = safeEmit(handles && handles.emit)
+      this.track = safeTrack(handles?.track)
+      this.emit = safeEmit(handles?.emit)
     }
 
     init() {
@@ -468,13 +464,13 @@
         this.currentVariantId = to
         const meta = this.variantsById[to] || { available: false }
         this.track(`${FEATURE_SLUG}:variant_change`, {
-          product_id: this.pool.product && this.pool.product.id,
+          product_id: this.pool.product?.id,
           from_variant_id: from,
           to_variant_id: to,
           to_variant_available: meta.available,
         })
         this.emit(`${FEATURE_SLUG}:variant_change`, {
-          product_id: this.pool.product && this.pool.product.id,
+          product_id: this.pool.product?.id,
           from_variant_id: from,
           to_variant_id: to,
           to_variant_available: meta.available,
@@ -629,8 +625,8 @@
 
     _handleSubmit() {
       const channel = this.activeChannel
-      const productId = this.pool.product && this.pool.product.id
-      const productHandle = this.pool.product && this.pool.product.handle
+      const productId = this.pool.product?.id
+      const productHandle = this.pool.product?.handle
       const variantId = this.currentVariantId
 
       // Channel = 'email' | 'sms' (matches tab data-attribute); the SMS channel
@@ -643,9 +639,7 @@
       if (!channel || !validators[channel]) return
       if (!validators[channel]()) {
         const inputValue =
-          channel === 'email'
-            ? (this.emailInput && this.emailInput.value) || ''
-            : (this.phoneInput && this.phoneInput.value) || ''
+          channel === 'email' ? this.emailInput?.value || '' : this.phoneInput?.value || ''
         this.track(`${FEATURE_SLUG}:validation_error`, {
           product_id: productId,
           variant_id: variantId,
@@ -656,7 +650,7 @@
         return
       }
 
-      const customer = (window.__spectrumAi && window.__spectrumAi.customer) || null
+      const customer = window.__spectrumAi?.customer || null
       const hasPrefilledValue =
         !!customer &&
         ((channel === 'email' && customer.email && this.emailInput.value === customer.email) ||
@@ -688,11 +682,11 @@
         country_code: channel === 'sms' && this.selectedCountry ? this.selectedCountry.c : null,
       }
 
-      // TODO: persistence. Wire Spectrum.notifyMe.subscribe(fullPayload) when
+      // TODO: persistence. Wire Spectrum.watchlist.subscribe(fullPayload) when
       // the backend endpoint lands. Until then, log so dev-store tests can see
       // the submission end-to-end.
       // eslint-disable-next-line no-console
-      console.info('[spectrum.notify_me] submission (v1 — no persistence)', fullPayload)
+      console.info('[spectrum.product_watchlist] submission (v1 — no persistence)', fullPayload)
 
       this.submitted = true
       // Lock the form so a quick double-tap can't fire submit twice.
@@ -772,7 +766,7 @@
 
       for (const name of THEME_VARIANT_EVENT_NAMES) {
         document.addEventListener(name, (e) => {
-          const detail = e && e.detail
+          const detail = e?.detail
           const id = detail && (detail.variantId || detail.variant_id || detail.id)
           if (id) this._applyVariant(String(id))
           else this._refreshFromExternal()
@@ -803,12 +797,12 @@
       }
       if (options.silent) {
         this.track(`${FEATURE_SLUG}:trigger_impression`, {
-          product_id: this.pool.product && this.pool.product.id,
+          product_id: this.pool.product?.id,
           variant_id: variantId,
           variant_title: meta.title,
         })
         this.emit(`${FEATURE_SLUG}:trigger_impression`, {
-          product_id: this.pool.product && this.pool.product.id,
+          product_id: this.pool.product?.id,
           variant_id: variantId,
           variant_title: meta.title,
         })
@@ -847,7 +841,7 @@
         }
       }
       this.modalOpenedAt = Date.now()
-      const productId = this.pool.product && this.pool.product.id
+      const productId = this.pool.product?.id
       this.track(`${FEATURE_SLUG}:trigger_click`, {
         product_id: productId,
         variant_id: this.currentVariantId,
@@ -985,13 +979,13 @@
       const dwell = this.modalOpenedAt ? Date.now() - this.modalOpenedAt : 0
       this.modalOpenedAt = 0
       this.track(`${FEATURE_SLUG}:modal_close`, {
-        product_id: this.pool.product && this.pool.product.id,
+        product_id: this.pool.product?.id,
         variant_id: this.currentVariantId,
         submitted: this.submitted,
         dwell_ms: dwell,
       })
       this.emit(`${FEATURE_SLUG}:modal_close`, {
-        product_id: this.pool.product && this.pool.product.id,
+        product_id: this.pool.product?.id,
         variant_id: this.currentVariantId,
         submitted: this.submitted,
         dwell_ms: dwell,
@@ -1004,11 +998,10 @@
       // `__spectrumAi.customer` is a fallback for stores that have the runtime
       // SDK populating it but no theme-side identity.
       const poolCustomer =
-        (this.pool && this.pool.customer && (this.pool.customer.email || this.pool.customer.phone))
+        this.pool?.customer && (this.pool.customer.email || this.pool.customer.phone)
           ? this.pool.customer
           : null
-      const sdkCustomer =
-        (window.__spectrumAi && window.__spectrumAi.customer) || null
+      const sdkCustomer = window.__spectrumAi?.customer || null
       const customer = poolCustomer || sdkCustomer
       if (!customer) return
       if (this.emailInput && customer.email && !this.emailInput.value) {
@@ -1023,8 +1016,8 @@
       }
       // Switch to the channel that has a prefilled value, if tabs are present.
       if (this.tabsEl) {
-        const hasEmail = !!(this.emailInput && this.emailInput.value)
-        const hasPhone = !!(this.phoneInput && this.phoneInput.value)
+        const hasEmail = !!this.emailInput?.value
+        const hasPhone = !!this.phoneInput?.value
         if (hasEmail) this._switchChannel('email')
         else if (hasPhone) this._switchChannel('sms')
       }
@@ -1037,13 +1030,13 @@
     const containers = document.querySelectorAll(
       `[data-spectrum-instance-id][data-spectrum-snippet-id="${SNIPPET_ID}"]`,
     )
-    const snippetApi = window.__spectrumAi && window.__spectrumAi.snippet
+    const snippetApi = window.__spectrumAi?.snippet
 
     for (const wrapper of containers) {
       if (wrapper.__sai_prdwatch_bound__) continue
       wrapper.__sai_prdwatch_bound__ = true
 
-      const inst = new NotifyMeInstance(wrapper)
+      const inst = new PrdwatchInstance(wrapper)
       inst.init()
 
       if (snippetApi && typeof snippetApi.bind === 'function') {
@@ -1070,7 +1063,7 @@
       EMAIL_REGEX,
       PHONE_NATIONAL_REGEX,
       PHONE_INTL_REGEX,
-      NotifyMeInstance,
+      PrdwatchInstance,
     }
   }
 })()

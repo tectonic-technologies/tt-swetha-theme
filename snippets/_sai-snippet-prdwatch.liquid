@@ -1,17 +1,34 @@
+{% doc %}
+  Product Watchlist — Spectrum snippet prdwatch. PDP trigger button +
+  modal/drawer that lets shoppers save a product to their watchlist and
+  opt into updates (price drops, restocks, exclusive deals).
+
+  This snippet is invoked exclusively from the auto-generated per-instance
+  wrapper produced by `packages/liquid-parser/src/snippet-instance-wrapper.ts`.
+  The wrapper provides every parameter below; merchants never render this
+  file directly.
+
+  Unlike the Notify Me snippet, the trigger renders unconditionally on
+  every PDP — there is no OOS gating. Container is inert (display: none)
+  on non-PDP pages where the `product` global is nil.
+
+  @param {Object} variant - The resolved default variant of the snippet
+    instance. Read at `variant.content` for typed prop values (heading,
+    description, collect_email, collect_phone, cta_*, trigger_*, etc.).
+  @param {String} instance_id - Stable instance id; not read directly
+    inside this snippet body (the heading id falls back to product.handle).
+  @param {String} mutation_handle - Stable handle for this instance.
+    Consumed by the wrapper outer div only.
+  @param {String} experience_handle - Studio experience handle. Consumed
+    by the wrapper outer div only.
+{% enddoc %}
+
 {%- comment -%}
-  Notify Me — Back in Stock — Spectrum snippet prdwatch.
-
-  Renders a PDP trigger button that opens a modal (desktop) or bottom drawer
-  (mobile) for back-in-stock subscriptions. The container always renders on
-  PDPs; the trigger button is hidden by default and the JS shows it only when
-  the currently-selected variant's `available` is false. Container is
-  inert (display: none) on non-PDP pages where `product` is nil.
-
-  Render args (from wrapper):
-    variant   resolved variant; variant.content holds prop values.
-
-  Globals consumed:
-    product   Shopify product object (handle, title, featured_image, variants).
+  Product Watchlist — human-readable summary. The machine-readable
+  parameter contract lives in the LiquidDoc block above. Implicit globals:
+  the `product` global. Off-PDP contexts leave `product` nil, which the
+  snippet treats as the silent-hide signal (display:none via the `hidden`
+  attribute on the container).
 {%- endcomment -%}
 
 {% stylesheet %}
@@ -583,7 +600,7 @@ dialog.sai-prdwatch__modal[open] {
   {%- assign _show_variant = _c.show_variant_selector -%}
 {%- endif -%}
 
-{%- assign _heading = _c.heading | default: 'Notify me when this product is available' -%}
+{%- assign _heading = _c.heading | default: 'Add this product to your watchlist' -%}
 {%- assign _heading_align = _c.heading_alignment | default: 'center' -%}
 {%- assign _description = _c.description | default: '' -%}
 {%- assign _description_align = _c.description_alignment | default: 'center' -%}
@@ -591,16 +608,16 @@ dialog.sai-prdwatch__modal[open] {
 {%- assign _email_placeholder = _c.email_placeholder | default: 'you@example.com' -%}
 {%- assign _phone_placeholder = _c.phone_placeholder | default: 'Phone number' -%}
 {%- assign _default_country = _c.default_country_code | default: 'IN' -%}
-{%- assign _cta_text = _c.cta_text | default: 'Notify me' -%}
+{%- assign _cta_text = _c.cta_text | default: 'Add to watchlist' -%}
 {%- assign _cta_bg = _c.cta_background_color | default: '#000000' -%}
 {%- assign _cta_fg = _c.cta_text_color | default: '#FFFFFF' -%}
 {%- assign _cta_radius = _c.cta_border_radius | default: 'rounded' -%}
-{%- assign _trigger_text = _c.trigger_cta_text | default: 'Notify me' -%}
+{%- assign _trigger_text = _c.trigger_cta_text | default: 'Add to watchlist' -%}
 {%- assign _trigger_layout = _c.trigger_layout | default: 'text_image' -%}
 {%- assign _trigger_bg = _c.trigger_background_color | default: '#000000' -%}
 {%- assign _trigger_fg = _c.trigger_text_color | default: '#FFFFFF' -%}
 {%- assign _trigger_radius = _c.trigger_border_radius | default: 'rounded' -%}
-{%- assign _confirmation = _c.confirmation_message | default: "Thanks — we'll let you know as soon as it's back." -%}
+{%- assign _confirmation = _c.confirmation_message | default: "Added to your watchlist! We'll keep you posted." -%}
 {%- if _c.confirmation_auto_dismiss_seconds == nil -%}
   {%- assign _confirmation_dismiss_seconds = 15 -%}
 {%- else -%}
