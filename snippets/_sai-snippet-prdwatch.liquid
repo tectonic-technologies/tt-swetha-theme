@@ -15,7 +15,7 @@
 {%- endcomment -%}
 
 {% stylesheet %}
-/* Notify Me — Back in Stock — Spectrum snippet prdwatch */
+/* Product Watchlist — Spectrum snippet prdwatch */
 
 .sai-prdwatch {
   display: block;
@@ -28,6 +28,35 @@
   --sai-prdwatch-cta-fg: #fff;
   --sai-prdwatch-cta-radius: 8px;
   --sai-prdwatch-modal-width: 560px;
+  /* Suppress iOS/Android default tap-highlight (translucent blue flash on
+     touch). Applied at the container so it cascades; reinforced on each
+     touch target below in case a theme reset overrides it. */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Belt-and-braces: ensure none of our touch targets show the OS-default
+   blue tap highlight. The dialog itself is also targeted because the
+   highlight can linger on top-layer ancestors during the open animation. */
+.sai-prdwatch *,
+.sai-prdwatch__trigger,
+.sai-prdwatch__modal,
+.sai-prdwatch__modal-body,
+.sai-prdwatch__close,
+.sai-prdwatch__tab,
+.sai-prdwatch__submit,
+.sai-prdwatch__country-button,
+.sai-prdwatch__country-option {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Suppress the tap-highlight on the trigger AND the body's user-select
+   blue selection rectangle on long-press. Inputs retain selection. */
+.sai-prdwatch__trigger,
+.sai-prdwatch__close,
+.sai-prdwatch__tab {
+  -webkit-touch-callout: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .sai-prdwatch[hidden],
