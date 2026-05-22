@@ -15,11 +15,13 @@
  * ============================================================================= */
 
 ;(() => {
-  // Default coupon-ticket SVG — shown on cards when `show_coupon_icon` is
-  // on but no `coupon_icon_url` is supplied. Matches the Vaaree-style
-  // pink/percent ticket from the reference design.
+  // Default coupon icon — shown on cards when `show_coupon_icon` is on
+  // but no `coupon_icon_url` is supplied. Solid dark-yellow disc with a
+  // bold cream % in the centre. Reads as "discount" at a glance and
+  // sits comfortably on the cream card without competing with the
+  // text. White accent dots + slash form the % glyph.
   const DEFAULT_COUPON_SVG =
-    '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><defs><linearGradient id="sai-c1mzmpkz-coupon-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#FDE7EF"/><stop offset="100%" stop-color="#F8C8DC"/></linearGradient></defs><path d="M6 16a6 6 0 0 1 6-6h40a6 6 0 0 1 6 6v6a4 4 0 0 0 0 8v6a6 6 0 0 1-6 6H12a6 6 0 0 1-6-6v-6a4 4 0 0 0 0-8v-6Z" fill="url(#sai-c1mzmpkz-coupon-bg)" stroke="#2A2A2A" stroke-width="2"/><line x1="30" y1="14" x2="30" y2="42" stroke="#2A2A2A" stroke-width="1.5" stroke-dasharray="3 3"/><circle cx="48" cy="28" r="8" fill="#E4377F"/><path d="M44 32l8-8M45 25.5h.01M50.5 30.5h.01" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round"/></svg>'
+    '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><circle cx="32" cy="32" r="28" fill="#d4a017"/><circle cx="32" cy="32" r="24" fill="none" stroke="#fcf9f1" stroke-width="1.3" stroke-dasharray="3.2 2.4" opacity="0.7"/><circle cx="24" cy="24" r="4" fill="#fcf9f1"/><circle cx="40" cy="40" r="4" fill="#fcf9f1"/><line x1="44" y1="20" x2="20" y2="44" stroke="#fcf9f1" stroke-width="3.5" stroke-linecap="round"/></svg>'
 
   const SNIPPET_ID = 'c1mzmpkz'
   // Host is a <div> with data-sai-snippet-root="c1mzmpkz" (not a custom
