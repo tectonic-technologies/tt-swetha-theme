@@ -1,0 +1,418 @@
+{% doc %}
+  Frequently Bought Together — Individual ATC variant.
+
+  Renders a stacked list of recommended products as a "You will also love!"
+  cross-sell module. Each card has its own Add To Cart button — no bundle
+  selection, no checkboxes, no aggregated total. Reads the same slot
+  envelope as the FBT bundle widget (pb3tmxq9) so the same playbook output
+  drives both surfaces.
+
+  @param entry              {SlotEnvelopeEntry} Resolved default entry from
+                                                spectrum.recommendations_fbt_
+                                                <draft|live>;
+                                                `entry.content.recommendations`
+                                                is the array of product handles.
+  @param variant            {Metaobject}        Default variant; `.content`
+                                                carries merchant-edited props.
+  @param mo                 {Metaobject}        spectrum_snippet_instance drop.
+  @param mutation_handle    {string}            Consumed by the wrapper's outer div.
+  @param experience_handle  {string}            Consumed by the wrapper's outer div.
+{% enddoc %}
+
+{%- comment -%}
+  Trust boundary: every text prop is run through `| escape` so a merchant who
+  pastes markup into a text field can't break the page layout.
+
+  Empty / nil `entry.content.recommendations` collapses the whole widget —
+  no script tag emitted, no host element rendered.
+{%- endcomment -%}
+
+{% stylesheet %}
+/* =============================================================================
+ * FBT Individual ATC (fbtatc4z) — stacked recommendation cards with per-card
+ * Add To Cart buttons.
+ *
+ * Author selectors stay at specificity (0,1,0) so per-instance baked rules
+ * (anchored on [data-spectrum-instance-id][data-spectrum-variant-id]) always
+ * win the cascade. Color tokens use --sai-fbtatc4z-* custom properties so
+ * the Studio style panel can override them.
+ * ============================================================================= */
+
+.sai-fbtatc4z {
+  --sai-fbtatc4z-card-bg: #ffffff;
+  --sai-fbtatc4z-card-border: rgba(0, 0, 0, 0.1);
+  --sai-fbtatc4z-card-radius: 12px;
+  --sai-fbtatc4z-image-size: 5rem;
+  --sai-fbtatc4z-off-bg: #0e6f54;
+  --sai-fbtatc4z-off-fg: #ffffff;
+  --sai-fbtatc4z-price-fg: #c8242b;
+  --sai-fbtatc4z-fg: var(--sai-color-fg, #121212);
+  --sai-fbtatc4z-muted-fg: rgba(0, 0, 0, 0.55);
+  --sai-fbtatc4z-cta-bg: #121212;
+  --sai-fbtatc4z-cta-fg: #ffffff;
+  --sai-fbtatc4z-cta-border: #121212;
+  --sai-fbtatc4z-cta-hover-bg: #2a2a2a;
+  --sai-fbtatc4z-cta-hover-fg: #ffffff;
+  --sai-fbtatc4z-cta-disabled-bg: rgba(0, 0, 0, 0.35);
+  --sai-fbtatc4z-cta-disabled-fg: #ffffff;
+  --sai-fbtatc4z-loader-size: 1rem;
+
+  display: block;
+  box-sizing: border-box;
+  inline-size: 100%;
+  max-inline-size: 32rem;
+  margin-inline: auto;
+  margin-block: var(--sai-size-6);
+  padding: var(--sai-size-5);
+  font-family: var(--sai-font-body);
+  font-size: 1rem;
+  line-height: 1.4;
+  color: var(--sai-fbtatc4z-fg);
+  background: var(--sai-fbtatc4z-card-bg);
+  border: 1px solid var(--sai-fbtatc4z-card-border);
+  border-radius: var(--sai-fbtatc4z-card-radius);
+}
+
+.sai-fbtatc4z *,
+.sai-fbtatc4z *::before,
+.sai-fbtatc4z *::after {
+  box-sizing: border-box;
+}
+
+.sai-fbtatc4z__heading {
+  margin: 0 0 0.25rem;
+  font-family: var(--sai-font-heading, var(--sai-font-body));
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--sai-fbtatc4z-fg);
+}
+
+.sai-fbtatc4z__subtitle {
+  margin: 0 0 1rem;
+  font-size: 0.9375rem;
+  color: var(--sai-fbtatc4z-muted-fg);
+}
+
+.sai-fbtatc4z__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sai-size-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sai-fbtatc4z__card {
+  display: grid;
+  grid-template-columns: var(--sai-fbtatc4z-image-size) 1fr auto;
+  align-items: center;
+  gap: var(--sai-size-3);
+  padding: var(--sai-size-3);
+  background: var(--sai-fbtatc4z-card-bg);
+  border-radius: calc(var(--sai-fbtatc4z-card-radius) - 4px);
+}
+
+.sai-fbtatc4z__media {
+  display: block;
+  inline-size: var(--sai-fbtatc4z-image-size);
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.04);
+  text-decoration: none;
+}
+
+.sai-fbtatc4z__image {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+
+.sai-fbtatc4z__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-inline-size: 0;
+}
+
+.sai-fbtatc4z__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--sai-fbtatc4z-fg);
+  text-decoration: none;
+}
+
+.sai-fbtatc4z__title:hover {
+  text-decoration: underline;
+}
+
+.sai-fbtatc4z__price-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.9375rem;
+}
+
+.sai-fbtatc4z__price {
+  font-weight: 600;
+  color: var(--sai-fbtatc4z-price-fg);
+}
+
+.sai-fbtatc4z__compare {
+  color: var(--sai-fbtatc4z-muted-fg);
+  text-decoration: line-through;
+}
+
+.sai-fbtatc4z__off-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.375rem;
+  background: var(--sai-fbtatc4z-off-bg);
+  color: var(--sai-fbtatc4z-off-fg);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+  border-radius: 4px;
+}
+
+.sai-fbtatc4z__cta {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 5rem;
+  padding: 0.625rem 1rem;
+  background: var(--sai-fbtatc4z-cta-bg);
+  color: var(--sai-fbtatc4z-cta-fg);
+  border: 1px solid var(--sai-fbtatc4z-cta-border);
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.sai-fbtatc4z__cta:hover:not([disabled]):not([data-state="added"]) {
+  background: var(--sai-fbtatc4z-cta-hover-bg);
+  color: var(--sai-fbtatc4z-cta-hover-fg);
+}
+
+.sai-fbtatc4z__cta[disabled],
+.sai-fbtatc4z__cta[aria-disabled="true"] {
+  background: var(--sai-fbtatc4z-cta-disabled-bg);
+  color: var(--sai-fbtatc4z-cta-disabled-fg);
+  border-color: var(--sai-fbtatc4z-cta-disabled-bg);
+  cursor: not-allowed;
+}
+
+.sai-fbtatc4z__cta[data-loading="true"] [data-fbtatc-cta-label] {
+  visibility: hidden;
+}
+
+.sai-fbtatc4z__loader {
+  position: absolute;
+  inset: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sai-fbtatc4z__loader[hidden] {
+  display: none;
+}
+
+.sai-fbtatc4z__spinner {
+  inline-size: var(--sai-fbtatc4z-loader-size);
+  block-size: var(--sai-fbtatc4z-loader-size);
+  animation: sai-fbtatc4z-spin 0.8s linear infinite;
+}
+
+.sai-fbtatc4z__error {
+  margin-block-start: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: rgba(210, 66, 7, 0.08);
+  color: #b9370a;
+  font-size: 0.8125rem;
+  border-radius: 6px;
+}
+
+.sai-fbtatc4z__error[hidden] {
+  display: none;
+}
+
+@keyframes sai-fbtatc4z-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sai-fbtatc4z__spinner {
+    animation-duration: 2s;
+  }
+}
+{% endstylesheet %}
+
+{%- assign content = variant.content -%}
+{%- assign heading   = content.heading   | default: '"You will also love!"' | escape -%}
+{%- assign subtitle  = content.subtitle  | default: '' | escape -%}
+{%- assign cta_label = content.cta_label | default: '+ ADD' | escape -%}
+
+{%- assign show_compare_price = content.show_compare_price -%}
+{%- if show_compare_price == nil -%}{%- assign show_compare_price = true -%}{%- endif -%}
+
+{%- assign show_discount_badge = content.show_discount_badge -%}
+{%- if show_discount_badge == nil -%}{%- assign show_discount_badge = true -%}{%- endif -%}
+
+{%- assign after_add_action = content.after_add_action -%}
+{%- if after_add_action != 'stay' and after_add_action != 'redirect-to-cart' and after_add_action != 'redirect-to-checkout' -%}
+  {%- assign after_add_action = 'stay' -%}
+{%- endif -%}
+
+{%- assign image_aspect_ratio = content.image_aspect_ratio -%}
+{%- if image_aspect_ratio != '1:1' and image_aspect_ratio != '4:3' and image_aspect_ratio != '3:4' -%}
+  {%- assign image_aspect_ratio = '1:1' -%}
+{%- endif -%}
+{%- assign aspect_css = '1' -%}
+{%- if image_aspect_ratio == '4:3' -%}{%- assign aspect_css = '4 / 3' -%}{%- endif -%}
+{%- if image_aspect_ratio == '3:4' -%}{%- assign aspect_css = '3 / 4' -%}{%- endif -%}
+
+{%- assign image_object_fit = content.image_object_fit -%}
+{%- if image_object_fit != 'cover' and image_object_fit != 'contain' -%}
+  {%- assign image_object_fit = 'cover' -%}
+{%- endif -%}
+
+{%- comment -%}
+  aspect-ratio drives the *box* shape, so it must be applied to the parent
+  `<a class="__media">`. object-fit applies to the <img>. Splitting the two
+  inline styles keeps the prop functional regardless of CSS overrides.
+{%- endcomment -%}
+{%- assign media_style = 'aspect-ratio: ' | append: aspect_css | append: ';' -%}
+{%- assign image_style = 'object-fit: ' | append: image_object_fit | append: ';' -%}
+
+{%- assign fbt_handles = entry.content.recommendations -%}
+
+{%- comment -%}
+  Pre-pass: count handles that resolve to a real product drop.
+  `all_products[h]` returns EmptyDrop (NOT nil) for unknown handles, so the
+  safe test is `r == empty`. Skip the main product handle — this widget is
+  cross-sell only, never the PDP product itself.
+{%- endcomment -%}
+{%- assign resolved_count = 0 -%}
+{%- if fbt_handles != nil -%}
+  {%- for handle in fbt_handles -%}
+    {%- if handle == product.handle -%}{%- continue -%}{%- endif -%}
+    {%- assign r = all_products[handle] -%}
+    {%- unless r == empty -%}
+      {%- assign resolved_count = resolved_count | plus: 1 -%}
+    {%- endunless -%}
+  {%- endfor -%}
+{%- endif -%}
+
+{%- if resolved_count == 0 -%}
+  {%- comment -%} no recos — collapse widget; do not emit the script tag {%- endcomment -%}
+{%- else -%}
+
+<script src="{{ 'sai-snippet-fbtatc4z.js' | asset_url }}" async></script>
+
+<sai-fbtatc4z class="sai-fbtatc4z">
+  <h2 class="sai-fbtatc4z__heading">{{ heading }}</h2>
+  {%- if subtitle != '' -%}
+    <p class="sai-fbtatc4z__subtitle">{{ subtitle }}</p>
+  {%- endif -%}
+
+  <ul class="sai-fbtatc4z__list">
+    {%- for handle in fbt_handles -%}
+      {%- if handle == product.handle -%}{%- continue -%}{%- endif -%}
+      {%- assign r = all_products[handle] -%}
+      {%- if r == empty -%}{%- continue -%}{%- endif -%}
+      {%- assign rv = r.selected_or_first_available_variant -%}
+      <li class="sai-fbtatc4z__card" data-product-id="{{ r.id }}">
+        <a class="sai-fbtatc4z__media" href="{{ r.url }}" style="{{ media_style }}" tabindex="-1" aria-hidden="true">
+          {%- if r.featured_image -%}
+            <img
+              class="sai-fbtatc4z__image"
+              src="{{ r.featured_image | image_url: width: 320 }}"
+              alt="{{ r.featured_image.alt | default: r.title | escape }}"
+              style="{{ image_style }}"
+              loading="lazy"
+            >
+          {%- endif -%}
+        </a>
+        <div class="sai-fbtatc4z__body">
+          <a class="sai-fbtatc4z__title" href="{{ r.url }}">{{ r.title }}</a>
+          <div class="sai-fbtatc4z__price-row">
+            <span class="sai-fbtatc4z__price">{{ r.price | money }}</span>
+            {%- if show_compare_price and r.compare_at_price and r.compare_at_price > r.price -%}
+              <span class="sai-fbtatc4z__compare">{{ r.compare_at_price | money }}</span>
+              {%- if show_discount_badge -%}
+                {%- assign p_off_amount = r.compare_at_price | minus: r.price -%}
+                {%- assign p_off_pct = p_off_amount | times: 100 | divided_by: r.compare_at_price -%}
+                <span class="sai-fbtatc4z__off-badge">{{ p_off_pct }}% OFF</span>
+              {%- endif -%}
+            {%- endif -%}
+          </div>
+        </div>
+        <button
+          type="button"
+          class="sai-fbtatc4z__cta"
+          data-fbtatc-cta
+          data-product-id="{{ r.id }}"
+          data-variant-id="{{ rv.id }}"
+          {%- unless rv.available %} disabled aria-disabled="true"{%- endunless -%}
+        >
+          <span data-fbtatc-cta-label>{{ cta_label }}</span>
+          <span class="sai-fbtatc4z__loader" data-fbtatc-loader hidden aria-hidden="true">
+            <svg class="sai-fbtatc4z__spinner" viewBox="0 0 24 24" fill="none" focusable="false">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-opacity="0.25" stroke-width="3"/>
+              <path d="M22 12a10 10 0 0 0-10-10" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+            </svg>
+          </span>
+        </button>
+      </li>
+    {%- endfor -%}
+  </ul>
+
+  <div class="sai-fbtatc4z__error" data-fbtatc-error role="alert" hidden></div>
+
+  {%- comment -%}
+    JSON payload. Per-value `| json` is mandatory inside <script type="application/json">.
+    Mirrors the pb3tmxq9 shape so analytics events carry the same envelope
+    structure; downstream consumers don't need to know which surface fired.
+  {%- endcomment -%}
+  <script type="application/json" data-fbtatc-payload>
+{
+  "main": {{ product.id | json }},
+  "currency": {{ shop.currency | json }},
+  "afterAddAction": {{ after_add_action | json }},
+  "ctaLabel": {{ cta_label | json }},
+  "products": [
+    {%- assign first_product = true -%}
+    {%- for handle in fbt_handles -%}
+      {%- if handle == product.handle -%}{%- continue -%}{%- endif -%}
+      {%- assign r = all_products[handle] -%}
+      {%- if r == empty -%}{%- continue -%}{%- endif -%}
+      {%- unless first_product -%},{%- endunless -%}
+      {%- assign first_product = false -%}
+      {
+        "id": {{ r.id | json }},
+        "title": {{ r.title | json }},
+        "url": {{ r.url | json }},
+        "variantId": {{ r.selected_or_first_available_variant.id | json }},
+        "price": {{ r.price | json }},
+        "compareAtPrice": {{ r.compare_at_price | json }},
+        "available": {{ r.available | json }}
+      }
+    {%- endfor -%}
+  ]
+}
+  </script>
+</sai-fbtatc4z>
+
+{%- endif -%}
