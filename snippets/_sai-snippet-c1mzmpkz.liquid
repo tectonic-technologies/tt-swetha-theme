@@ -243,11 +243,13 @@
   --sai-c1mzmpkz-card-divider: #f0e2bf;
   --sai-c1mzmpkz-card-radius: 0.75rem;
   --sai-c1mzmpkz-card-pad: 0.875rem;
-  /* Ticket cutout — semicircle "punches" on the left + right edges that
-   * make the card read as a coupon. Radius small enough to leave plenty
-   * of contiguous edge for the border. */
-  --sai-c1mzmpkz-card-notch: 8px;
-  --sai-c1mzmpkz-card-notch-y: 62%;
+  /* Ticket cutout — semicircle "punches" on the left + right edges, and
+   * the dashed tear-off line that runs between them. Both anchor to the
+   * same Y so the perforation reads as one continuous line. Measured as
+   * a distance from the bottom so the stub area stays a stable height
+   * regardless of how much offer copy sits above. */
+  --sai-c1mzmpkz-card-notch: 9px;
+  --sai-c1mzmpkz-card-tear-bottom: 3rem;
   --sai-c1mzmpkz-card-min-w: 16rem;
   --sai-c1mzmpkz-card-gap: 0.75rem;
   --sai-c1mzmpkz-code-bg: #f3f4f6;
@@ -268,6 +270,11 @@
   --sai-c1mzmpkz-cards-mobile: 1;
   --sai-c1mzmpkz-cards-desktop: 1;
   --sai-c1mzmpkz-cards-visible: 1;
+  /* Carousel default: 1 card on mobile, 2 on desktop. The desktop value
+   * applies above the 768px breakpoint via the @media rule on the
+   * --carousel modifier below; merchants can still override either via
+   * theme CSS (or a future prop). */
+  --sai-c1mzmpkz-cards-visible-desktop: 2;
 
   display: block;
   box-sizing: border-box;
@@ -383,6 +390,24 @@
 
 .sai-c1mzmpkz--carousel.sai-c1mzmpkz--peek .sai-c1mzmpkz__card {
   flex-basis: calc((100% - (var(--sai-c1mzmpkz-cards-visible) - 1) * var(--sai-c1mzmpkz-card-gap)) / (var(--sai-c1mzmpkz-cards-visible) + 0.25));
+}
+
+/* Desktop default: bump cards-visible to 2 so two cards sit side-by-side
+ * on a typical PDP. Inline-style overrides still win — this only fires
+ * if the merchant hasn't set --sai-c1mzmpkz-cards-visible explicitly. */
+@media (min-width: 768px) {
+  .sai-c1mzmpkz--carousel .sai-c1mzmpkz__card {
+    flex-basis: calc(
+      (100% - (var(--sai-c1mzmpkz-cards-visible-desktop) - 1) * var(--sai-c1mzmpkz-card-gap)) /
+        var(--sai-c1mzmpkz-cards-visible-desktop)
+    );
+  }
+  .sai-c1mzmpkz--carousel.sai-c1mzmpkz--peek .sai-c1mzmpkz__card {
+    flex-basis: calc(
+      (100% - (var(--sai-c1mzmpkz-cards-visible-desktop) - 1) * var(--sai-c1mzmpkz-card-gap)) /
+        (var(--sai-c1mzmpkz-cards-visible-desktop) + 0.25)
+    );
+  }
 }
 
 .sai-c1mzmpkz__carousel-arrow {
@@ -561,28 +586,44 @@
    * +0.5px on the second colour stop prevents an anti-aliased fringe. */
   -webkit-mask-image:
     radial-gradient(
-      circle at left var(--sai-c1mzmpkz-card-notch-y),
+      circle at left calc(100% - var(--sai-c1mzmpkz-card-tear-bottom)),
       transparent var(--sai-c1mzmpkz-card-notch),
       #000 calc(var(--sai-c1mzmpkz-card-notch) + 0.5px)
     ),
     radial-gradient(
-      circle at right var(--sai-c1mzmpkz-card-notch-y),
+      circle at right calc(100% - var(--sai-c1mzmpkz-card-tear-bottom)),
       transparent var(--sai-c1mzmpkz-card-notch),
       #000 calc(var(--sai-c1mzmpkz-card-notch) + 0.5px)
     );
   mask-image:
     radial-gradient(
-      circle at left var(--sai-c1mzmpkz-card-notch-y),
+      circle at left calc(100% - var(--sai-c1mzmpkz-card-tear-bottom)),
       transparent var(--sai-c1mzmpkz-card-notch),
       #000 calc(var(--sai-c1mzmpkz-card-notch) + 0.5px)
     ),
     radial-gradient(
-      circle at right var(--sai-c1mzmpkz-card-notch-y),
+      circle at right calc(100% - var(--sai-c1mzmpkz-card-tear-bottom)),
       transparent var(--sai-c1mzmpkz-card-notch),
       #000 calc(var(--sai-c1mzmpkz-card-notch) + 0.5px)
     );
   -webkit-mask-composite: source-in;
   mask-composite: intersect;
+}
+
+/* Tear-off perforation drawn ON the card at the same Y as the side
+ * cutouts. Pseudo-element rather than a real DOM divider so it stays a
+ * pure presentation concern. The mask above clips it at the notches,
+ * which is exactly the silhouette we want — line "enters" the left
+ * cutout and "exits" the right. */
+.sai-c1mzmpkz__card::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: var(--sai-c1mzmpkz-card-tear-bottom);
+  height: 0;
+  border-top: 1px dashed var(--sai-c1mzmpkz-card-divider);
+  pointer-events: none;
 }
 
 .sai-c1mzmpkz__card--potential.sai-c1mzmpkz__card--treatment-greyed {
@@ -784,17 +825,18 @@
 
 
 
-/* Tear-off line lives on the row itself — dashed top border doubles as the
- * ticket's perforation, no boxed outline on the code area. The row keeps
- * a transparent background so the code reads as part of the ticket stub. */
+/* Code row reads as part of the ticket stub — no border, no inner box,
+ * transparent background. The tear-off perforation lives on the card's
+ * ::after at the same Y as the side cutouts (see card rules above), so
+ * the line passes through the row without belonging to it. */
 .sai-c1mzmpkz__code-row {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  margin-top: 0.5rem;
-  padding: 0.6rem 0.5rem 0.375rem;
+  margin: 0;
+  padding: 0;
   background: transparent;
-  border-top: 1px dashed var(--sai-c1mzmpkz-card-divider, var(--sai-c1mzmpkz-code-border));
+  border: 0;
 }
 
 .sai-c1mzmpkz__code-label {
