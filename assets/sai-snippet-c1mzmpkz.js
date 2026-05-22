@@ -297,6 +297,12 @@
   function formatSavings(d, mode, currency) {
     const v = d.discountValue || {}
     if (v.type === 'FREE_SHIPPING') return 'Save on shipping'
+    // FIXED discounts already render their value in the type label
+    // ("$50 OFF") — a "Save $50" pill underneath duplicates the number.
+    // Suppress so the card reads cleaner; PERCENTAGE + BXGY still get
+    // the callout because their type label ("20% Off" / "Buy X Get Y")
+    // doesn't carry the absolute amount.
+    if (v.type === 'FIXED') return null
     const fmt = moneyFormatter(v.currencyCode || currency)
     const pct =
       typeof v.percentage === 'number'
@@ -923,6 +929,12 @@
       desc.style.webkitLineClamp = 'unset'
       desc.style.overflow = 'visible'
 
+      // After `desc.textContent = fullText` above, desc already holds a
+      // single text node with the full string — that becomes the node the
+      // binary search trims via desc.firstChild.nodeValue. We only need to
+      // append the ellipsis + toggle AFTER it. Inserting another text node
+      // here doubles the description (regression seen on mobile after a
+      // variant change re-render: "X • Min $500 X • Min $500 show less").
       const ellipsisNode = document.createTextNode('… ')
       const toggle = el('button', 'sai-c1mzmpkz__description-toggle', {
         type: 'button',
@@ -941,9 +953,6 @@
         if (!s) s = fullText.slice(0, len)
         if (desc.firstChild) desc.firstChild.nodeValue = s
       }
-
-      // Initialise the first text node.
-      desc.insertBefore(document.createTextNode(fullText), ellipsisNode)
 
       // Binary-search the longest prefix that still fits in targetHeight.
       let lo = 0
