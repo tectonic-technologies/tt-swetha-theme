@@ -127,23 +127,36 @@
 .sai-fbtatc4z__list {
   display: flex;
   flex-direction: column;
-  gap: var(--sai-size-3);
   margin: 0;
-  padding: var(--sai-size-5);
+  padding: 0;
   list-style: none;
 }
 
+/* Horizontal padding lives on the cards (not the list) so the dashed
+   between-card dividers extend edge-to-edge, matching the header band's
+   bottom border. List flex-gap is intentionally 0 — the dashed top-border
+   on every card after the first IS the separator. */
 .sai-fbtatc4z__card {
   display: grid;
   grid-template-columns: var(--sai-fbtatc4z-image-size) 1fr auto;
   align-items: center;
-  gap: var(--sai-size-3);
-  padding: var(--sai-size-3) 0;
+  gap: var(--sai-size-4);
+  padding: var(--sai-size-4) var(--sai-size-5);
   background: var(--sai-fbtatc4z-card-bg);
 }
 
 .sai-fbtatc4z__card + .sai-fbtatc4z__card {
   border-block-start: 1px dashed rgba(0, 0, 0, 0.18);
+}
+
+/* Mobile: tighten the card padding so the +ADD button doesn't get pushed
+   off the right edge on a narrow viewport. Container margin-inline already
+   gives the widget breathing room from the page edge (see top-level rule). */
+@media (max-width: 480px) {
+  .sai-fbtatc4z__card {
+    padding-inline: var(--sai-size-4);
+    gap: var(--sai-size-3);
+  }
 }
 
 .sai-fbtatc4z__media {
@@ -297,7 +310,7 @@
 }
 
 .sai-fbtatc4z__error {
-  margin: 0 var(--sai-size-5) var(--sai-size-5);
+  margin: var(--sai-size-3) var(--sai-size-5) var(--sai-size-5);
   padding: 0.5rem 0.75rem;
   background: rgba(210, 66, 7, 0.08);
   color: #b9370a;
