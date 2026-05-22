@@ -489,16 +489,10 @@
         card.className = 'sai-pb3tmxq9__modal-card'
         overlay.appendChild(card)
 
-        // Header: merchant-configurable title on the left, close button on
-        // the right. Title text is server-validated (Liquid `| escape`) and
-        // already-encoded JSON, but we still use textContent so a payload
-        // containing markup can never inject DOM.
+        // Header: just the close button — group labels carry the
+        // "Option: <value>" copy, so a separate title would duplicate.
         const header = document.createElement('div')
         header.className = 'sai-pb3tmxq9__modal-header'
-        const title = document.createElement('h3')
-        title.className = 'sai-pb3tmxq9__modal-title'
-        title.textContent = this._data?.variantModalTitle || 'Choose variant'
-        header.appendChild(title)
         const closeBtn = document.createElement('button')
         closeBtn.type = 'button'
         closeBtn.className = 'sai-pb3tmxq9__modal-close'
