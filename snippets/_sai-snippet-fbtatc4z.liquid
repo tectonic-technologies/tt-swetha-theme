@@ -91,13 +91,10 @@
   overflow: hidden;
 }
 
-/* On mobile keep horizontal breathing room from the page edge, but keep the
-   widget filling the column otherwise. */
-@media (max-width: 480px) {
-  .sai-fbtatc4z {
-    margin-inline: var(--sai-size-4);
-  }
-}
+/* No mobile margin-inline override — the widget always fills its parent
+   column with no outside horizontal margin. Adding `margin-inline` makes
+   the widget visually overflow when the parent is a constrained flex/grid
+   row whose track sizes from the widget's outer width. */
 
 .sai-fbtatc4z *,
 .sai-fbtatc4z *::before,
@@ -151,36 +148,24 @@
   border-block-start: 1px dashed rgba(0, 0, 0, 0.18);
 }
 
-/* ── Mobile layout ─────────────────────────────────────────────────────
-   Below 540px there isn't room for image + body + +ADD in one row without
-   the body getting unreadably narrow. Restack into:
-
-     [image] [title / price / variant pill]
-     [        full-width +ADD button       ]
-
-   The grid keeps the image inline with the text so the card still reads
-   as one product unit; only the CTA wraps under, which makes the tap
-   target much larger on a phone. */
+/* ── Mobile / narrow column ────────────────────────────────────────────
+   Keep the image | body | +ADD row at every size — just shrink the fixed
+   columns so the body still has readable width. The +ADD CTA loses its
+   min-inline-size so it can tighten to label width on a narrow viewport. */
 @media (max-width: 540px) {
   .sai-fbtatc4z {
-    --sai-fbtatc4z-image-size: 4.5rem;
+    --sai-fbtatc4z-image-size: 4rem;
   }
 
   .sai-fbtatc4z__card {
-    grid-template-columns: var(--sai-fbtatc4z-image-size) 1fr;
-    grid-template-areas:
-      "media body"
-      "cta   cta";
-    gap: var(--sai-size-3) var(--sai-size-4);
+    gap: var(--sai-size-3);
     padding: var(--sai-size-4);
   }
 
-  .sai-fbtatc4z__media { grid-area: media; }
-  .sai-fbtatc4z__body { grid-area: body; }
   .sai-fbtatc4z__cta {
-    grid-area: cta;
-    inline-size: 100%;
-    padding-block: 0.75rem;
+    min-inline-size: 0;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8125rem;
   }
 
   .sai-fbtatc4z__variant-trigger {
@@ -189,14 +174,24 @@
   }
 }
 
-/* Very small phones — shrink the heading band so the divider doesn't
-   eat too much vertical space, and let the title go a touch smaller. */
+/* Very small phones — tighten the header band, drop title size, and let
+   the +ADD button shrink even further so the row stays single-line. */
 @media (max-width: 380px) {
+  .sai-fbtatc4z {
+    --sai-fbtatc4z-image-size: 3.5rem;
+  }
+
   .sai-fbtatc4z__header {
     padding: var(--sai-size-3) var(--sai-size-4);
   }
+
   .sai-fbtatc4z__title {
     font-size: 0.9375rem;
+  }
+
+  .sai-fbtatc4z__cta {
+    padding: 0.5rem 0.5rem;
+    font-size: 0.75rem;
   }
 }
 
