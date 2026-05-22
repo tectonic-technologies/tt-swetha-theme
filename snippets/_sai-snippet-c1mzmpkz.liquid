@@ -1,0 +1,1412 @@
+{% doc %}
+  PDP Promotion List — lists applicable + potentially-applicable storefront
+  discounts for the current PDP variant. Reads the normalised payload from
+  the spectrum.discounts variant metafield. Layout variants: list, grid,
+  carousel, dropdown. T&C opens in a modal (desktop) or bottom-anchored
+  drawer (mobile).
+
+  @param {string} mutation_handle - Mutation handle for DOM scoping (infrastructure)
+  @param {string} experience_handle - Experience handle for attribution (infrastructure)
+  @param {object} variant - Resolved snippet-instance variant; user-configurable values live on `variant.content`
+  @param {object} mo - spectrum_snippet_instance metaobject drop (unused by this snippet)
+
+  All snippet behaviour is driven from variant.content props (see meta.json).
+  The Liquid template renders an SSR shell + a JSON payload; runtime JS does
+  the actual card rendering and sorting. Cart-blind by design — qualifications
+  come from the server-baked metafield and are stable for the page lifetime.
+
+  @example
+  {% render '_sai-snippet-c1mzmpkz',
+    variant: variant,
+    mo: mo,
+    mutation_handle: 'mut-c1mzmpkzabcd1234',
+    experience_handle: 'pdp-offers'
+  %}
+{% enddoc %}
+
+{%- comment -%}
+  Discount payload comes from product.selected_or_first_available_variant.metafields.spectrum.discounts.
+  Shopify deserializes json-typed metafields into a Ruby Hash; piping the parsed value through `| json`
+  re-serializes it as valid JSON and handles the `</script>` escape per generated-liquid rule #5.
+{%- endcomment -%}
+
+{%- liquid
+  assign content = variant.content
+
+  if content.enabled_on_pdp == nil
+    assign enabled_on_pdp = true
+  else
+    assign enabled_on_pdp = content.enabled_on_pdp
+  endif
+-%}
+
+{%- liquid
+  assign heading = content.heading | default: 'All Available Offers'
+
+  if content.show_heading == nil
+    assign show_heading = true
+  else
+    assign show_heading = content.show_heading
+  endif
+
+  assign empty_state_behavior = content.empty_state_behavior | default: 'hide_section'
+  assign empty_state_heading = content.empty_state_heading | default: 'No active offers'
+  assign empty_state_body = content.empty_state_body | default: 'Check back soon for new promotions.'
+
+  # ── Pool configuration (Phase 2) ────────────────────────────────────────
+  assign pool_mode = content.pool_mode | default: 'dynamic'
+  assign pool_filter = content.pool_filter | default: 'product_plus_storewide'
+  assign manual_coupon_list = content.manual_coupon_list | default: ''
+  assign manual_sort = content.manual_sort | default: 'merchant_defined'
+  if content.promote_product_specific_above_storewide == nil
+    assign promote_product_specific_above_storewide = true
+  else
+    assign promote_product_specific_above_storewide = content.promote_product_specific_above_storewide
+  endif
+
+  assign list_layout = content.list_layout | default: 'carousel'
+
+  # Numeric props are interpolated into inline `style="--var: N"` strings
+  # below. The storage layer doesn't enforce the meta.json min/max for
+  # numbers, so a merchant could write a CSS-injection payload into the
+  # field. Coerce to number with `| times: 1`, then clamp to the documented
+  # bounds, before they ever reach the style attribute.
+  assign grid_columns_desktop_raw = content.grid_columns_desktop | default: 3 | times: 1
+  assign grid_columns_desktop = grid_columns_desktop_raw | at_least: 1 | at_most: 6
+  assign grid_columns_mobile_raw = content.grid_columns_mobile | default: 1 | times: 1
+  assign grid_columns_mobile = grid_columns_mobile_raw | at_least: 1 | at_most: 3
+
+  if content.carousel_autoplay == nil
+    assign carousel_autoplay = false
+  else
+    assign carousel_autoplay = content.carousel_autoplay
+  endif
+  assign carousel_autoplay_interval_ms = content.carousel_autoplay_interval_ms | default: 5000
+
+  if content.carousel_show_arrows == nil
+    assign carousel_show_arrows = false
+  else
+    assign carousel_show_arrows = content.carousel_show_arrows
+  endif
+
+  if content.carousel_show_dots == nil
+    assign carousel_show_dots = true
+  else
+    assign carousel_show_dots = content.carousel_show_dots
+  endif
+
+  assign carousel_cards_visible_raw = content.carousel_cards_visible | default: 1 | times: 1
+  assign carousel_cards_visible = carousel_cards_visible_raw | at_least: 1 | at_most: 5
+
+  if content.carousel_show_peek == nil
+    assign carousel_show_peek = true
+  else
+    assign carousel_show_peek = content.carousel_show_peek
+  endif
+
+  assign dropdown_collapsed_label = content.dropdown_collapsed_label | default: '{count} offers available'
+  assign dropdown_indicator_icon = content.dropdown_indicator_icon | default: 'chevron'
+
+  if content.dropdown_start_expanded == nil
+    assign dropdown_start_expanded = false
+  else
+    assign dropdown_start_expanded = content.dropdown_start_expanded
+  endif
+
+  assign applicable_sort = content.applicable_sort | default: 'highest_savings'
+  assign potential_sort = content.potential_sort | default: 'closest_to_qualify'
+  assign max_visible_applicable = content.max_visible_applicable | default: 3
+  assign max_visible_potential = content.max_visible_potential | default: 3
+  assign overflow_behavior = content.overflow_behavior | default: 'expand_inline'
+  assign overflow_cta_label = content.overflow_cta_label | default: 'View all offers ({count})'
+
+  assign potential_visual_treatment = content.potential_visual_treatment | default: 'subtle'
+  assign lock_icon_style = content.lock_icon_style | default: 'lock'
+
+  if content.enable_copy_on_potential == nil
+    assign enable_copy_on_potential = false
+  else
+    assign enable_copy_on_potential = content.enable_copy_on_potential
+  endif
+
+  if content.enable_promo_blocks == nil
+    assign enable_promo_blocks = false
+  else
+    assign enable_promo_blocks = content.enable_promo_blocks
+  endif
+
+  if content.show_code_chip == nil
+    assign show_code_chip = true
+  else
+    assign show_code_chip = content.show_code_chip
+  endif
+
+  if content.show_copy_button == nil
+    assign show_copy_button = true
+  else
+    assign show_copy_button = content.show_copy_button
+  endif
+
+  assign copy_cta_label = content.copy_cta_label | default: 'Copy'
+  assign copy_success_label = content.copy_success_label | default: 'Copied!'
+  assign copy_success_duration_ms = content.copy_success_duration_ms | default: 1500
+  assign automatic_pill_label = content.automatic_pill_label | default: 'Applied at checkout'
+
+  if content.show_type_label == nil
+    assign show_type_label = true
+  else
+    assign show_type_label = content.show_type_label
+  endif
+
+  if content.show_description == nil
+    assign show_description = true
+  else
+    assign show_description = content.show_description
+  endif
+  assign description_max_lines_raw = content.description_max_lines | default: 2 | times: 1
+  assign description_max_lines = description_max_lines_raw | at_least: 1 | at_most: 10
+  if content.description_expandable == nil
+    assign description_expandable = true
+  else
+    assign description_expandable = content.description_expandable
+  endif
+
+  if content.show_savings_callout == nil
+    assign show_savings_callout = true
+  else
+    assign show_savings_callout = content.show_savings_callout
+  endif
+  assign savings_display_mode = content.savings_display_mode | default: 'absolute'
+
+  if content.show_remaining_amount == nil
+    assign show_remaining_amount = true
+  else
+    assign show_remaining_amount = content.show_remaining_amount
+  endif
+  assign remaining_amount_template = content.remaining_amount_template | default: 'Spend {remaining} more to unlock'
+  assign near_miss_position = content.near_miss_position | default: 'below_description'
+
+  if content.show_expiry == nil
+    assign show_expiry = false
+  else
+    assign show_expiry = content.show_expiry
+  endif
+  assign expiry_format = content.expiry_format | default: 'relative'
+
+  if content.show_terms == nil
+    assign show_terms = true
+  else
+    assign show_terms = content.show_terms
+  endif
+  assign terms_label = content.terms_label | default: 'Terms & Conditions'
+  assign terms_template = content.terms_template | default: '{summary}. Minimum order {min_order}. {stacking_note}. Use code {code} at checkout.'
+
+  if content.show_coupon_icon == nil
+    assign show_coupon_icon = true
+  else
+    assign show_coupon_icon = content.show_coupon_icon
+  endif
+  assign coupon_icon_url = content.coupon_icon_url | default: ''
+  assign card_icon_position = content.card_icon_position | default: 'left'
+  assign card_background_url = content.card_background_url | default: ''
+
+  if content.show_min_order_threshold == nil
+    assign show_min_order_threshold = false
+  else
+    assign show_min_order_threshold = content.show_min_order_threshold
+  endif
+
+  assign currency_code = shop.currency | default: 'USD'
+
+  assign sai_active_variant = product.selected_or_first_available_variant
+  if sai_active_variant == nil
+    assign sai_active_variant = product.selected_variant
+  endif
+  if sai_active_variant == nil
+    assign sai_active_variant = product.variants.first
+  endif
+  assign raw_discounts_value = sai_active_variant.metafields.spectrum.discounts.value
+-%}
+
+{% stylesheet %}
+/* =============================================================================
+ * PDP Promotion List (c1mzmpkz) — coupon list with carousel/grid/list/dropdown
+ * layouts and a desktop-modal / mobile-drawer T&C surface.
+ *
+ * Single-class author selectors at specificity (0,1,0) so per-instance baked
+ * rules always win the cascade.
+ * ============================================================================= */
+
+.sai-c1mzmpkz {
+  --sai-c1mzmpkz-card-bg: #fcf9f1;
+  --sai-c1mzmpkz-card-bg-muted: #fbf5e2;
+  --sai-c1mzmpkz-card-border: #f7eac8;
+  --sai-c1mzmpkz-card-divider: #f0e2bf;
+  --sai-c1mzmpkz-card-radius: 0.75rem;
+  --sai-c1mzmpkz-card-pad: 0.875rem;
+  /* Ticket cutouts — two pairs of semicircle "punches" on the left +
+   * right edges. The bottom pair sits at the perforation level (just
+   * above the code row). The top pair is decorative, mirroring the
+   * reference offer.svg silhouette. Measured from the card edges so the
+   * stub area stays stable regardless of how much offer copy sits
+   * above. */
+  --sai-c1mzmpkz-card-notch: 9px;
+  --sai-c1mzmpkz-card-tear-bottom: 3rem;
+  --sai-c1mzmpkz-card-tear-top: 2.25rem;
+  --sai-c1mzmpkz-card-min-w: 16rem;
+  --sai-c1mzmpkz-card-gap: 0.75rem;
+  --sai-c1mzmpkz-code-bg: #f3f4f6;
+  --sai-c1mzmpkz-code-border: rgba(0, 0, 0, 0.12);
+  --sai-c1mzmpkz-code-fg: #121212;
+  --sai-c1mzmpkz-copy-bg: transparent;
+  --sai-c1mzmpkz-copy-fg: #121212;
+  --sai-c1mzmpkz-copy-pressed-bg: #121212;
+  --sai-c1mzmpkz-muted-fg: rgba(0, 0, 0, 0.55);
+  --sai-c1mzmpkz-fg: #121212;
+  --sai-c1mzmpkz-cta-bg: #121212;
+  --sai-c1mzmpkz-cta-fg: #ffffff;
+  --sai-c1mzmpkz-pill-bg: rgba(0, 0, 0, 0.06);
+  --sai-c1mzmpkz-pill-fg: #121212;
+  --sai-c1mzmpkz-overlay-bg: rgba(0, 0, 0, 0.45);
+  --sai-c1mzmpkz-panel-bg: #ffffff;
+  --sai-c1mzmpkz-panel-radius: 1rem;
+  --sai-c1mzmpkz-cards-mobile: 1;
+  --sai-c1mzmpkz-cards-desktop: 1;
+  --sai-c1mzmpkz-cards-visible: 1;
+  /* Carousel default: 1 card on mobile, 2 on desktop. The desktop value
+   * applies above the 768px breakpoint via the @media rule on the
+   * --carousel modifier below; merchants can still override either via
+   * theme CSS (or a future prop). */
+  --sai-c1mzmpkz-cards-visible-desktop: 2;
+
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1200px;
+  margin-inline: auto;
+  margin-block: var(--sai-size-6, 1.5rem);
+  padding-inline: 1rem;
+  font-family: var(--sai-font-body, inherit);
+  color: var(--sai-c1mzmpkz-fg);
+}
+
+@media (min-width: 768px) {
+  .sai-c1mzmpkz {
+    padding-inline: 1.5rem;
+  }
+}
+
+.sai-c1mzmpkz *,
+.sai-c1mzmpkz *::before,
+.sai-c1mzmpkz *::after {
+  box-sizing: border-box;
+}
+
+.sai-c1mzmpkz__heading {
+  font-family: var(--sai-font-heading, var(--sai-font-body, inherit));
+  font-size: 1.125rem;
+  font-weight: 700;
+  margin: 0 0 var(--sai-size-3, 0.75rem) 0;
+  letter-spacing: -0.005em;
+  line-height: 1.2;
+}
+
+.sai-c1mzmpkz__empty {
+  padding: var(--sai-size-4, 1rem);
+  border: 1px dashed var(--sai-c1mzmpkz-card-border);
+  border-radius: var(--sai-c1mzmpkz-card-radius);
+  color: var(--sai-c1mzmpkz-muted-fg);
+}
+
+.sai-c1mzmpkz__empty-heading {
+  margin: 0 0 0.25rem 0;
+  font-weight: 600;
+  color: var(--sai-c1mzmpkz-fg);
+}
+
+.sai-c1mzmpkz__empty-body {
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.sai-c1mzmpkz__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sai-size-4, 1rem);
+}
+
+.sai-c1mzmpkz__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sai-size-3, 0.75rem);
+}
+
+/* ── Layout containers ───────────────────────────────────────────── */
+
+.sai-c1mzmpkz__list {
+  display: flex;
+  gap: var(--sai-c1mzmpkz-card-gap);
+}
+
+.sai-c1mzmpkz--list .sai-c1mzmpkz__list,
+.sai-c1mzmpkz--dropdown .sai-c1mzmpkz__list {
+  flex-direction: column;
+}
+
+.sai-c1mzmpkz--grid .sai-c1mzmpkz__list {
+  display: grid;
+  grid-template-columns: repeat(var(--sai-c1mzmpkz-cards-mobile), minmax(0, 1fr));
+}
+
+@media (min-width: 1024px) {
+  .sai-c1mzmpkz--grid .sai-c1mzmpkz__list {
+    grid-template-columns: repeat(var(--sai-c1mzmpkz-cards-desktop), minmax(0, 1fr));
+  }
+}
+
+.sai-c1mzmpkz--carousel .sai-c1mzmpkz__carousel-viewport {
+  position: relative;
+}
+
+.sai-c1mzmpkz--carousel .sai-c1mzmpkz__carousel-viewport--has-arrows {
+  padding-inline: 2.75rem;
+}
+
+.sai-c1mzmpkz--carousel .sai-c1mzmpkz__list {
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: 0.25rem;
+  padding-block: 0.25rem;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.sai-c1mzmpkz--carousel .sai-c1mzmpkz__list::-webkit-scrollbar {
+  display: none;
+}
+
+.sai-c1mzmpkz--carousel .sai-c1mzmpkz__card {
+  flex: 0 0 calc((100% - (var(--sai-c1mzmpkz-cards-visible) - 1) * var(--sai-c1mzmpkz-card-gap)) / var(--sai-c1mzmpkz-cards-visible));
+  scroll-snap-align: start;
+  min-width: var(--sai-c1mzmpkz-card-min-w);
+}
+
+.sai-c1mzmpkz--carousel.sai-c1mzmpkz--peek .sai-c1mzmpkz__card {
+  flex-basis: calc((100% - (var(--sai-c1mzmpkz-cards-visible) - 1) * var(--sai-c1mzmpkz-card-gap)) / (var(--sai-c1mzmpkz-cards-visible) + 0.25));
+}
+
+/* Desktop default: bump cards-visible to 2 so two cards sit side-by-side
+ * on a typical PDP. Inline-style overrides still win — this only fires
+ * if the merchant hasn't set --sai-c1mzmpkz-cards-visible explicitly. */
+@media (min-width: 768px) {
+  .sai-c1mzmpkz--carousel .sai-c1mzmpkz__card {
+    flex-basis: calc(
+      (100% - (var(--sai-c1mzmpkz-cards-visible-desktop) - 1) * var(--sai-c1mzmpkz-card-gap)) /
+        var(--sai-c1mzmpkz-cards-visible-desktop)
+    );
+  }
+  .sai-c1mzmpkz--carousel.sai-c1mzmpkz--peek .sai-c1mzmpkz__card {
+    flex-basis: calc(
+      (100% - (var(--sai-c1mzmpkz-cards-visible-desktop) - 1) * var(--sai-c1mzmpkz-card-gap)) /
+        (var(--sai-c1mzmpkz-cards-visible-desktop) + 0.25)
+    );
+  }
+}
+
+.sai-c1mzmpkz__carousel-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 1px solid var(--sai-c1mzmpkz-card-border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.sai-c1mzmpkz__carousel-arrow[disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.sai-c1mzmpkz__carousel-arrow--prev { left: 0; }
+.sai-c1mzmpkz__carousel-arrow--next { right: 0; }
+
+.sai-c1mzmpkz__carousel-arrow::after {
+  content: '';
+  width: 0.5rem;
+  height: 0.5rem;
+  border-top: 2px solid currentColor;
+  border-right: 2px solid currentColor;
+}
+
+.sai-c1mzmpkz__carousel-arrow--prev::after { transform: rotate(-135deg) translate(-1px, 1px); }
+.sai-c1mzmpkz__carousel-arrow--next::after { transform: rotate(45deg) translate(-1px, 1px); }
+
+.sai-c1mzmpkz__dots {
+  display: inline-flex;
+  gap: 0.375rem;
+  justify-content: center;
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+.sai-c1mzmpkz__dot {
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.2);
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+.sai-c1mzmpkz__dot[aria-current='true'] {
+  background: var(--sai-c1mzmpkz-fg);
+  width: 1rem;
+  border-radius: 999px;
+}
+
+.sai-c1mzmpkz--dropdown .sai-c1mzmpkz__dropdown-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transform: translateY(-4px);
+  margin-top: 0;
+  overflow: hidden;
+  transition: grid-template-rows 280ms ease, opacity 220ms ease, transform 240ms ease, margin-top 280ms ease;
+}
+
+.sai-c1mzmpkz--dropdown .sai-c1mzmpkz__dropdown-panel > * {
+  min-height: 0;
+}
+
+.sai-c1mzmpkz--dropdown .sai-c1mzmpkz__dropdown-panel[data-open='true'] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transform: translateY(0);
+  margin-top: 0.75rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sai-c1mzmpkz--dropdown .sai-c1mzmpkz__dropdown-panel {
+    transition: none;
+  }
+}
+
+.sai-c1mzmpkz__dropdown-trigger {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 0.875rem;
+  border-radius: var(--sai-c1mzmpkz-card-radius);
+  background: var(--sai-c1mzmpkz-pill-bg);
+  color: var(--sai-c1mzmpkz-pill-fg);
+  border: 1px solid var(--sai-c1mzmpkz-card-border);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sai-c1mzmpkz__dropdown-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.sai-c1mzmpkz__dropdown-indicator--chevron::after {
+  content: '';
+  width: 0.5rem;
+  height: 0.5rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg) translateY(-2px);
+  transition: transform 160ms ease;
+}
+
+.sai-c1mzmpkz__dropdown-trigger[aria-expanded='true'] .sai-c1mzmpkz__dropdown-indicator--chevron::after {
+  transform: rotate(-135deg) translateY(2px);
+}
+
+.sai-c1mzmpkz__dropdown-indicator--plus_minus::before {
+  content: '+';
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.sai-c1mzmpkz__dropdown-trigger[aria-expanded='true'] .sai-c1mzmpkz__dropdown-indicator--plus_minus::before {
+  content: '−';
+}
+
+.sai-c1mzmpkz__dropdown-indicator--tag::before {
+  content: '🏷';
+  font-size: 0.875rem;
+}
+
+.sai-c1mzmpkz__dropdown-indicator--percent::before {
+  content: '%';
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+/* ── Card ────────────────────────────────────────────────────────── */
+
+/* Coupon ticket: cream fill, faint percent-tag watermark in the top-right
+ * corner, dashed divider above the code chip, two semicircle "punch" cutouts
+ * on the left + right edges (CSS mask). The mask is the only thing that
+ * gives the silhouette real notches — radial-gradient backgrounds alone
+ * just paint over them, they don't clip the box. */
+.sai-c1mzmpkz__card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: var(--sai-c1mzmpkz-card-pad);
+  background-color: var(--sai-c1mzmpkz-card-bg);
+  /* Inline data-URI percent-tag — kept tiny so it serializes cleanly and
+   * recolours via the existing card-divider variable (no separate prop). */
+  background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' fill='none'%3E%3Ccircle cx='32' cy='32' r='26' fill='%23f4e7c2' opacity='0.55'/%3E%3Ccircle cx='32' cy='32' r='21' fill='none' stroke='%23fcf9f1' stroke-width='1.4' stroke-dasharray='3 2.4'/%3E%3Ccircle cx='25' cy='25' r='3.5' fill='%23fcf9f1'/%3E%3Ccircle cx='39' cy='39' r='3.5' fill='%23fcf9f1'/%3E%3Cline x1='43' y1='21' x2='21' y2='43' stroke='%23fcf9f1' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: top -8px right -8px;
+  background-size: 70px 70px;
+  border-radius: var(--sai-c1mzmpkz-card-radius);
+  /* Inset shadow (not `border`) so the stroke participates in the mask the
+   * same way the fill does — a real border paints outside the mask region
+   * and would survive the notches as floating arcs. */
+  box-shadow: inset 0 0 0 1px var(--sai-c1mzmpkz-card-border);
+  /* Two radial-gradient stamps cut transparent holes on the left + right
+   * edges. mask-composite intersects them so both punches apply. The
+   * +0.5px on the second colour stop prevents an anti-aliased fringe. */
+  -webkit-mask-image:
+    radial-gradient(
+      circle at left var(--sai-c1mzmpkz-card-tear-top),
+      transparent var(--sai-c1mzmpkz-card-notch),
+      #000 calc(var(--sai-c1mzmpkz-card-notch) + 0.5px)
+    ),
+    radial-gradient(
+      circle at right var(--sai-c1mzmpkz-card-tear-top),
+      transparent var(--sai-c1mzmpkz-card-notch),
+      #000 calc(var(--sai-c1mzmpkz-card-notch) + 0.5px)
+    ),
+    radial-gradient(
+      circle at left calc(100% - var(--sai-c1mzmpkz-card-tear-bottom)),
+      transparent var(--sai-c1mzmpkz-card-notch),
+      #000 calc(var(--sai-c1mzmpkz-card-notch) + 0.5px)
+    ),
+    radial-gradient(
+      circle at right calc(100% - var(--sai-c1mzmpkz-card-tear-bottom)),
+      transparent var(--sai-c1mzmpkz-card-notch),
+      #000 calc(var(--sai-c1mzmpkz-card-notch) + 0.5px)
+    );
+  mask-image:
+    radial-gradient(
+      circle at left var(--sai-c1mzmpkz-card-tear-top),
+      transparent var(--sai-c1mzmpkz-card-notch),
+      #000 calc(var(--sai-c1mzmpkz-card-notch) + 0.5px)
+    ),
+    radial-gradient(
+      circle at right var(--sai-c1mzmpkz-card-tear-top),
+      transparent var(--sai-c1mzmpkz-card-notch),
+      #000 calc(var(--sai-c1mzmpkz-card-notch) + 0.5px)
+    ),
+    radial-gradient(
+      circle at left calc(100% - var(--sai-c1mzmpkz-card-tear-bottom)),
+      transparent var(--sai-c1mzmpkz-card-notch),
+      #000 calc(var(--sai-c1mzmpkz-card-notch) + 0.5px)
+    ),
+    radial-gradient(
+      circle at right calc(100% - var(--sai-c1mzmpkz-card-tear-bottom)),
+      transparent var(--sai-c1mzmpkz-card-notch),
+      #000 calc(var(--sai-c1mzmpkz-card-notch) + 0.5px)
+    );
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}
+
+/* Code row is pushed to a stable position from the card bottom so the
+ * tear-line above it lands at a known Y. margin-top: auto eats any
+ * leftover space between the description and the stub area, keeping
+ * the perforation visually anchored regardless of how much offer copy
+ * sits above. */
+
+/* Image-background mode: when the merchant supplies a card_background_url
+ * the image already carries the ticket silhouette, perforation, stroke,
+ * and any decorative watermark — turn off every CSS counterpart so they
+ * don't double up. The image stretches to fill so its baked perforation
+ * aligns with whatever card height the layout settles on. */
+.sai-c1mzmpkz--bg-image .sai-c1mzmpkz__card {
+  background-color: transparent;
+  background-image: var(--sai-c1mzmpkz-card-bg-image);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 100% 100%;
+  box-shadow: none;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+.sai-c1mzmpkz--bg-image .sai-c1mzmpkz__code-row {
+  border-top: 0;
+}
+
+.sai-c1mzmpkz__card--potential.sai-c1mzmpkz__card--treatment-greyed {
+  opacity: 0.55;
+  filter: grayscale(0.3);
+}
+
+.sai-c1mzmpkz__card--potential.sai-c1mzmpkz__card--treatment-locked {
+  position: relative;
+}
+
+/* Subtle treatment intentionally inherits the default card visual —
+ * applicable and potential cards share the same cream ticket so the
+ * grid reads as uniform. Differentiation lives in the per-card copy
+ * (e.g. remaining-amount text) rather than a separate background. */
+.sai-c1mzmpkz__card--potential.sai-c1mzmpkz__card--treatment-subtle {
+  /* no overrides — match the default card */
+}
+
+/* Lightweight section divider rendered between applicable and potential
+ * groups. Inline, not a pill. Inherits text color from the card. */
+.sai-c1mzmpkz__section-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  align-self: stretch;
+  margin: 0.5rem 0 0;
+  padding: 0.25rem 0;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--sai-c1mzmpkz-muted-fg, rgba(0, 0, 0, 0.6));
+}
+
+.sai-c1mzmpkz__section-divider::before,
+.sai-c1mzmpkz__section-divider::after {
+  content: '';
+  flex: 1 1 auto;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.sai-c1mzmpkz__icon {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  width: 1.75rem;
+  height: 1.75rem;
+  object-fit: contain;
+}
+
+.sai-c1mzmpkz__lock {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--sai-c1mzmpkz-muted-fg);
+}
+
+.sai-c1mzmpkz__lock svg {
+  width: 1rem;
+  height: 1rem;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+}
+
+.sai-c1mzmpkz__type-label {
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.25;
+  margin: 0;
+}
+
+/* Description wrap — relative anchor for the absolute "see details" toggle. */
+.sai-c1mzmpkz__description-wrap {
+  position: relative;
+}
+
+.sai-c1mzmpkz__description {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  color: var(--sai-c1mzmpkz-muted-fg);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--sai-c1mzmpkz-desc-lines, 2);
+  overflow: hidden;
+  word-break: break-word;
+}
+
+/* Inline "see details" — placed by JS right after the ellipsis inside
+ * the description paragraph. Same font as the description text, just a
+ * touch darker for contrast. No underline, no bold — visually seamless.
+ * webkit-line-clamp is dropped by the wrap class once JS has measured
+ * the truncation point. */
+.sai-c1mzmpkz__description-wrap--has-toggle .sai-c1mzmpkz__description {
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
+
+.sai-c1mzmpkz__description-toggle {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  /* Darker shade of grey — sits between description's muted-fg (~#737373)
+   * and full text-fg (#121212). Visible enough to read as a control but
+   * not so dark it looks like a bold link. No underline by default. */
+  color: rgba(0, 0, 0, 0.7);
+  text-decoration: none;
+  cursor: pointer;
+  vertical-align: baseline;
+}
+
+/* Expanded — drop the line-clamp + trailing padding, push the toggle
+ * inline below the now-full text. */
+.sai-c1mzmpkz__description-wrap--expanded .sai-c1mzmpkz__description {
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow: visible;
+  padding-right: 0;
+}
+
+.sai-c1mzmpkz__description-wrap--expanded .sai-c1mzmpkz__description-toggle {
+  position: static;
+  background: none;
+  padding-left: 0;
+  margin-top: 0.25rem;
+}
+
+/* ── Inline image next to the type-label heading ─────────────────── */
+.sai-c1mzmpkz__type-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.sai-c1mzmpkz__type-row .sai-c1mzmpkz__type-label {
+  margin: 0;
+}
+
+.sai-c1mzmpkz__card-image-inline {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+}
+
+.sai-c1mzmpkz__card-image-inline svg,
+.sai-c1mzmpkz__card-image-inline .sai-c1mzmpkz__card-image {
+  width: 1.75rem;
+  height: 1.75rem;
+  object-fit: contain;
+  display: block;
+}
+
+.sai-c1mzmpkz__card-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+/* Inline "show more / show less" toggle — appended inside the description
+ * paragraph. Inherits the description's normal weight and font size, sits
+ * a notch darker than the muted body text (0.55) for subtle emphasis,
+ * with a small left padding so it doesn't crash into the ellipsis. */
+.sai-c1mzmpkz__description .sai-c1mzmpkz__description-toggle {
+  display: inline;
+  background: none;
+  border: 0;
+  padding: 0;
+  padding-inline-start: 0.25rem;
+  margin: 0;
+  font: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  color: rgba(0, 0, 0, 0.78);
+  text-decoration: none;
+  cursor: pointer;
+  vertical-align: baseline;
+}
+
+
+
+/* Code row is the ticket "stub" — pushed to the bottom of the card by
+ * margin-top: auto so the perforation above it always sits in the same
+ * place. Dashed border-top doubles as the tear-off line; it lives on
+ * the row (not on the card) so it always lands directly above the
+ * code, regardless of card height. The cutouts on the card edges
+ * approximate this Y — close enough on typical card heights to read
+ * as a continuous perforation. */
+.sai-c1mzmpkz__code-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: auto;
+  padding-top: 0.6rem;
+  padding-bottom: 0.25rem;
+  background: transparent;
+  border: 0;
+  border-top: 1px dashed var(--sai-c1mzmpkz-card-divider, var(--sai-c1mzmpkz-code-border));
+}
+
+.sai-c1mzmpkz__code-label {
+  font-size: 0.75rem;
+  color: var(--sai-c1mzmpkz-muted-fg);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.sai-c1mzmpkz__code-chip {
+  flex: 1 1 auto;
+  font-family: var(--sai-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-weight: 700;
+  font-size: 0.9375rem;
+  letter-spacing: 0.02em;
+  color: var(--sai-c1mzmpkz-code-fg);
+}
+
+.sai-c1mzmpkz__copy-btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: 0.375rem;
+  background: var(--sai-c1mzmpkz-copy-bg);
+  color: var(--sai-c1mzmpkz-copy-fg);
+  border: 1px solid var(--sai-c1mzmpkz-code-border);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sai-c1mzmpkz__copy-btn[aria-pressed='true'] {
+  background: var(--sai-c1mzmpkz-copy-pressed-bg);
+  color: #ffffff;
+  border-color: transparent;
+}
+
+.sai-c1mzmpkz__savings {
+  display: inline-block;
+  align-self: flex-start;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  background: var(--sai-c1mzmpkz-pill-bg);
+  color: var(--sai-c1mzmpkz-pill-fg);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.sai-c1mzmpkz__min-order {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--sai-c1mzmpkz-muted-fg);
+}
+
+.sai-c1mzmpkz__expiry {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--sai-c1mzmpkz-muted-fg);
+}
+
+.sai-c1mzmpkz__remaining {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.sai-c1mzmpkz__remaining--badge {
+  align-self: flex-start;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.06);
+  color: rgba(0, 0, 0, 0.7);
+  font-weight: 700;
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.sai-c1mzmpkz__card-cta {
+  margin-top: 0.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.375rem 0.75rem;
+  border-radius: 999px;
+  background: var(--sai-c1mzmpkz-pill-bg);
+  color: var(--sai-c1mzmpkz-pill-fg);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border: 0;
+  align-self: flex-start;
+}
+
+/* Terms & Conditions — underlined link styling so it reads clearly as a
+ * "tap to read full terms" affordance, distinct from the inline show-more
+ * toggle (which is plain dark grey, no underline). */
+.sai-c1mzmpkz__terms-toggle {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--sai-c1mzmpkz-fg);
+  text-decoration: underline;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+/* ── Promo blocks ─────────────────────────────────────────────────── */
+
+.sai-c1mzmpkz__promo-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: var(--sai-c1mzmpkz-card-pad);
+  border: 1px solid var(--sai-c1mzmpkz-card-border);
+  border-radius: var(--sai-c1mzmpkz-card-radius);
+  background: var(--sai-c1mzmpkz-panel-bg);
+}
+
+.sai-c1mzmpkz__promo-block--text_image {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.sai-c1mzmpkz__promo-block--text_image .sai-c1mzmpkz__promo-image {
+  width: 4.5rem;
+  height: 4.5rem;
+  object-fit: cover;
+}
+
+.sai-c1mzmpkz__promo-block--info_callout {
+  background: rgba(20, 128, 58, 0.06);
+  border-color: rgba(20, 128, 58, 0.2);
+  color: #14803a;
+}
+
+.sai-c1mzmpkz__promo-block--labeled_divider {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  background: transparent;
+  border: 0;
+  padding: 0.25rem 0;
+}
+
+.sai-c1mzmpkz__promo-block--labeled_divider::before,
+.sai-c1mzmpkz__promo-block--labeled_divider::after {
+  content: '';
+  flex: 1 1 auto;
+  height: 1px;
+  background: var(--sai-c1mzmpkz-card-border);
+}
+
+.sai-c1mzmpkz__promo-block--labeled_divider .sai-c1mzmpkz__promo-headline {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--sai-c1mzmpkz-muted-fg);
+  margin: 0;
+}
+
+.sai-c1mzmpkz__promo-image {
+  width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+}
+
+.sai-c1mzmpkz__promo-headline {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
+.sai-c1mzmpkz__promo-body {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--sai-c1mzmpkz-muted-fg);
+}
+
+.sai-c1mzmpkz__promo-link {
+  align-self: flex-start;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+/* ── Overflow CTA / popup ──────────────────────────────────────────── */
+
+.sai-c1mzmpkz__overflow-cta {
+  align-self: flex-start;
+  margin-top: 0.5rem;
+  appearance: none;
+  background: var(--sai-c1mzmpkz-cta-bg);
+  color: var(--sai-c1mzmpkz-cta-fg);
+  border: 0;
+  border-radius: 999px;
+  padding: 0.5rem 0.875rem;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sai-c1mzmpkz__card[data-sai-overflow='hidden'] {
+  display: none;
+}
+
+.sai-c1mzmpkz-popup {
+  position: fixed;
+  inset: 0;
+  z-index: 99997;
+  display: flex;
+}
+
+.sai-c1mzmpkz-popup[hidden] {
+  display: none;
+}
+
+.sai-c1mzmpkz-popup__backdrop {
+  position: absolute;
+  inset: 0;
+  background: var(--sai-c1mzmpkz-overlay-bg, rgba(0, 0, 0, 0.45));
+}
+
+.sai-c1mzmpkz-popup__panel {
+  position: relative;
+  z-index: 1;
+  margin: auto;
+  background: #ffffff;
+  border-radius: var(--sai-c1mzmpkz-panel-radius, 1rem);
+  width: min(40rem, calc(100% - 2rem));
+  max-height: 88vh;
+  overflow-y: auto;
+  padding: 1rem;
+}
+
+.sai-c1mzmpkz-popup__close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  appearance: none;
+  background: none;
+  border: 0;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.25rem;
+}
+
+/* ── T&C modal / drawer ───────────────────────────────────────────── */
+
+.sai-c1mzmpkz-tc {
+  position: fixed;
+  inset: 0;
+  z-index: 99998;
+  display: flex;
+}
+
+.sai-c1mzmpkz-tc[hidden] {
+  display: none;
+}
+
+.sai-c1mzmpkz-tc__backdrop {
+  position: absolute;
+  inset: 0;
+  background: var(--sai-c1mzmpkz-overlay-bg, rgba(0, 0, 0, 0.45));
+  opacity: 0;
+  transition: opacity 220ms ease;
+}
+
+.sai-c1mzmpkz-tc[data-state='open'] .sai-c1mzmpkz-tc__backdrop {
+  opacity: 1;
+}
+
+.sai-c1mzmpkz-tc__panel {
+  position: relative;
+  z-index: 1;
+  background: var(--sai-c1mzmpkz-panel-bg, #ffffff);
+  color: var(--sai-c1mzmpkz-fg, #121212);
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+  overflow: hidden;
+}
+
+.sai-c1mzmpkz-tc__panel--modal {
+  margin: auto;
+  width: min(28rem, calc(100% - 2rem));
+  border-radius: var(--sai-c1mzmpkz-panel-radius, 1rem);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.25);
+  transform: translateY(8px);
+  opacity: 0;
+  transition: transform 220ms ease, opacity 220ms ease;
+}
+
+.sai-c1mzmpkz-tc[data-state='open'] .sai-c1mzmpkz-tc__panel--modal {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.sai-c1mzmpkz-tc__panel--drawer {
+  margin-top: auto;
+  width: 100%;
+  border-top-left-radius: var(--sai-c1mzmpkz-panel-radius, 1rem);
+  border-top-right-radius: var(--sai-c1mzmpkz-panel-radius, 1rem);
+  transform: translateY(100%);
+  transition: transform 240ms ease;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.sai-c1mzmpkz-tc[data-state='open'] .sai-c1mzmpkz-tc__panel--drawer {
+  transform: translateY(0);
+}
+
+.sai-c1mzmpkz-tc__handle {
+  width: 2.5rem;
+  height: 0.25rem;
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 999px;
+  margin: 0.5rem auto 0 auto;
+}
+
+.sai-c1mzmpkz-tc__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.sai-c1mzmpkz-tc__title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.sai-c1mzmpkz-tc__close {
+  appearance: none;
+  background: none;
+  border: 0;
+  font: inherit;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.25rem;
+  color: inherit;
+}
+
+.sai-c1mzmpkz-tc__body {
+  padding: 1rem 1.25rem;
+  overflow-y: auto;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.sai-c1mzmpkz-tc__cta {
+  appearance: none;
+  margin: 1rem 1.25rem 1.25rem 1.25rem;
+  padding: 0.625rem 1rem;
+  border-radius: 999px;
+  background: var(--sai-c1mzmpkz-cta-bg, #121212);
+  color: var(--sai-c1mzmpkz-cta-fg, #ffffff);
+  border: 0;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sai-c1mzmpkz-tc__backdrop,
+  .sai-c1mzmpkz-tc__panel--modal,
+  .sai-c1mzmpkz-tc__panel--drawer {
+    transition: none;
+  }
+}
+{% endstylesheet %}
+
+{%- comment -%}
+  PDP-only widget. `product` is the page's main product drop (nil on
+  non-PDP templates). Without the guard the heading + dropdown trigger
+  would still emit over an empty container.
+
+  When the snippet is disabled (`enabled_on_pdp = false`) we still emit
+  an empty `[hidden]` host so the editor SDK's slot anchor stays
+  resolvable — short-circuiting the wrapper would leave Studio with no
+  drop target.
+{%- endcomment -%}
+{%- unless product and enabled_on_pdp -%}
+  <div class="sai-c1mzmpkz sai-c1mzmpkz--empty" data-mutation-handle="{{ mutation_handle }}" data-sai-empty hidden></div>
+{%- else -%}
+<div
+  class="sai-c1mzmpkz sai-c1mzmpkz--{{ list_layout }}{% if carousel_show_peek and list_layout == 'carousel' %} sai-c1mzmpkz--peek{% endif %}{% if card_background_url != blank %} sai-c1mzmpkz--bg-image{% endif %}"
+  data-sai-snippet-root="c1mzmpkz"
+  data-mutation-handle="{{ mutation_handle }}"
+  style="--sai-c1mzmpkz-cards-mobile: {{ grid_columns_mobile }}; --sai-c1mzmpkz-cards-desktop: {{ grid_columns_desktop }}; --sai-c1mzmpkz-cards-visible: {{ carousel_cards_visible }}; --sai-c1mzmpkz-desc-lines: {{ description_max_lines }};{% if card_background_url != blank %} --sai-c1mzmpkz-card-bg-image: url('{{ card_background_url | escape }}');{% endif %}"
+>
+  {%- if show_heading and heading != blank -%}
+    <h2 class="sai-c1mzmpkz__heading" data-sai-heading>{{ heading | escape }}</h2>
+  {%- endif -%}
+
+  {%- if list_layout == 'dropdown' -%}
+    <button
+      type="button"
+      class="sai-c1mzmpkz__dropdown-trigger"
+      data-sai-dropdown-trigger
+      aria-expanded="{% if dropdown_start_expanded %}true{% else %}false{% endif %}"
+      aria-controls="sai-c1mzmpkz-{{ mutation_handle }}-panel"
+    >
+      <span data-sai-dropdown-label>{{ dropdown_collapsed_label | escape }}</span>
+      {%- if dropdown_indicator_icon != 'none' -%}
+        <span class="sai-c1mzmpkz__dropdown-indicator sai-c1mzmpkz__dropdown-indicator--{{ dropdown_indicator_icon }}" aria-hidden="true"></span>
+      {%- endif -%}
+    </button>
+    <div
+      class="sai-c1mzmpkz__dropdown-panel"
+      id="sai-c1mzmpkz-{{ mutation_handle }}-panel"
+      data-open="{% if dropdown_start_expanded %}true{% else %}false{% endif %}"
+    >
+      <div class="sai-c1mzmpkz__body" data-sai-body></div>
+    </div>
+  {%- else -%}
+    <div class="sai-c1mzmpkz__body" data-sai-body></div>
+  {%- endif -%}
+
+  <script type="application/json" data-sai-payload>
+{
+  "discounts": {%- if raw_discounts_value != blank -%}{{ raw_discounts_value | json }}{%- else -%}{"discounts":[]}{%- endif -%},
+  "config": {
+    "snippetId": {{ 'c1mzmpkz' | json }},
+    "mutationHandle": {{ mutation_handle | json }},
+    "experienceHandle": {{ experience_handle | json }},
+    "poolMode": {{ pool_mode | json }},
+    "poolFilter": {{ pool_filter | json }},
+    "manualCouponList": {{ manual_coupon_list | json }},
+    "manualSort": {{ manual_sort | json }},
+    "promoteProductSpecificAboveStorewide": {{ promote_product_specific_above_storewide | json }},
+    "listLayout": {{ list_layout | json }},
+    "gridColumnsDesktop": {{ grid_columns_desktop | json }},
+    "gridColumnsMobile": {{ grid_columns_mobile | json }},
+    "carouselAutoplay": {{ carousel_autoplay | json }},
+    "carouselAutoplayIntervalMs": {{ carousel_autoplay_interval_ms | json }},
+    "carouselShowArrows": {{ carousel_show_arrows | json }},
+    "carouselShowDots": {{ carousel_show_dots | json }},
+    "carouselCardsVisible": {{ carousel_cards_visible | json }},
+    "carouselShowPeek": {{ carousel_show_peek | json }},
+    "dropdownStartExpanded": {{ dropdown_start_expanded | json }},
+    "dropdownCollapsedLabel": {{ dropdown_collapsed_label | json }},
+    "applicableSort": {{ applicable_sort | json }},
+    "potentialSort": {{ potential_sort | json }},
+    "maxVisibleApplicable": {{ max_visible_applicable | json }},
+    "maxVisiblePotential": {{ max_visible_potential | json }},
+    "overflowBehavior": {{ overflow_behavior | json }},
+    "potentialVisualTreatment": {{ potential_visual_treatment | json }},
+    "lockIconStyle": {{ lock_icon_style | json }},
+    "enableCopyOnPotential": {{ enable_copy_on_potential | json }},
+    "enablePromoBlocks": {{ enable_promo_blocks | json }},
+    "showCodeChip": {{ show_code_chip | json }},
+    "showCopyButton": {{ show_copy_button | json }},
+    "copySuccessDurationMs": {{ copy_success_duration_ms | json }},
+    "showTypeLabel": {{ show_type_label | json }},
+    "showDescription": {{ show_description | json }},
+    "descriptionMaxLines": {{ description_max_lines | json }},
+    "descriptionExpandable": {{ description_expandable | json }},
+    "showSavingsCallout": {{ show_savings_callout | json }},
+    "savingsDisplayMode": {{ savings_display_mode | json }},
+    "showRemainingAmount": {{ show_remaining_amount | json }},
+    "remainingAmountTemplate": {{ remaining_amount_template | json }},
+    "nearMissPosition": {{ near_miss_position | json }},
+    "showExpiry": {{ show_expiry | json }},
+    "expiryFormat": {{ expiry_format | json }},
+    "showTerms": {{ show_terms | json }},
+    "termsTemplate": {{ terms_template | json }},
+    "showCouponIcon": {{ show_coupon_icon | json }},
+    "couponIconUrl": {{ coupon_icon_url | json }},
+    "cardIconPosition": {{ card_icon_position | default: 'left' | json }},
+    "showMinOrderThreshold": {{ show_min_order_threshold | json }},
+    "currencyCode": {{ currency_code | json }},
+    "variantPrice": {%- if sai_active_variant.price -%}{{ sai_active_variant.price | divided_by: 100.0 | json }}{%- else -%}null{%- endif -%}
+  },
+  "labels": {
+    "termsLabel": {{ terms_label | json }},
+    "copyCtaLabel": {{ copy_cta_label | json }},
+    "copySuccessLabel": {{ copy_success_label | json }},
+    "automaticPillLabel": {{ automatic_pill_label | json }},
+    "overflowCtaLabel": {{ overflow_cta_label | json }},
+    "emptyStateHeading": {{ empty_state_heading | json }},
+    "emptyStateBody": {{ empty_state_body | json }},
+    "emptyStateBehavior": {{ empty_state_behavior | json }},
+    "codeLabel": "Code",
+    "minOrderTemplate": "Min order {amount}",
+    "stackingNote": "Cannot be combined with other discounts unless stated"
+  },
+  "variants": {
+    {%- for v in product.variants -%}
+      {%- assign v_raw = v.metafields.spectrum.discounts.value -%}
+      {{ v.id | append: '' | json }}: {
+        "discounts": {%- if v_raw != blank -%}{{ v_raw | json }}{%- else -%}{"discounts":[]}{%- endif -%},
+        "price": {%- if v.price -%}{{ v.price | divided_by: 100.0 | json }}{%- else -%}null{%- endif -%}
+      }{%- unless forloop.last -%},{%- endunless -%}
+    {%- endfor -%}
+  },
+  "currentVariantId": {{ sai_active_variant.id | append: '' | json }},
+  "promoBlocks": [
+    {
+      "type": {{ content.promo_block_1_type | default: 'image_banner' | json }},
+      "position": {{ content.promo_block_1_position | default: 'hidden' | json }},
+      "headline": {{ content.promo_block_1_headline | json }},
+      "body": {{ content.promo_block_1_body | json }},
+      "link": {{ content.promo_block_1_link | json }},
+      "imageUrl": {%- if content.promo_block_1_image_url != blank -%}{{ content.promo_block_1_image_url | json }}{%- else -%}null{%- endif -%},
+      "imageAlt": {{ content.promo_block_1_headline | default: '' | json }}
+    },
+    {
+      "type": {{ content.promo_block_2_type | default: 'image_banner' | json }},
+      "position": {{ content.promo_block_2_position | default: 'hidden' | json }},
+      "headline": {{ content.promo_block_2_headline | json }},
+      "body": {{ content.promo_block_2_body | json }},
+      "link": {{ content.promo_block_2_link | json }},
+      "imageUrl": {%- if content.promo_block_2_image_url != blank -%}{{ content.promo_block_2_image_url | json }}{%- else -%}null{%- endif -%},
+      "imageAlt": {{ content.promo_block_2_headline | default: '' | json }}
+    }
+  ]
+}
+</script>
+</div>
+
+<script src="{{ 'sai-snippet-c1mzmpkz.js' | asset_url }}" defer></script>
+
+{%- endunless -%}
