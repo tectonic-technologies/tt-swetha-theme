@@ -585,24 +585,6 @@
   mask-composite: intersect;
 }
 
-/* Dashed divider above the code chip, mirroring the ticket's tear-off
- * line in the reference. Inset from the card edges so the cutouts read
- * as the start / end of the perforation. */
-.sai-c1mzmpkz__card .sai-c1mzmpkz__code-chip {
-  position: relative;
-  margin-top: 0.5rem;
-  padding-top: 0.6rem;
-}
-.sai-c1mzmpkz__card .sai-c1mzmpkz__code-chip::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -0.25rem;
-  right: -0.25rem;
-  height: 0;
-  border-top: 1px dashed var(--sai-c1mzmpkz-card-divider);
-}
-
 .sai-c1mzmpkz__card--potential.sai-c1mzmpkz__card--treatment-greyed {
   opacity: 0.55;
   filter: grayscale(0.3);
