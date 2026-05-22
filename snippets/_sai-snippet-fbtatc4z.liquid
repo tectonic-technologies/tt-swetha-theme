@@ -87,6 +87,16 @@
   overflow: hidden;
 }
 
+/* Stop the widget hugging the viewport edge on mobile — themes that drop the
+   snippet directly inside a full-bleed PDP column otherwise get a card that
+   touches both sides of the screen, which makes the rounded border + the
+   dashed dividers look wrong. */
+@media (max-width: 640px) {
+  .sai-fbtatc4z {
+    margin-inline: var(--sai-size-4);
+  }
+}
+
 .sai-fbtatc4z *,
 .sai-fbtatc4z *::before,
 .sai-fbtatc4z *::after {
@@ -128,9 +138,12 @@
   grid-template-columns: var(--sai-fbtatc4z-image-size) 1fr auto;
   align-items: center;
   gap: var(--sai-size-3);
-  padding: var(--sai-size-3);
+  padding: var(--sai-size-3) 0;
   background: var(--sai-fbtatc4z-card-bg);
-  border-radius: calc(var(--sai-fbtatc4z-card-radius) - 4px);
+}
+
+.sai-fbtatc4z__card + .sai-fbtatc4z__card {
+  border-block-start: 1px dashed rgba(0, 0, 0, 0.18);
 }
 
 .sai-fbtatc4z__media {
@@ -256,16 +269,16 @@
 .sai-fbtatc4z__variant-trigger {
   display: inline-flex;
   align-items: center;
-  gap: 0.375rem;
+  gap: 0.5rem;
   align-self: flex-start;
-  margin-block-start: 0.125rem;
-  padding: 0.25rem 0.625rem;
+  margin-block-start: 0.375rem;
+  padding: 0.5rem 0.875rem;
   background: transparent;
   color: var(--sai-fbtatc4z-fg);
-  border: 1px solid rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(0, 0, 0, 0.24);
   border-radius: 999px;
   font-family: inherit;
-  font-size: 0.75rem;
+  font-size: 0.875rem;
   font-weight: 500;
   line-height: 1.2;
   cursor: pointer;
@@ -274,12 +287,12 @@
 
 .sai-fbtatc4z__variant-trigger:hover {
   background: rgba(0, 0, 0, 0.04);
-  border-color: rgba(0, 0, 0, 0.32);
+  border-color: rgba(0, 0, 0, 0.4);
 }
 
 .sai-fbtatc4z__variant-chevron {
-  inline-size: 0.75rem;
-  block-size: 0.75rem;
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
   flex-shrink: 0;
 }
 
@@ -328,8 +341,19 @@
 
 .sai-fbtatc4z__modal-header {
   display: flex;
-  justify-content: flex-end;
-  margin-block-end: 0.5rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-block-end: 0.75rem;
+}
+
+.sai-fbtatc4z__modal-title {
+  margin: 0;
+  font-family: var(--sai-font-heading, var(--sai-font-body));
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--sai-fbtatc4z-fg);
 }
 
 .sai-fbtatc4z__modal-close {
@@ -440,9 +464,10 @@
 {% endstylesheet %}
 
 {%- assign content = variant.content -%}
-{%- assign heading   = content.heading   | default: '"You will also love!"' | escape -%}
-{%- assign subtitle  = content.subtitle  | default: '' | escape -%}
-{%- assign cta_label = content.cta_label | default: '+ ADD' | escape -%}
+{%- assign heading              = content.heading              | default: '"You will also love!"' | escape -%}
+{%- assign subtitle             = content.subtitle             | default: '' | escape -%}
+{%- assign cta_label            = content.cta_label            | default: '+ ADD' | escape -%}
+{%- assign variant_modal_title  = content.variant_modal_title  | default: 'Choose variant' | escape -%}
 
 {%- assign show_compare_price = content.show_compare_price -%}
 {%- if show_compare_price == nil -%}{%- assign show_compare_price = true -%}{%- endif -%}
@@ -582,6 +607,7 @@
   "currency": {{ shop.currency | json }},
   "afterAddAction": {{ after_add_action | json }},
   "ctaLabel": {{ cta_label | json }},
+  "variantModalTitle": {{ variant_modal_title | json }},
   "products": [
     {%- assign first_product = true -%}
     {%- for handle in fbt_handles -%}

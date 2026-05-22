@@ -334,6 +334,12 @@
 
       const header = document.createElement('div')
       header.className = 'sai-fbtatc4z__modal-header'
+      const title = document.createElement('h3')
+      title.className = 'sai-fbtatc4z__modal-title'
+      // Server-validated string; payload prop falls back to 'Choose variant'
+      // so the header is never blank.
+      title.textContent = this._data?.variantModalTitle || 'Choose variant'
+      header.appendChild(title)
       const closeBtn = document.createElement('button')
       closeBtn.type = 'button'
       closeBtn.className = 'sai-fbtatc4z__modal-close'
