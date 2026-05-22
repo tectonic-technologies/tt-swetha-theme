@@ -73,8 +73,12 @@
 .sai-fbtatc4z {
   display: block;
   box-sizing: border-box;
+  /* Use 100% so the widget shrinks to its parent column, capped at 26rem
+     so it stays compact when dropped in a wide slot. min-inline-size: 0
+     prevents grid/flex parents from inflating it to its content size. */
   inline-size: 100%;
-  max-inline-size: 32rem;
+  min-inline-size: 0;
+  max-inline-size: 26rem;
   margin-inline: auto;
   margin-block: var(--sai-size-6);
   font-family: var(--sai-font-body);
@@ -87,11 +91,9 @@
   overflow: hidden;
 }
 
-/* Stop the widget hugging the viewport edge on mobile — themes that drop the
-   snippet directly inside a full-bleed PDP column otherwise get a card that
-   touches both sides of the screen, which makes the rounded border + the
-   dashed dividers look wrong. */
-@media (max-width: 640px) {
+/* On mobile keep horizontal breathing room from the page edge, but keep the
+   widget filling the column otherwise. */
+@media (max-width: 480px) {
   .sai-fbtatc4z {
     margin-inline: var(--sai-size-4);
   }
@@ -149,13 +151,52 @@
   border-block-start: 1px dashed rgba(0, 0, 0, 0.18);
 }
 
-/* Mobile: tighten the card padding so the +ADD button doesn't get pushed
-   off the right edge on a narrow viewport. Container margin-inline already
-   gives the widget breathing room from the page edge (see top-level rule). */
-@media (max-width: 480px) {
+/* ── Mobile layout ─────────────────────────────────────────────────────
+   Below 540px there isn't room for image + body + +ADD in one row without
+   the body getting unreadably narrow. Restack into:
+
+     [image] [title / price / variant pill]
+     [        full-width +ADD button       ]
+
+   The grid keeps the image inline with the text so the card still reads
+   as one product unit; only the CTA wraps under, which makes the tap
+   target much larger on a phone. */
+@media (max-width: 540px) {
+  .sai-fbtatc4z {
+    --sai-fbtatc4z-image-size: 4.5rem;
+  }
+
   .sai-fbtatc4z__card {
-    padding-inline: var(--sai-size-4);
-    gap: var(--sai-size-3);
+    grid-template-columns: var(--sai-fbtatc4z-image-size) 1fr;
+    grid-template-areas:
+      "media body"
+      "cta   cta";
+    gap: var(--sai-size-3) var(--sai-size-4);
+    padding: var(--sai-size-4);
+  }
+
+  .sai-fbtatc4z__media { grid-area: media; }
+  .sai-fbtatc4z__body { grid-area: body; }
+  .sai-fbtatc4z__cta {
+    grid-area: cta;
+    inline-size: 100%;
+    padding-block: 0.75rem;
+  }
+
+  .sai-fbtatc4z__variant-trigger {
+    font-size: 0.8125rem;
+    padding: 0.4375rem 0.75rem;
+  }
+}
+
+/* Very small phones — shrink the heading band so the divider doesn't
+   eat too much vertical space, and let the title go a touch smaller. */
+@media (max-width: 380px) {
+  .sai-fbtatc4z__header {
+    padding: var(--sai-size-3) var(--sai-size-4);
+  }
+  .sai-fbtatc4z__title {
+    font-size: 0.9375rem;
   }
 }
 
@@ -179,6 +220,9 @@
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+  /* Grid item default min-size is min-content — without this the body
+     column won't shrink below its longest word, and a card with a long
+     product title would force the whole widget wider than its parent. */
   min-inline-size: 0;
 }
 
@@ -189,6 +233,8 @@
   line-height: 1.25;
   color: var(--sai-fbtatc4z-fg);
   text-decoration: none;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .sai-fbtatc4z__title:hover {
