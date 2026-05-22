@@ -38,10 +38,13 @@
  * the Studio style panel can override them.
  * ============================================================================= */
 
-.sai-fbtatc4z {
+.sai-fbtatc4z,
+.sai-fbtatc4z__modal-overlay {
   --sai-fbtatc4z-card-bg: #ffffff;
   --sai-fbtatc4z-card-border: rgba(0, 0, 0, 0.1);
   --sai-fbtatc4z-card-radius: 12px;
+  --sai-fbtatc4z-header-bg: #f7f4ef;
+  --sai-fbtatc4z-header-border: rgba(0, 0, 0, 0.1);
   --sai-fbtatc4z-image-size: 5rem;
   --sai-fbtatc4z-off-bg: #0e6f54;
   --sai-fbtatc4z-off-fg: #ffffff;
@@ -55,15 +58,25 @@
   --sai-fbtatc4z-cta-hover-fg: #ffffff;
   --sai-fbtatc4z-cta-disabled-bg: rgba(0, 0, 0, 0.35);
   --sai-fbtatc4z-cta-disabled-fg: #ffffff;
+  --sai-fbtatc4z-pill-bg: #ededed;
+  --sai-fbtatc4z-pill-fg: #121212;
+  --sai-fbtatc4z-pill-selected-bg: #121212;
+  --sai-fbtatc4z-pill-selected-fg: #ffffff;
+  --sai-fbtatc4z-pill-disabled-fg: rgba(0, 0, 0, 0.45);
+  --sai-fbtatc4z-modal-overlay-bg: rgba(0, 0, 0, 0.55);
+  --sai-fbtatc4z-modal-card-bg: #ffffff;
+  --sai-fbtatc4z-done-bg: #121212;
+  --sai-fbtatc4z-done-fg: #ffffff;
   --sai-fbtatc4z-loader-size: 1rem;
+}
 
+.sai-fbtatc4z {
   display: block;
   box-sizing: border-box;
   inline-size: 100%;
   max-inline-size: 32rem;
   margin-inline: auto;
   margin-block: var(--sai-size-6);
-  padding: var(--sai-size-5);
   font-family: var(--sai-font-body);
   font-size: 1rem;
   line-height: 1.4;
@@ -71,6 +84,7 @@
   background: var(--sai-fbtatc4z-card-bg);
   border: 1px solid var(--sai-fbtatc4z-card-border);
   border-radius: var(--sai-fbtatc4z-card-radius);
+  overflow: hidden;
 }
 
 .sai-fbtatc4z *,
@@ -79,8 +93,14 @@
   box-sizing: border-box;
 }
 
+.sai-fbtatc4z__header {
+  padding: var(--sai-size-4) var(--sai-size-5);
+  background: var(--sai-fbtatc4z-header-bg);
+  border-block-end: 1px solid var(--sai-fbtatc4z-header-border);
+}
+
 .sai-fbtatc4z__heading {
-  margin: 0 0 0.25rem;
+  margin: 0;
   font-family: var(--sai-font-heading, var(--sai-font-body));
   font-size: 1.125rem;
   font-weight: 600;
@@ -89,7 +109,7 @@
 }
 
 .sai-fbtatc4z__subtitle {
-  margin: 0 0 1rem;
+  margin: 0.125rem 0 0;
   font-size: 0.9375rem;
   color: var(--sai-fbtatc4z-muted-fg);
 }
@@ -99,7 +119,7 @@
   flex-direction: column;
   gap: var(--sai-size-3);
   margin: 0;
-  padding: 0;
+  padding: var(--sai-size-5);
   list-style: none;
 }
 
@@ -233,8 +253,38 @@
   animation: sai-fbtatc4z-spin 0.8s linear infinite;
 }
 
+.sai-fbtatc4z__variant-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  align-self: flex-start;
+  margin-block-start: 0.125rem;
+  padding: 0.25rem 0.625rem;
+  background: transparent;
+  color: var(--sai-fbtatc4z-fg);
+  border: 1px solid rgba(0, 0, 0, 0.18);
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.sai-fbtatc4z__variant-trigger:hover {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.32);
+}
+
+.sai-fbtatc4z__variant-chevron {
+  inline-size: 0.75rem;
+  block-size: 0.75rem;
+  flex-shrink: 0;
+}
+
 .sai-fbtatc4z__error {
-  margin-block-start: 0.75rem;
+  margin: 0 var(--sai-size-5) var(--sai-size-5);
   padding: 0.5rem 0.75rem;
   background: rgba(210, 66, 7, 0.08);
   color: #b9370a;
@@ -244,6 +294,136 @@
 
 .sai-fbtatc4z__error[hidden] {
   display: none;
+}
+
+/* ── Variant picker modal ───────────────────────────────────────────── */
+
+.sai-fbtatc4z__modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: var(--sai-fbtatc4z-modal-overlay-bg);
+  animation: sai-fbtatc4z-fade-in 160ms ease forwards;
+}
+
+.sai-fbtatc4z__modal-overlay[data-closing="true"] {
+  animation: sai-fbtatc4z-fade-out 160ms ease forwards;
+}
+
+.sai-fbtatc4z__modal-card {
+  inline-size: 100%;
+  max-inline-size: 26rem;
+  max-block-size: 90vh;
+  overflow-y: auto;
+  padding: 1.25rem;
+  background: var(--sai-fbtatc4z-modal-card-bg);
+  color: var(--sai-fbtatc4z-fg);
+  border-radius: 12px;
+  font-family: var(--sai-font-body);
+}
+
+.sai-fbtatc4z__modal-header {
+  display: flex;
+  justify-content: flex-end;
+  margin-block-end: 0.5rem;
+}
+
+.sai-fbtatc4z__modal-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 2rem;
+  block-size: 2rem;
+  padding: 0;
+  background: transparent;
+  color: var(--sai-fbtatc4z-fg);
+  border: none;
+  border-radius: 999px;
+  font-size: 1.25rem;
+  cursor: pointer;
+}
+
+.sai-fbtatc4z__modal-close:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.sai-fbtatc4z__modal-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.sai-fbtatc4z__modal-group-label {
+  margin-block-end: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--sai-fbtatc4z-fg);
+}
+
+.sai-fbtatc4z__modal-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.sai-fbtatc4z__pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.5rem 0.875rem;
+  background: var(--sai-fbtatc4z-pill-bg);
+  color: var(--sai-fbtatc4z-pill-fg);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.sai-fbtatc4z__pill[data-selected="true"] {
+  background: var(--sai-fbtatc4z-pill-selected-bg);
+  color: var(--sai-fbtatc4z-pill-selected-fg);
+}
+
+.sai-fbtatc4z__pill[data-unavailable="true"] {
+  color: var(--sai-fbtatc4z-pill-disabled-fg);
+  text-decoration: line-through;
+  cursor: not-allowed;
+}
+
+.sai-fbtatc4z__modal-done {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 100%;
+  margin-block-start: 1.25rem;
+  padding: 0.75rem 1rem;
+  background: var(--sai-fbtatc4z-done-bg);
+  color: var(--sai-fbtatc4z-done-fg);
+  border: none;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sai-fbtatc4z__modal-done:hover {
+  opacity: 0.92;
+}
+
+@keyframes sai-fbtatc4z-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes sai-fbtatc4z-fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
 }
 
 @keyframes sai-fbtatc4z-spin {
@@ -322,10 +502,12 @@
 <script src="{{ 'sai-snippet-fbtatc4z.js' | asset_url }}" async></script>
 
 <sai-fbtatc4z class="sai-fbtatc4z">
-  <h2 class="sai-fbtatc4z__heading">{{ heading }}</h2>
-  {%- if subtitle != '' -%}
-    <p class="sai-fbtatc4z__subtitle">{{ subtitle }}</p>
-  {%- endif -%}
+  <div class="sai-fbtatc4z__header">
+    <h2 class="sai-fbtatc4z__heading">{{ heading }}</h2>
+    {%- if subtitle != '' -%}
+      <p class="sai-fbtatc4z__subtitle">{{ subtitle }}</p>
+    {%- endif -%}
+  </div>
 
   <ul class="sai-fbtatc4z__list">
     {%- for handle in fbt_handles -%}
@@ -358,6 +540,14 @@
               {%- endif -%}
             {%- endif -%}
           </div>
+          {%- if r.variants.size > 1 -%}
+            <button type="button" class="sai-fbtatc4z__variant-trigger" data-variant-trigger aria-haspopup="dialog">
+              <span class="sai-fbtatc4z__variant-label">{{ rv.title }}</span>
+              <svg class="sai-fbtatc4z__variant-chevron" viewBox="0 0 14 14" fill="none" focusable="false" aria-hidden="true">
+                <path d="M3 5L7 9L11 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          {%- endif -%}
         </div>
         <button
           type="button"
@@ -407,7 +597,21 @@
         "variantId": {{ r.selected_or_first_available_variant.id | json }},
         "price": {{ r.price | json }},
         "compareAtPrice": {{ r.compare_at_price | json }},
-        "available": {{ r.available | json }}
+        "available": {{ r.available | json }},
+        "options": {{ r.options | json }},
+        "variants": [
+          {%- for v in r.variants -%}
+            {%- unless forloop.first -%},{%- endunless -%}
+            {
+              "id": {{ v.id | json }},
+              "title": {{ v.title | json }},
+              "price": {{ v.price | json }},
+              "compareAtPrice": {{ v.compare_at_price | json }},
+              "available": {{ v.available | json }},
+              "options": {{ v.options | json }}
+            }
+          {%- endfor -%}
+        ]
       }
     {%- endfor -%}
   ]
