@@ -237,19 +237,11 @@
  * ============================================================================= */
 
 .sai-c1mzmpkz {
-  --sai-c1mzmpkz-card-bg: #fcf9f1;
-  --sai-c1mzmpkz-card-bg-muted: #fbf5e2;
-  --sai-c1mzmpkz-card-border: #f7eac8;
-  --sai-c1mzmpkz-card-divider: #f0e2bf;
+  --sai-c1mzmpkz-card-bg: #ffffff;
+  --sai-c1mzmpkz-card-bg-muted: #ffffff;
+  --sai-c1mzmpkz-card-border: rgba(0, 0, 0, 0.12);
   --sai-c1mzmpkz-card-radius: 0.75rem;
   --sai-c1mzmpkz-card-pad: 0.875rem;
-  /* Ticket cutout — semicircle "punches" on the left + right edges, and
-   * the dashed tear-off line that runs between them. Both anchor to the
-   * same Y so the perforation reads as one continuous line. Measured as
-   * a distance from the bottom so the stub area stays a stable height
-   * regardless of how much offer copy sits above. */
-  --sai-c1mzmpkz-card-notch: 9px;
-  --sai-c1mzmpkz-card-tear-bottom: 3rem;
   --sai-c1mzmpkz-card-min-w: 16rem;
   --sai-c1mzmpkz-card-gap: 0.75rem;
   --sai-c1mzmpkz-code-bg: #f3f4f6;
@@ -270,11 +262,6 @@
   --sai-c1mzmpkz-cards-mobile: 1;
   --sai-c1mzmpkz-cards-desktop: 1;
   --sai-c1mzmpkz-cards-visible: 1;
-  /* Carousel default: 1 card on mobile, 2 on desktop. The desktop value
-   * applies above the 768px breakpoint via the @media rule on the
-   * --carousel modifier below; merchants can still override either via
-   * theme CSS (or a future prop). */
-  --sai-c1mzmpkz-cards-visible-desktop: 2;
 
   display: block;
   box-sizing: border-box;
@@ -390,24 +377,6 @@
 
 .sai-c1mzmpkz--carousel.sai-c1mzmpkz--peek .sai-c1mzmpkz__card {
   flex-basis: calc((100% - (var(--sai-c1mzmpkz-cards-visible) - 1) * var(--sai-c1mzmpkz-card-gap)) / (var(--sai-c1mzmpkz-cards-visible) + 0.25));
-}
-
-/* Desktop default: bump cards-visible to 2 so two cards sit side-by-side
- * on a typical PDP. Inline-style overrides still win — this only fires
- * if the merchant hasn't set --sai-c1mzmpkz-cards-visible explicitly. */
-@media (min-width: 768px) {
-  .sai-c1mzmpkz--carousel .sai-c1mzmpkz__card {
-    flex-basis: calc(
-      (100% - (var(--sai-c1mzmpkz-cards-visible-desktop) - 1) * var(--sai-c1mzmpkz-card-gap)) /
-        var(--sai-c1mzmpkz-cards-visible-desktop)
-    );
-  }
-  .sai-c1mzmpkz--carousel.sai-c1mzmpkz--peek .sai-c1mzmpkz__card {
-    flex-basis: calc(
-      (100% - (var(--sai-c1mzmpkz-cards-visible-desktop) - 1) * var(--sai-c1mzmpkz-card-gap)) /
-        (var(--sai-c1mzmpkz-cards-visible-desktop) + 0.25)
-    );
-  }
 }
 
 .sai-c1mzmpkz__carousel-arrow {
@@ -558,72 +527,15 @@
 
 /* ── Card ────────────────────────────────────────────────────────── */
 
-/* Coupon ticket: cream fill, faint percent-tag watermark in the top-right
- * corner, dashed divider above the code chip, two semicircle "punch" cutouts
- * on the left + right edges (CSS mask). The mask is the only thing that
- * gives the silhouette real notches — radial-gradient backgrounds alone
- * just paint over them, they don't clip the box. */
 .sai-c1mzmpkz__card {
   position: relative;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
   padding: var(--sai-c1mzmpkz-card-pad);
-  background-color: var(--sai-c1mzmpkz-card-bg);
-  /* Inline data-URI percent-tag — kept tiny so it serializes cleanly and
-   * recolours via the existing card-divider variable (no separate prop). */
-  background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 60' fill='none'%3E%3Cpath d='M30 4c4 0 8 1.5 11 4.5 3 3 4.5 7 4.5 11l8 8c1 1 1 2.5 0 3.5L42 43c-1 1-2.5 1-3.5 0l-8-8c-4 0-8-1.5-11-4.5C16.5 27.5 15 23.5 15 19.5c0-4 1.5-8 4.5-11C22.5 5.5 26 4 30 4z' fill='%23f4e7c2' opacity='0.55'/%3E%3Ccircle cx='38' cy='22' r='2.5' fill='%23fcf9f1'/%3E%3Cline x1='34' y1='28' x2='42' y2='20' stroke='%23fcf9f1' stroke-width='2' stroke-linecap='round'/%3E%3Ccircle cx='42' cy='28' r='2.5' fill='%23fcf9f1'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: top -8px right -8px;
-  background-size: 70px 70px;
+  background: var(--sai-c1mzmpkz-card-bg);
+  border: 1px solid var(--sai-c1mzmpkz-card-border);
   border-radius: var(--sai-c1mzmpkz-card-radius);
-  /* Inset shadow (not `border`) so the stroke participates in the mask the
-   * same way the fill does — a real border paints outside the mask region
-   * and would survive the notches as floating arcs. */
-  box-shadow: inset 0 0 0 1px var(--sai-c1mzmpkz-card-border);
-  /* Two radial-gradient stamps cut transparent holes on the left + right
-   * edges. mask-composite intersects them so both punches apply. The
-   * +0.5px on the second colour stop prevents an anti-aliased fringe. */
-  -webkit-mask-image:
-    radial-gradient(
-      circle at left calc(100% - var(--sai-c1mzmpkz-card-tear-bottom)),
-      transparent var(--sai-c1mzmpkz-card-notch),
-      #000 calc(var(--sai-c1mzmpkz-card-notch) + 0.5px)
-    ),
-    radial-gradient(
-      circle at right calc(100% - var(--sai-c1mzmpkz-card-tear-bottom)),
-      transparent var(--sai-c1mzmpkz-card-notch),
-      #000 calc(var(--sai-c1mzmpkz-card-notch) + 0.5px)
-    );
-  mask-image:
-    radial-gradient(
-      circle at left calc(100% - var(--sai-c1mzmpkz-card-tear-bottom)),
-      transparent var(--sai-c1mzmpkz-card-notch),
-      #000 calc(var(--sai-c1mzmpkz-card-notch) + 0.5px)
-    ),
-    radial-gradient(
-      circle at right calc(100% - var(--sai-c1mzmpkz-card-tear-bottom)),
-      transparent var(--sai-c1mzmpkz-card-notch),
-      #000 calc(var(--sai-c1mzmpkz-card-notch) + 0.5px)
-    );
-  -webkit-mask-composite: source-in;
-  mask-composite: intersect;
-}
-
-/* Tear-off perforation drawn ON the card at the same Y as the side
- * cutouts. Pseudo-element rather than a real DOM divider so it stays a
- * pure presentation concern. The mask above clips it at the notches,
- * which is exactly the silhouette we want — line "enters" the left
- * cutout and "exits" the right. */
-.sai-c1mzmpkz__card::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: var(--sai-c1mzmpkz-card-tear-bottom);
-  height: 0;
-  border-top: 1px dashed var(--sai-c1mzmpkz-card-divider);
-  pointer-events: none;
 }
 
 .sai-c1mzmpkz__card--potential.sai-c1mzmpkz__card--treatment-greyed {
@@ -825,18 +737,15 @@
 
 
 
-/* Code row reads as part of the ticket stub — no border, no inner box,
- * transparent background. The tear-off perforation lives on the card's
- * ::after at the same Y as the side cutouts (see card rules above), so
- * the line passes through the row without belonging to it. */
 .sai-c1mzmpkz__code-row {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  margin: 0;
-  padding: 0;
-  background: transparent;
-  border: 0;
+  margin-top: 0.25rem;
+  padding: 0.375rem 0.5rem;
+  background: var(--sai-c1mzmpkz-code-bg);
+  border: 1px dashed var(--sai-c1mzmpkz-code-border);
+  border-radius: 0.5rem;
 }
 
 .sai-c1mzmpkz__code-label {
