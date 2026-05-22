@@ -17,36 +17,6 @@
 /*   SPECTRUM_AI_SNIPPET_CSS:END   id=<cuid2>      — per-snippet block close     */
 
 /* ======= SPECTRUM_AI_SNIPPET_CSS:TOKENS:START ======= */
-
-/* ─────────────────────────────────────────────
-   @property registrations — guarantee --sai-color-*
-   always resolve to a valid CSS <color> so color-mix()
-   and other color functions work reliably. On browsers
-   without @property support, the rgb() wrap in the
-   token definition handles OS 2.0 triplet themes;
-   hex themes work directly.
-   ───────────────────────────────────────────── */
-@property --sai-color-fg {
-  syntax: "<color>";
-  inherits: true;
-  initial-value: #121212;
-}
-@property --sai-color-bg {
-  syntax: "<color>";
-  inherits: true;
-  initial-value: #ffffff;
-}
-@property --sai-color-primary {
-  syntax: "<color>";
-  inherits: true;
-  initial-value: #121212;
-}
-@property --sai-color-primary-fg {
-  syntax: "<color>";
-  inherits: true;
-  initial-value: #ffffff;
-}
-
 :where(html) {
   /* ───── Size ramp (open-props inspired) ───── */
   --sai-size-1: .25rem;
@@ -101,13 +71,10 @@
      scope (inherited from the host Shopify section) —
      outside that scope, the literal fallback wins.
      ───────────────────────────────────────────── */
-  --sai-color-bg: var(--color-body-background, rgb(var(--color-background, 255, 255, 255)));
-  --sai-color-fg: var(--color-text, rgb(var(--color-foreground, 18, 18, 18)));
-  --sai-color-primary: var(--color-button, rgb(var(--color-primary, 18, 18, 18)));
-  --sai-color-primary-fg: var(
-    --color-button-text,
-    rgb(var(--color-primary-contrast, 255, 255, 255))
-  );
+  --sai-color-bg: var(--color-background, var(--color-body-background, #ffffff));
+  --sai-color-fg: var(--color-foreground, var(--color-text, #121212));
+  --sai-color-primary: var(--color-primary, var(--color-button, #121212));
+  --sai-color-primary-fg: var(--color-primary-contrast, var(--color-button-text, #ffffff));
   --sai-color-link: var(--color-link, var(--sai-color-primary));
   --sai-color-error: var(--color-error, #c53030);
   --sai-color-error-fg: var(--color-error-contrast, #ffffff);
@@ -2789,3 +2756,673 @@ a.sai-ibx7zk9p[href]:hover .sai-ibx7zk9p__image {
   opacity: 1;
 }
 /* ======= SPECTRUM_AI_SNIPPET_CSS:END id=hn2hxz5f ======= */
+
+/* ======= SPECTRUM_AI_SNIPPET_CSS:START id=u3rw3o3e ======= */
+.sai-u3rw3o3e,
+.sai-u3rw3o3e__modal-overlay {
+  --sai-u3rw3o3e-card-bg: #ffffff;
+  --sai-u3rw3o3e-card-border: rgba(0, 0, 0, 0.1);
+  --sai-u3rw3o3e-card-radius: 12px;
+  --sai-u3rw3o3e-card-w: 11.5rem;
+  --sai-u3rw3o3e-image-h: 12rem;
+  --sai-u3rw3o3e-checkbox-size: 1.375rem;
+  --sai-u3rw3o3e-plus-size: 1.75rem;
+  --sai-u3rw3o3e-fg: var(--sai-color-fg, #121212);
+  --sai-u3rw3o3e-muted-fg: rgba(0, 0, 0, 0.55);
+  --sai-u3rw3o3e-modal-overlay-bg: rgba(0, 0, 0, 0.55);
+  --sai-u3rw3o3e-modal-card-bg: #ffffff;
+  --sai-u3rw3o3e-pill-bg: #ededed;
+  --sai-u3rw3o3e-pill-fg: #121212;
+  --sai-u3rw3o3e-pill-selected-bg: #121212;
+  --sai-u3rw3o3e-pill-selected-fg: #ffffff;
+  --sai-u3rw3o3e-pill-disabled-fg: rgba(0, 0, 0, 0.45);
+  --sai-u3rw3o3e-low-stock-fg: #d24207;
+  --sai-u3rw3o3e-done-bg: #121212;
+  --sai-u3rw3o3e-done-fg: #ffffff;
+}
+
+.sai-u3rw3o3e {
+  /* Respect the parent container width but cap at 1200px on wide
+     viewports. If the parent is narrower (e.g. Dawn's product section)
+     the widget fits the parent — equal margin on both sides. */
+  display: block;
+  box-sizing: border-box;
+  inline-size: 100%;
+  max-inline-size: 75rem;
+  margin-inline: auto;
+  margin-block: var(--sai-size-6);
+  font-family: var(--sai-font-body);
+  font-size: 1rem;
+  line-height: 1.4;
+  color: var(--sai-u3rw3o3e-fg);
+}
+
+.sai-u3rw3o3e__inner {
+  inline-size: 100%;
+  padding-inline: var(--sai-size-4);
+  box-sizing: border-box;
+}
+
+.sai-u3rw3o3e *,
+.sai-u3rw3o3e *::before,
+.sai-u3rw3o3e *::after {
+  box-sizing: border-box;
+}
+
+.sai-u3rw3o3e__heading {
+  font-family: var(--sai-font-heading, var(--sai-font-body));
+  font-size: 1.625rem;
+  font-weight: var(--sai-font-body-weight-bold, 700);
+  margin-block: 0 var(--sai-size-4);
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.sai-u3rw3o3e__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sai-size-4);
+  align-items: stretch;
+}
+
+@media (min-width: 768px) {
+  .sai-u3rw3o3e__layout {
+    grid-template-columns: minmax(0, 1fr) 26rem;
+    gap: var(--sai-size-5);
+  }
+}
+
+/* ── Cards row ───────────────────────────────────────────────────────────── */
+
+.sai-u3rw3o3e__cards {
+  display: flex;
+  align-items: stretch;
+  gap: 1rem;
+  inline-size: 100%;
+  min-inline-size: 0;
+  scrollbar-width: thin;
+  padding-block: 0.25rem;
+  /* Smooth iOS momentum scroll for the horizontal scroll fallback. */
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Only enable horizontal scroll at narrow viewports where cards become
+   fixed-width to keep their images legible. At wider viewports the cards
+   `flex: 1 1 0` distribute the row's full width with no overflow. */
+@media (max-width: 560px) {
+  .sai-u3rw3o3e__cards {
+    overflow-x: auto;
+  }
+}
+
+.sai-u3rw3o3e__cards::-webkit-scrollbar {
+  block-size: 6px;
+}
+
+.sai-u3rw3o3e__cards::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 999px;
+}
+
+.sai-u3rw3o3e__plus {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--sai-u3rw3o3e-plus-size);
+  block-size: var(--sai-u3rw3o3e-plus-size);
+  border-radius: 999px;
+  border: 1px solid var(--sai-u3rw3o3e-card-border);
+  background: var(--sai-u3rw3o3e-card-bg);
+  color: var(--sai-u3rw3o3e-fg);
+  align-self: center;
+  flex-shrink: 0;
+}
+
+/* Main product — naked variant (legacy class kept in case it's still
+   referenced; the current layout uses .sai-u3rw3o3e__card--main). */
+.sai-u3rw3o3e__main {
+  flex: 1 1 0;
+  min-inline-size: 9.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sai-size-2);
+  padding: var(--sai-size-2) 0;
+}
+
+.sai-u3rw3o3e__media--main {
+  background: transparent;
+}
+
+.sai-u3rw3o3e__title--main {
+  text-align: center;
+  margin-block-start: var(--sai-size-2);
+}
+
+.sai-u3rw3o3e__price-row--main {
+  justify-content: center;
+}
+
+.sai-u3rw3o3e__card {
+  position: relative;
+  background: var(--sai-u3rw3o3e-card-bg);
+  border: 1px solid var(--sai-u3rw3o3e-card-border);
+  border-radius: var(--sai-u3rw3o3e-card-radius);
+  flex: 1 1 0;
+  min-inline-size: 9.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sai-size-2);
+  padding: var(--sai-size-3);
+  overflow: hidden;
+}
+
+/* On narrow viewports the cards stop trying to share width and become a
+   fixed-width horizontal scroll list — better than crushing the images. */
+@media (max-width: 560px) {
+  .sai-u3rw3o3e__card {
+    flex: 0 0 11rem;
+  }
+}
+
+/* Checkbox — overlays the top-left of the image */
+
+.sai-u3rw3o3e__checkbox {
+  position: absolute;
+  inset-block-start: 0.625rem;
+  inset-inline-start: 0.625rem;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--sai-u3rw3o3e-checkbox-size);
+  block-size: var(--sai-u3rw3o3e-checkbox-size);
+  border-radius: 4px;
+  cursor: pointer;
+  background: #ffffff;
+  border: 1.5px solid rgba(0, 0, 0, 0.35);
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.sai-u3rw3o3e__checkbox input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.sai-u3rw3o3e__checkbox-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: transparent;
+}
+
+.sai-u3rw3o3e__checkbox:has(input:checked) {
+  background: #121212;
+  border-color: #121212;
+}
+
+.sai-u3rw3o3e__checkbox:has(input:checked) .sai-u3rw3o3e__checkbox-mark {
+  color: #ffffff;
+}
+
+.sai-u3rw3o3e__checkbox:has(input:focus-visible) {
+  outline: 2px solid #121212;
+  outline-offset: 2px;
+}
+
+/* Locked variant — applied when meta.json prop `lock_main_product` is on.
+   Stays visually checked but disallows interaction. */
+.sai-u3rw3o3e__checkbox--locked {
+  cursor: not-allowed;
+}
+
+.sai-u3rw3o3e__checkbox--locked input {
+  cursor: not-allowed;
+}
+
+/* Media */
+
+.sai-u3rw3o3e__media {
+  display: block;
+  inline-size: 100%;
+  aspect-ratio: 1 / 1;
+  block-size: auto;
+  max-block-size: var(--sai-u3rw3o3e-image-h);
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.sai-u3rw3o3e__image {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.sai-u3rw3o3e__title {
+  color: inherit;
+  text-decoration: none;
+  font-weight: var(--sai-font-body-weight-bold, 600);
+  font-size: 0.875rem;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.sai-u3rw3o3e__title:hover {
+  text-decoration: underline;
+}
+
+.sai-u3rw3o3e__price-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sai-size-2);
+  flex-wrap: wrap;
+  font-size: 0.9375rem;
+}
+
+.sai-u3rw3o3e__price {
+  font-weight: var(--sai-font-body-weight-bold, 600);
+}
+
+.sai-u3rw3o3e__compare {
+  text-decoration: line-through;
+  color: var(--sai-u3rw3o3e-muted-fg);
+  font-size: 0.8125rem;
+}
+
+.sai-u3rw3o3e__variant-trigger {
+  appearance: none;
+  background: transparent;
+  border: 1px solid var(--sai-u3rw3o3e-card-border);
+  border-radius: 8px;
+  padding: 0.4375rem var(--sai-size-2);
+  font: inherit;
+  font-size: 0.8125rem;
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sai-size-2);
+  inline-size: 100%;
+  text-align: start;
+  margin-block-start: auto;
+}
+
+.sai-u3rw3o3e__variant-trigger:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.sai-u3rw3o3e__variant-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sai-u3rw3o3e__chevron {
+  flex-shrink: 0;
+  color: var(--sai-u3rw3o3e-muted-fg);
+}
+
+/* ── Total panel ─────────────────────────────────────────────────────────── */
+
+.sai-u3rw3o3e__total {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sai-size-3);
+  padding-inline: var(--sai-size-2);
+  align-self: stretch;
+  justify-content: flex-start;
+}
+
+/* CTA pinned to the bottom edge of the panel — visually aligns with the
+   bottom of the product cards. Total label + subtext/price stay at the top. */
+.sai-u3rw3o3e__cta {
+  margin-block-start: auto;
+}
+
+/* CTA sits flush below the total-row; the row's `margin-block-start: auto`
+   already pushes the whole bottom group down to the cards' baseline. */
+
+.sai-u3rw3o3e__total-label {
+  font-size: 1.5rem;
+  font-weight: var(--sai-font-body-weight-bold, 700);
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.sai-u3rw3o3e__total-subtext {
+  font-size: 0.875rem;
+  color: var(--sai-u3rw3o3e-muted-fg);
+  line-height: 1.4;
+}
+
+.sai-u3rw3o3e__total-row {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sai-size-3);
+  flex-wrap: nowrap;
+  margin-block: 0;
+}
+
+/* On very narrow viewports allow wrap so the subtext doesn't clip the
+   amount off-screen. */
+@media (max-width: 540px) {
+  .sai-u3rw3o3e__total-row {
+    flex-wrap: wrap;
+  }
+}
+
+.sai-u3rw3o3e__total-amount {
+  margin-inline-start: auto;
+}
+
+.sai-u3rw3o3e__total-amount {
+  font-family: var(--sai-font-heading, var(--sai-font-body));
+  font-size: 2rem;
+  font-weight: var(--sai-font-body-weight-bold, 700);
+  letter-spacing: -0.01em;
+  text-align: start;
+}
+
+.sai-u3rw3o3e__total-label,
+.sai-u3rw3o3e__total-subtext {
+  text-align: start;
+}
+
+.sai-u3rw3o3e__total-subtext {
+  flex: 0 1 auto;
+  min-inline-size: 0;
+}
+
+.sai-u3rw3o3e__cta {
+  appearance: none;
+  inline-size: 100%;
+  background: #121212;
+  color: #ffffff;
+  border: none;
+  border-radius: 12px;
+  padding: 1.125rem var(--sai-size-4);
+  font: inherit;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background 120ms ease, opacity 120ms ease;
+}
+
+.sai-u3rw3o3e__cta:hover:not(:disabled) {
+  background: #2a2a2a;
+}
+
+.sai-u3rw3o3e__cta:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.sai-u3rw3o3e__error {
+  margin-block-start: var(--sai-size-2);
+  padding: var(--sai-size-2) var(--sai-size-3);
+  background: rgba(197, 48, 48, 0.08);
+  color: #c53030;
+  border-radius: 8px;
+  font-size: 0.8125rem;
+}
+
+/* ── Modal (variant picker) ──────────────────────────────────────────────── */
+
+.sai-u3rw3o3e__modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--sai-u3rw3o3e-modal-overlay-bg, rgba(0, 0, 0, 0.55));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2147483000;
+  padding: 1rem;
+  font-family: var(--sai-font-body, inherit);
+  color: var(--sai-u3rw3o3e-fg, #121212);
+  box-sizing: border-box;
+  animation: sai-u3rw3o3e-overlay-in 220ms ease forwards;
+}
+
+.sai-u3rw3o3e__modal-overlay[data-closing="true"] {
+  animation: sai-u3rw3o3e-overlay-out 220ms ease forwards;
+  pointer-events: none;
+}
+
+.sai-u3rw3o3e__modal-overlay *,
+.sai-u3rw3o3e__modal-overlay *::before,
+.sai-u3rw3o3e__modal-overlay *::after {
+  box-sizing: border-box;
+}
+
+body.sai-u3rw3o3e-modal-open {
+  overflow: hidden;
+}
+
+@keyframes sai-u3rw3o3e-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes sai-u3rw3o3e-overlay-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes sai-u3rw3o3e-card-in {
+  from {
+    transform: translateY(100vh);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes sai-u3rw3o3e-card-out {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(100vh);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sai-u3rw3o3e__modal-overlay,
+  .sai-u3rw3o3e__modal-overlay[data-closing="true"],
+  .sai-u3rw3o3e__modal-card,
+  .sai-u3rw3o3e__modal-overlay[data-closing="true"] .sai-u3rw3o3e__modal-card {
+    animation-duration: 1ms !important;
+  }
+}
+
+.sai-u3rw3o3e__modal-card {
+  background: var(--sai-u3rw3o3e-modal-card-bg, #ffffff);
+  border-radius: 16px;
+  inline-size: 100%;
+  max-inline-size: 34rem;
+  max-block-size: calc(100vh - 2rem);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1.5rem;
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.3);
+  animation: sai-u3rw3o3e-card-in 320ms cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+  will-change: transform;
+}
+
+.sai-u3rw3o3e__modal-overlay[data-closing="true"] .sai-u3rw3o3e__modal-card {
+  animation: sai-u3rw3o3e-card-out 260ms cubic-bezier(0.4, 0, 0.6, 1) forwards;
+}
+
+.sai-u3rw3o3e__modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: var(--sai-size-3);
+}
+
+.sai-u3rw3o3e__modal-title {
+  margin: 0;
+  font-family: var(--sai-font-heading, var(--sai-font-body, inherit));
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.sai-u3rw3o3e__modal-close {
+  appearance: none;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  padding: 0.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sai-u3rw3o3e__modal-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.sai-u3rw3o3e__modal-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.sai-u3rw3o3e__modal-group-label {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--sai-u3rw3o3e-fg, #121212);
+}
+
+.sai-u3rw3o3e__modal-group-label [data-group-current] {
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.65);
+}
+
+.sai-u3rw3o3e__modal-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+}
+
+.sai-u3rw3o3e__pill {
+  appearance: none;
+  border: 1px solid var(--sai-u3rw3o3e-card-border, rgba(0, 0, 0, 0.12));
+  background: var(--sai-u3rw3o3e-pill-bg, #ededed);
+  color: var(--sai-u3rw3o3e-pill-fg, #121212);
+  border-radius: 999px;
+  padding: 0.625rem 1.125rem;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.125rem;
+  min-inline-size: 5.5rem;
+  line-height: 1.2;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.sai-u3rw3o3e__pill[data-selected="true"] {
+  background: var(--sai-u3rw3o3e-pill-selected-bg, #121212);
+  color: var(--sai-u3rw3o3e-pill-selected-fg, #ffffff);
+  border-color: var(--sai-u3rw3o3e-pill-selected-bg, #121212);
+}
+
+.sai-u3rw3o3e__pill[data-unavailable="true"] {
+  cursor: not-allowed;
+  color: var(--sai-u3rw3o3e-pill-disabled-fg, rgba(0, 0, 0, 0.45));
+}
+
+.sai-u3rw3o3e__pill[data-unavailable="true"] .sai-u3rw3o3e__pill-value,
+.sai-u3rw3o3e__pill[data-unavailable="true"] .sai-u3rw3o3e__pill-price {
+  text-decoration: line-through;
+}
+
+.sai-u3rw3o3e__pill-value {
+  font-weight: var(--sai-font-body-weight-bold, 600);
+}
+
+.sai-u3rw3o3e__pill-price {
+  font-size: 0.8125rem;
+  opacity: 0.85;
+}
+
+.sai-u3rw3o3e__modal-stock {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--sai-u3rw3o3e-low-stock-fg, #d24207);
+  padding-block-start: 0.5rem;
+  border-block-start: 1px solid var(--sai-u3rw3o3e-card-border, rgba(0, 0, 0, 0.1));
+}
+
+.sai-u3rw3o3e__modal-stock[hidden] {
+  display: none;
+}
+
+.sai-u3rw3o3e__modal-done {
+  appearance: none;
+  background: var(--sai-u3rw3o3e-done-bg, #121212);
+  color: var(--sai-u3rw3o3e-done-fg, #ffffff);
+  border: none;
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+}
+
+/* Phase B/C additions: description, off-badge */
+.sai-u3rw3o3e__description {
+  margin: 0 0 var(--sai-size-4, 16px) 0;
+  font-size: 0.875rem;
+  color: rgba(0, 0, 0, 0.65);
+  line-height: 1.4;
+}
+
+.sai-u3rw3o3e__off-badge {
+  display: inline-block;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  background: var(--sai-u3rw3o3e-discount-bg, #f5b013);
+  color: var(--sai-u3rw3o3e-discount-fg, #121212);
+  font-size: 0.75rem;
+  font-weight: 700;
+  margin-inline-start: 0.25rem;
+}
+
+/* Hide the entire checkbox cell when the main product is locked. */
+.sai-u3rw3o3e__checkbox--locked {
+  display: none !important;
+}
+/* ======= SPECTRUM_AI_SNIPPET_CSS:END id=u3rw3o3e ======= */

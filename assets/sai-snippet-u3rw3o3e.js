@@ -73,9 +73,7 @@
   // Variant whose options exactly match `tuple`.
   function findVariantByTuple(product, tuple) {
     return (
-      product.variants.find((v) =>
-        (v.options || []).every((val, i) => val === tuple[i]),
-      ) || null
+      product.variants.find((v) => (v.options || []).every((val, i) => val === tuple[i])) || null
     )
   }
 
@@ -312,14 +310,16 @@
 
           this._track(`${FEATURE_SLUG}:added_to_cart`, { item_count: items.length })
 
+          // Notify the theme — many themes listen for either of these to open
+          // their cart drawer / refresh the line items. We do NOT navigate to
+          // /cart as a fallback because the "drawer is open" signal varies by
+          // theme (Dawn uses `cart-drawer.is-empty`, others use `drawer-open`,
+          // others nothing at all). A blanket class probe ends up navigating
+          // away on themes that simply don't expose drawer state in the DOM.
+          // Themes that want the legacy redirect can listen for `cart:build`
+          // and route to `/cart` themselves.
           window.dispatchEvent(new CustomEvent('cart:refresh'))
           document.dispatchEvent(new CustomEvent('cart:build'))
-
-          setTimeout(() => {
-            if (!document.body.classList.contains('drawer-open')) {
-              window.location.href = '/cart'
-            }
-          }, 600)
         } catch (err) {
           this._setError(err?.message || 'Could not add to cart')
           this._track(`${FEATURE_SLUG}:add_to_cart_failed`, {
