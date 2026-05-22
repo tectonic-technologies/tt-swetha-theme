@@ -297,6 +297,12 @@
   function formatSavings(d, mode, currency) {
     const v = d.discountValue || {}
     if (v.type === 'FREE_SHIPPING') return 'Save on shipping'
+    // FIXED discounts already render their value in the type label
+    // ("$50 OFF") — a "Save $50" pill underneath duplicates the number.
+    // Suppress so the card reads cleaner; PERCENTAGE + BXGY still get
+    // the callout because their type label ("20% Off" / "Buy X Get Y")
+    // doesn't carry the absolute amount.
+    if (v.type === 'FIXED') return null
     const fmt = moneyFormatter(v.currencyCode || currency)
     const pct =
       typeof v.percentage === 'number'
