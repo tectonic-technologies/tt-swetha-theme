@@ -611,21 +611,11 @@
   mask-composite: intersect;
 }
 
-/* Tear-off perforation drawn ON the card at the same Y as the side
- * cutouts. Pseudo-element rather than a real DOM divider so it stays a
- * pure presentation concern. The mask above clips it at the notches,
- * which is exactly the silhouette we want — line "enters" the left
- * cutout and "exits" the right. */
-.sai-c1mzmpkz__card::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: var(--sai-c1mzmpkz-card-tear-bottom);
-  height: 0;
-  border-top: 1px dashed var(--sai-c1mzmpkz-card-divider);
-  pointer-events: none;
-}
+/* Code row is pushed to a stable position from the card bottom so the
+ * tear-line above it lands at a known Y. margin-top: auto eats any
+ * leftover space between the description and the stub area, keeping
+ * the perforation visually anchored regardless of how much offer copy
+ * sits above. */
 
 /* Image-background mode: when the merchant supplies a card_background_url
  * the image already carries the ticket silhouette, perforation, stroke,
@@ -642,8 +632,8 @@
   -webkit-mask-image: none;
   mask-image: none;
 }
-.sai-c1mzmpkz--bg-image .sai-c1mzmpkz__card::after {
-  display: none;
+.sai-c1mzmpkz--bg-image .sai-c1mzmpkz__code-row {
+  border-top: 0;
 }
 
 .sai-c1mzmpkz__card--potential.sai-c1mzmpkz__card--treatment-greyed {
@@ -845,18 +835,23 @@
 
 
 
-/* Code row reads as part of the ticket stub — no border, no inner box,
- * transparent background. The tear-off perforation lives on the card's
- * ::after at the same Y as the side cutouts (see card rules above), so
- * the line passes through the row without belonging to it. */
+/* Code row is the ticket "stub" — pushed to the bottom of the card by
+ * margin-top: auto so the perforation above it always sits in the same
+ * place. Dashed border-top doubles as the tear-off line; it lives on
+ * the row (not on the card) so it always lands directly above the
+ * code, regardless of card height. The cutouts on the card edges
+ * approximate this Y — close enough on typical card heights to read
+ * as a continuous perforation. */
 .sai-c1mzmpkz__code-row {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  margin: 0;
-  padding: 0;
+  margin-top: auto;
+  padding-top: 0.6rem;
+  padding-bottom: 0.25rem;
   background: transparent;
   border: 0;
+  border-top: 1px dashed var(--sai-c1mzmpkz-card-divider, var(--sai-c1mzmpkz-code-border));
 }
 
 .sai-c1mzmpkz__code-label {
