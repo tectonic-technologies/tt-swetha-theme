@@ -12,9 +12,9 @@
 {%- endif -%}
 
 {%- if sai_state == 'draft' -%}
-  {%- assign sai_handle = 'spectrum_snippet_c1mzmpkz_hd8xy1hugd8sl767y1ze88q9_draft' -%}
+  {%- assign sai_handle = 'spectrum_snippet_cfj2c9hu_hd8xy1hugd8sl767y1ze88q9_draft' -%}
 {%- else -%}
-  {%- assign sai_handle = 'spectrum_snippet_c1mzmpkz_hd8xy1hugd8sl767y1ze88q9_live' -%}
+  {%- assign sai_handle = 'spectrum_snippet_cfj2c9hu_hd8xy1hugd8sl767y1ze88q9_live' -%}
 {%- endif -%}
 
 {%- assign sai_mo = metaobjects.spectrum_snippet_instance[sai_handle] -%}
@@ -43,7 +43,7 @@
     {
     "v":1,
     "instanceId":"hd8xy1hugd8sl767y1ze88q9",
-    "snippetId":"c1mzmpkz",
+    "snippetId":"cfj2c9hu",
     "experienceId":"019e0c42-e045-7c65-8974-0c57d9c8c4f9"
     ,"variants":{{ sai_mo.variants.value.variants | json }}
     ,"pools":{
@@ -56,9 +56,9 @@
       {%- if sai_v.css != blank -%}{{ sai_v.css }}{%- endif -%}
     {%- endfor -%}
     </style>
-    <div data-spectrum-instance-id="hd8xy1hugd8sl767y1ze88q9" data-spectrum-snippet-id="c1mzmpkz" data-spectrum-variant-id="{{ sai_default.variantId }}" data-spectrum-vis="{{ sai_vis }}" data-spectrum-lq-snippet="mut-hd8xy1hugd8sl767y1ze88q9" data-spectrum-experience="_system-196419092640" data-spectrum-feature-slug="pdp_promotions">
+    <div data-spectrum-instance-id="hd8xy1hugd8sl767y1ze88q9" data-spectrum-snippet-id="cfj2c9hu" data-spectrum-variant-id="{{ sai_default.variantId }}" data-spectrum-vis="{{ sai_vis }}" data-spectrum-lq-snippet="mut-hd8xy1hugd8sl767y1ze88q9" data-spectrum-experience="_system-196419092640" data-spectrum-feature-slug="pdp_promotions">
       <script type="application/json" data-spectrum-envelope>{{ sai_envelope | replace: '</script>', '<\/script>' }}</script>
-      {% render '_sai-snippet-c1mzmpkz', variant: sai_default, mo: sai_mo, mutation_handle: 'mut-hd8xy1hugd8sl767y1ze88q9', experience_handle: '_system-196419092640' %}
+      {% render '_sai-snippet-cfj2c9hu', variant: sai_default, mo: sai_mo, mutation_handle: 'mut-hd8xy1hugd8sl767y1ze88q9', experience_handle: '_system-196419092640' %}
     </div>
   {%- endif -%}
 {%- endif -%}
