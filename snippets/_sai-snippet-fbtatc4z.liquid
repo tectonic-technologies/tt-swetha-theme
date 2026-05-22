@@ -73,12 +73,15 @@
 .sai-fbtatc4z {
   display: block;
   box-sizing: border-box;
-  /* Use 100% so the widget shrinks to its parent column, capped at 26rem
-     so it stays compact when dropped in a wide slot. min-inline-size: 0
-     prevents grid/flex parents from inflating it to its content size. */
-  inline-size: 100%;
+  /* Width caps at 26rem OR parent-width-minus-2rem, whichever is smaller.
+     That guarantees ≥1rem of horizontal breathing room from the parent's
+     edges at every viewport (mobile, tablet, desktop sidebar) without ever
+     overflowing — combining `margin-inline: 1rem` with `inline-size: 100%`
+     would push the box past the parent by exactly 2rem. `margin-inline:
+     auto` then centers the box when the parent is wider than the cap. */
+  inline-size: auto;
   min-inline-size: 0;
-  max-inline-size: 26rem;
+  max-inline-size: min(26rem, calc(100% - 2rem));
   margin-inline: auto;
   margin-block: var(--sai-size-6);
   font-family: var(--sai-font-body);
@@ -90,11 +93,6 @@
   border-radius: var(--sai-fbtatc4z-card-radius);
   overflow: hidden;
 }
-
-/* No mobile margin-inline override — the widget always fills its parent
-   column with no outside horizontal margin. Adding `margin-inline` makes
-   the widget visually overflow when the parent is a constrained flex/grid
-   row whose track sizes from the widget's outer width. */
 
 .sai-fbtatc4z *,
 .sai-fbtatc4z *::before,
