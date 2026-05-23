@@ -153,7 +153,7 @@
   assign automatic_pill_label = content.automatic_pill_label | default: 'Applied at checkout'
 
   if content.show_type_label == nil
-    assign show_type_label = true
+    assign show_type_label = false
   else
     assign show_type_label = content.show_type_label
   endif
@@ -179,7 +179,7 @@
   assign savings_display_mode = content.savings_display_mode | default: 'absolute'
 
   if content.show_remaining_amount == nil
-    assign show_remaining_amount = true
+    assign show_remaining_amount = false
   else
     assign show_remaining_amount = content.show_remaining_amount
   endif
@@ -208,7 +208,31 @@
   endif
   assign coupon_icon_url = content.coupon_icon_url | default: ''
   assign card_icon_position = content.card_icon_position | default: 'left'
-  assign card_background_url = content.card_background_url | default: ''
+  # Reject quotes, parens, semicolons, backslashes, whitespace, or angle
+  # brackets in the URL. The value is interpolated into an inline
+  # `style="--var: url('…')"` attribute below; `| escape` only HTML-
+  # escapes, but the browser HTML-decodes attribute values before the CSS
+  # parser runs — so a quote in the URL can break out of the url() and
+  # inject arbitrary CSS. Drop the value rather than emit a broken /
+  # injectable rule.
+  assign card_background_url_raw = content.card_background_url | default: ''
+  # Fail-loud fallback: if any forbidden char survives, _bg_safe will
+  # differ from the raw value and we drop the URL entirely (no CSS rule
+  # emitted) — the merchant sees no image rather than fake success. No
+  # runtime warning needed; the placeholder URL in meta.json is
+  # char-safe so the happy path is preserved.
+  assign card_background_url = ''
+  if card_background_url_raw != blank
+    assign _bg_safe = card_background_url_raw
+    assign _bg_safe = _bg_safe | replace: '"', '' | replace: "'", ''
+    assign _bg_safe = _bg_safe | replace: '(', '' | replace: ')', ''
+    assign _bg_safe = _bg_safe | replace: ';', '' | replace: '\', ''
+    assign _bg_safe = _bg_safe | replace: '<', '' | replace: '>', ''
+    assign _bg_safe = _bg_safe | strip
+    if _bg_safe == card_background_url_raw
+      assign card_background_url = card_background_url_raw
+    endif
+  endif
 
   if content.show_min_order_threshold == nil
     assign show_min_order_threshold = false
@@ -395,9 +419,12 @@
   flex-basis: calc((100% - (var(--sai-c1mzmpkz-cards-visible) - 1) * var(--sai-c1mzmpkz-card-gap)) / (var(--sai-c1mzmpkz-cards-visible) + 0.25));
 }
 
-/* Desktop default: bump cards-visible to 2 so two cards sit side-by-side
- * on a typical PDP. Inline-style overrides still win — this only fires
- * if the merchant hasn't set --sai-c1mzmpkz-cards-visible explicitly. */
+/* Desktop default: two cards side-by-side on viewports ≥768px. Uses a
+ * separate variable (--sai-c1mzmpkz-cards-visible-desktop, defaulted to
+ * 2 on the host) so it doesn't fight the mobile inline-style at
+ * --sai-c1mzmpkz-cards-visible. Merchants override the desktop count by
+ * setting --sai-c1mzmpkz-cards-visible-desktop in theme CSS; the
+ * carousel_cards_visible prop only feeds the mobile var. */
 @media (min-width: 768px) {
   .sai-c1mzmpkz--carousel .sai-c1mzmpkz__card {
     flex-basis: calc(
@@ -1269,7 +1296,7 @@
   class="sai-c1mzmpkz sai-c1mzmpkz--{{ list_layout }}{% if carousel_show_peek and list_layout == 'carousel' %} sai-c1mzmpkz--peek{% endif %}{% if card_background_url != blank %} sai-c1mzmpkz--bg-image{% endif %}"
   data-sai-snippet-root="c1mzmpkz"
   data-mutation-handle="{{ mutation_handle }}"
-  style="--sai-c1mzmpkz-cards-mobile: {{ grid_columns_mobile }}; --sai-c1mzmpkz-cards-desktop: {{ grid_columns_desktop }}; --sai-c1mzmpkz-cards-visible: {{ carousel_cards_visible }}; --sai-c1mzmpkz-desc-lines: {{ description_max_lines }};{% if card_background_url != blank %} --sai-c1mzmpkz-card-bg-image: url('{{ card_background_url | escape }}');{% endif %}"
+  style="--sai-c1mzmpkz-cards-mobile: {{ grid_columns_mobile }}; --sai-c1mzmpkz-cards-desktop: {{ grid_columns_desktop }}; --sai-c1mzmpkz-cards-visible: {{ carousel_cards_visible }}; --sai-c1mzmpkz-desc-lines: {{ description_max_lines }};{% if card_background_url != blank %} --sai-c1mzmpkz-card-bg-image: url('{{ card_background_url | escape | replace: "'", "%27" }}');{% endif %}"
 >
   {%- if show_heading and heading != blank -%}
     <h2 class="sai-c1mzmpkz__heading" data-sai-heading>{{ heading | escape }}</h2>
