@@ -265,7 +265,7 @@
   --sai-c1mzmpkz-card-bg: #fcf9f1;
   --sai-c1mzmpkz-card-bg-muted: #fbf5e2;
   --sai-c1mzmpkz-card-border: #f7eac8;
-  --sai-c1mzmpkz-card-divider: rgba(0, 0, 0, 0.2);
+  --sai-c1mzmpkz-card-divider: #f0e2bf;
   --sai-c1mzmpkz-card-radius: 0.75rem;
   --sai-c1mzmpkz-card-pad: 0.875rem;
   /* Ticket cutouts — two pairs of semicircle "punches" on the left +
@@ -370,10 +370,6 @@
 .sai-c1mzmpkz__list {
   display: flex;
   gap: var(--sai-c1mzmpkz-card-gap);
-  /* Each card takes its natural height — the perforation + bottom-edge
-   * cutouts are pinned at a fixed Y from card bottom, and stretching to a
-   * uniform height pushes the dashed line away from short descriptions. */
-  align-items: flex-start;
 }
 
 .sai-c1mzmpkz--list .sai-c1mzmpkz__list,
@@ -679,6 +675,9 @@
   -webkit-mask-image: none;
   mask-image: none;
 }
+.sai-c1mzmpkz--bg-image .sai-c1mzmpkz__code-row {
+  border-top: 0;
+}
 
 .sai-c1mzmpkz__card--potential.sai-c1mzmpkz__card--treatment-greyed {
   opacity: 0.55;
@@ -885,21 +884,13 @@
  * code, regardless of card height. The cutouts on the card edges
  * approximate this Y — close enough on typical card heights to read
  * as a continuous perforation. */
-/* Code row sits at the natural end of the upper content. Carousel cards
- * are natural-height (no stretch), so the row's dashed border-top lands
- * snug below the description rather than floating in empty space, and
- * the bottom-edge cutouts (pinned to a constant Y from card bottom)
- * still sit at the perforation height for the same reason. */
 .sai-c1mzmpkz__code-row {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  /* Override the card's flex gap above the row so the dashed line lands
-   * almost directly under the description. The padding below the line
-   * gives the code/pill its breathing room. */
-  margin-top: -0.25rem;
-  padding-top: 0.65rem;
-  padding-bottom: 0.35rem;
+  margin-top: auto;
+  padding-top: 0.6rem;
+  padding-bottom: 0.25rem;
   background: transparent;
   border: 0;
   border-top: 1px dashed var(--sai-c1mzmpkz-card-divider, var(--sai-c1mzmpkz-code-border));
