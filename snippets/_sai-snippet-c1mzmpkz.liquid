@@ -670,14 +670,13 @@
   background-image: var(--sai-c1mzmpkz-card-bg-image);
   background-repeat: no-repeat;
   background-position: center;
-  background-size: 100% 100%;
+  /* Scale the image up so internal SVG padding (transparent margin
+   * around the drawn frame) is cropped out — the visible artwork
+   * fills the card edges instead of floating inside them. */
+  background-size: cover;
   box-shadow: none;
   -webkit-mask-image: none;
   mask-image: none;
-  /* BG images typically draw the visual frame inset from the SVG box.
-   * Bump padding so card content sits inside the drawn frame rather
-   * than bleeding over the transparent SVG margins. */
-  padding: 1.75rem 2rem;
 }
 .sai-c1mzmpkz--bg-image .sai-c1mzmpkz__code-row {
   border-top: 0;
