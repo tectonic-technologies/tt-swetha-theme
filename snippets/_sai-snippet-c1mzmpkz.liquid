@@ -674,6 +674,10 @@
   box-shadow: none;
   -webkit-mask-image: none;
   mask-image: none;
+  /* BG images typically draw the visual frame inset from the SVG box.
+   * Bump padding so card content sits inside the drawn frame rather
+   * than bleeding over the transparent SVG margins. */
+  padding: 1.75rem 2rem;
 }
 .sai-c1mzmpkz--bg-image .sai-c1mzmpkz__code-row {
   border-top: 0;
