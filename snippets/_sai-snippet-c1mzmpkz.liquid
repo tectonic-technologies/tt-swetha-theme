@@ -370,6 +370,10 @@
 .sai-c1mzmpkz__list {
   display: flex;
   gap: var(--sai-c1mzmpkz-card-gap);
+  /* Each card takes its natural height — the perforation + bottom-edge
+   * cutouts are pinned at a fixed Y from card bottom, and stretching to a
+   * uniform height pushes the dashed line away from short descriptions. */
+  align-items: flex-start;
 }
 
 .sai-c1mzmpkz--list .sai-c1mzmpkz__list,
@@ -884,13 +888,17 @@
  * code, regardless of card height. The cutouts on the card edges
  * approximate this Y — close enough on typical card heights to read
  * as a continuous perforation. */
+/* Code row sits at the natural end of the upper content. Carousel cards
+ * are natural-height (no stretch), so the row's dashed border-top lands
+ * snug below the description rather than floating in empty space, and
+ * the bottom-edge cutouts (pinned to a constant Y from card bottom)
+ * still sit at the perforation height for the same reason. */
 .sai-c1mzmpkz__code-row {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  margin-top: auto;
-  padding-top: 0.6rem;
-  padding-bottom: 0.25rem;
+  padding-top: 0.95rem;
+  padding-bottom: 0.35rem;
   background: transparent;
   border: 0;
   border-top: 1px dashed var(--sai-c1mzmpkz-card-divider, var(--sai-c1mzmpkz-code-border));
