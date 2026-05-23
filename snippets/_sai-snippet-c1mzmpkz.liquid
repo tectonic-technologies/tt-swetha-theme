@@ -679,6 +679,14 @@
   border-top: 0;
 }
 
+/* BG-image cards have no ticket cutouts / perforation to frame the
+ * stub area, so the carousel-stretch + margin-top:auto whitespace
+ * reads as broken. Scope auto-height to bg-image mode only — ticket
+ * cards keep their uniform-height behaviour. */
+.sai-c1mzmpkz--bg-image .sai-c1mzmpkz__list {
+  align-items: flex-start;
+}
+
 .sai-c1mzmpkz__card--potential.sai-c1mzmpkz__card--treatment-greyed {
   opacity: 0.55;
   filter: grayscale(0.3);
