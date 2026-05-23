@@ -153,7 +153,7 @@
   assign automatic_pill_label = content.automatic_pill_label | default: 'Applied at checkout'
 
   if content.show_type_label == nil
-    assign show_type_label = false
+    assign show_type_label = true
   else
     assign show_type_label = content.show_type_label
   endif
@@ -172,7 +172,7 @@
   endif
 
   if content.show_savings_callout == nil
-    assign show_savings_callout = true
+    assign show_savings_callout = false
   else
     assign show_savings_callout = content.show_savings_callout
   endif
