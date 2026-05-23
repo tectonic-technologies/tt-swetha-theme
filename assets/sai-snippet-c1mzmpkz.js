@@ -548,11 +548,17 @@
       body.appendChild(row)
     }
 
-    // CTA — automatic pill OR near-miss-replace-cta
+    // CTA — automatic pill OR near-miss-replace-cta. The pill mirrors the
+    // ticket-stub slot manual cards use for code+copy, so it sits below the
+    // perforation tear-line at the bottom of the card.
     if (isAutomatic) {
-      body.appendChild(el('span', 'sai-c1mzmpkz__card-cta', { text: labels.automaticPillLabel }))
+      const ctaRow = el('div', 'sai-c1mzmpkz__code-row sai-c1mzmpkz__code-row--automatic')
+      ctaRow.appendChild(el('span', 'sai-c1mzmpkz__card-cta', { text: labels.automaticPillLabel }))
+      body.appendChild(ctaRow)
     } else if (remainingText && config.nearMissPosition === 'replace_cta') {
-      body.appendChild(el('span', 'sai-c1mzmpkz__card-cta', { text: remainingText }))
+      const ctaRow = el('div', 'sai-c1mzmpkz__code-row sai-c1mzmpkz__code-row--near-miss')
+      ctaRow.appendChild(el('span', 'sai-c1mzmpkz__card-cta', { text: remainingText }))
+      body.appendChild(ctaRow)
     }
 
     // Standalone Terms & Conditions link — always rendered on its own

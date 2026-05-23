@@ -896,6 +896,17 @@
   border-top: 1px dashed var(--sai-c1mzmpkz-card-divider, var(--sai-c1mzmpkz-code-border));
 }
 
+/* Automatic / near-miss rows have no code chip — just the pill. Drop the
+ * label gap so the pill aligns left at the same X as the manual CODE label. */
+.sai-c1mzmpkz__code-row--automatic,
+.sai-c1mzmpkz__code-row--near-miss {
+  gap: 0;
+}
+.sai-c1mzmpkz__code-row--automatic .sai-c1mzmpkz__card-cta,
+.sai-c1mzmpkz__code-row--near-miss .sai-c1mzmpkz__card-cta {
+  margin-top: 0;
+}
+
 .sai-c1mzmpkz__code-label {
   font-size: 0.75rem;
   color: var(--sai-c1mzmpkz-muted-fg);
