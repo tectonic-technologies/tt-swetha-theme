@@ -234,6 +234,16 @@
     endif
   endif
 
+  # Map merchant-friendly sizing key to a CSS background-size value.
+  # Closed enum: anything outside the allowed set falls back to cover.
+  assign card_background_size_raw = content.card_background_size | default: 'cover'
+  assign card_background_size = 'cover'
+  if card_background_size_raw == 'contain'
+    assign card_background_size = 'contain'
+  elsif card_background_size_raw == 'stretch'
+    assign card_background_size = '100% 100%'
+  endif
+
   if content.show_min_order_threshold == nil
     assign show_min_order_threshold = false
   else
@@ -670,10 +680,10 @@
   background-image: var(--sai-c1mzmpkz-card-bg-image);
   background-repeat: no-repeat;
   background-position: center;
-  /* Scale the image up so internal SVG padding (transparent margin
-   * around the drawn frame) is cropped out — the visible artwork
-   * fills the card edges instead of floating inside them. */
-  background-size: cover;
+  /* Merchant controls fit via the Card background — sizing prop.
+   * Default `cover` crops the image to fill card edges; `contain`
+   * leaves space at edges; `100% 100%` stretches and may distort. */
+  background-size: var(--sai-c1mzmpkz-card-bg-size, cover);
   box-shadow: none;
   -webkit-mask-image: none;
   mask-image: none;
@@ -1318,7 +1328,7 @@
   class="sai-c1mzmpkz sai-c1mzmpkz--{{ list_layout }}{% if carousel_show_peek and list_layout == 'carousel' %} sai-c1mzmpkz--peek{% endif %}{% if card_background_url != blank %} sai-c1mzmpkz--bg-image{% endif %}"
   data-sai-snippet-root="c1mzmpkz"
   data-mutation-handle="{{ mutation_handle }}"
-  style="--sai-c1mzmpkz-cards-mobile: {{ grid_columns_mobile }}; --sai-c1mzmpkz-cards-desktop: {{ grid_columns_desktop }}; --sai-c1mzmpkz-cards-visible: {{ carousel_cards_visible }}; --sai-c1mzmpkz-desc-lines: {{ description_max_lines }};{% if card_background_url != blank %} --sai-c1mzmpkz-card-bg-image: url('{{ card_background_url | escape | replace: "'", "%27" }}');{% endif %}"
+  style="--sai-c1mzmpkz-cards-mobile: {{ grid_columns_mobile }}; --sai-c1mzmpkz-cards-desktop: {{ grid_columns_desktop }}; --sai-c1mzmpkz-cards-visible: {{ carousel_cards_visible }}; --sai-c1mzmpkz-desc-lines: {{ description_max_lines }};{% if card_background_url != blank %} --sai-c1mzmpkz-card-bg-image: url('{{ card_background_url | escape | replace: "'", "%27" }}'); --sai-c1mzmpkz-card-bg-size: {{ card_background_size }};{% endif %}"
 >
   {%- if show_heading and heading != blank -%}
     <h2 class="sai-c1mzmpkz__heading" data-sai-heading>{{ heading | escape }}</h2>
