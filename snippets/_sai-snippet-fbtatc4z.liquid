@@ -196,6 +196,12 @@
 .sai-fbtatc4z__media {
   display: block;
   inline-size: var(--sai-fbtatc4z-image-size);
+  /* block-size: auto is the default, but stating it here makes the
+     contract explicit: the box's height is driven by the inline
+     `aspect-ratio` style emitted from the image_aspect_ratio prop.
+     Setting a fixed block-size here would override aspect-ratio and
+     trap the box at a square regardless of the prop. */
+  block-size: auto;
   border-radius: 8px;
   overflow: hidden;
   background: rgba(0, 0, 0, 0.04);
@@ -606,15 +612,33 @@
         </a>
         <div class="sai-fbtatc4z__body">
           <a class="sai-fbtatc4z__title" href="{{ r.url }}">{{ r.title }}</a>
+          {%- comment -%}
+            Compare-at + off-badge are always SSR'd (when their respective
+            props are enabled) so `_commitModal` can flip their `hidden`
+            attribute when the shopper picks a variant whose compare_at_price
+            differs from the first-available variant. If we omit the nodes
+            here, querySelector returns null in JS and the variant-swap
+            silently fails to surface the new discount on non-discount →
+            discount transitions.
+          {%- endcomment -%}
+          {%- if show_compare_price and r.compare_at_price and r.compare_at_price > r.price -%}
+            {%- assign _has_compare = true -%}
+            {%- assign _off_amount = r.compare_at_price | minus: r.price -%}
+            {%- assign _off_pct = _off_amount | times: 100 | divided_by: r.compare_at_price -%}
+          {%- else -%}
+            {%- assign _has_compare = false -%}
+          {%- endif -%}
           <div class="sai-fbtatc4z__price-row">
             <span class="sai-fbtatc4z__price">{{ r.price | money }}</span>
-            {%- if show_compare_price and r.compare_at_price and r.compare_at_price > r.price -%}
-              <span class="sai-fbtatc4z__compare">{{ r.compare_at_price | money }}</span>
-              {%- if show_discount_badge -%}
-                {%- assign p_off_amount = r.compare_at_price | minus: r.price -%}
-                {%- assign p_off_pct = p_off_amount | times: 100 | divided_by: r.compare_at_price -%}
-                <span class="sai-fbtatc4z__off-badge">{{ p_off_pct }}% OFF</span>
-              {%- endif -%}
+            {%- if show_compare_price -%}
+              <span class="sai-fbtatc4z__compare"{% unless _has_compare %} hidden{% endunless %}>
+                {%- if _has_compare -%}{{ r.compare_at_price | money }}{%- endif -%}
+              </span>
+            {%- endif -%}
+            {%- if show_discount_badge -%}
+              <span class="sai-fbtatc4z__off-badge"{% unless _has_compare %} hidden{% endunless %}>
+                {%- if _has_compare -%}{{ _off_pct }}% OFF{%- endif -%}
+              </span>
             {%- endif -%}
           </div>
           {%- if r.variants.size > 1 -%}

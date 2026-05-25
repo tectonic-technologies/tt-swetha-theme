@@ -554,25 +554,60 @@
     customElements.define(TAG, SaiFbtAtcWidget)
   }
 
-  // Bind analytics once the spectrum bridge appears. The bridge is async;
-  // hydrate every host in the page that hasn't already been wired.
-  function bindAllContainers(track, emit) {
-    for (const el of document.querySelectorAll(TAG)) {
-      if (typeof el.setAnalytics === 'function') el.setAnalytics(track, emit)
+  // ── Bind to Spectrum analytics envelope ────────────────────────────────
+  // `__spectrumAi.snippet.bind(node, callback)` is the canonical entrypoint —
+  // it returns track/emit handles pre-bound to the standard envelope
+  // (snippet_id, snippet_instance_id, experience_id, experience_handle,
+  // experience_variant_id, page_context). Without going through bind() the
+  // events fire without that envelope and the funnel pairing breaks.
+  // Callback is a no-op here — fbtatc4z's payload is server-baked from the
+  // SlotEnvelope, no variant-driven re-render to handle.
+  function bindContainer(node) {
+    const api = window.__spectrumAi?.snippet
+    const root = node.querySelector(TAG)
+    if (!root) return
+    if (!api?.bind) return
+    const handles = api.bind(node, () => {})
+    if (handles && typeof root.setAnalytics === 'function') {
+      root.setAnalytics(handles.track, handles.emit)
     }
   }
 
-  const ai = window.__spectrumAi
-  if (ai && typeof ai.track === 'function') {
-    bindAllContainers(ai.track, ai.emit)
-  } else {
-    window.addEventListener(
-      '__spectrumAi:ready',
-      () => {
-        const a = window.__spectrumAi
-        if (a && typeof a.track === 'function') bindAllContainers(a.track, a.emit)
-      },
-      { once: true },
+  // Snippet library JS contract: read data-spectrum-vis before any meaningful
+  // work. Live wrappers SSR with vis="off" — bootstrap flips to "on" only
+  // when the owning experience wins targeting + conflict resolution. Draft
+  // (editor preview) wrappers SSR with vis="on" directly. Wrappers that
+  // never emit the attribute at all (e.g. legacy themes pre-vis-gate) are
+  // treated as visible.
+  function waitForVis(node) {
+    const wrapper = node.closest('[data-spectrum-lq-snippet]') || node
+    if (
+      !wrapper ||
+      wrapper.getAttribute('data-spectrum-vis') === 'on' ||
+      !wrapper.hasAttribute('data-spectrum-vis')
+    ) {
+      bindContainer(node)
+      return
+    }
+    const observer = new MutationObserver(() => {
+      if (wrapper.getAttribute('data-spectrum-vis') === 'on') {
+        observer.disconnect()
+        bindContainer(node)
+      }
+    })
+    observer.observe(wrapper, { attributes: true, attributeFilter: ['data-spectrum-vis'] })
+  }
+
+  function bootAll() {
+    const containers = document.querySelectorAll(
+      `[data-spectrum-instance-id][data-spectrum-snippet-id="${SNIPPET_ID}"]`,
     )
+    for (const node of containers) waitForVis(node)
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootAll, { once: true })
+  } else {
+    bootAll()
   }
 })()
