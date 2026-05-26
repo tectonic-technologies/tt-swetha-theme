@@ -129,6 +129,18 @@
   list-style: none;
 }
 
+/* "Product on this page" label above the main product card. Sits outside
+   the dashed-divider chain (the divider rule is `__card + __card`), so
+   it doesn't introduce a divider above the main card. */
+.sai-fbtatc4z__list-section-header {
+  padding: var(--sai-size-3) var(--sai-size-5) 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--sai-fbtatc4z-muted-fg);
+}
+
 /* Horizontal padding lives on the cards (not the list) so the dashed
    between-card dividers extend edge-to-edge, matching the header band's
    bottom border. List flex-gap is intentionally 0 — the dashed top-border
@@ -268,6 +280,16 @@
   font-weight: 600;
   line-height: 1;
   border-radius: 4px;
+}
+
+/* Author `display` rules above override the UA `[hidden]` rule (which is
+   only at user-agent specificity), so `<span hidden>` would still render
+   an empty green pill / strike-through span. Re-assert `display: none`
+   at author specificity for the badge + compare placeholders that the
+   variant-picker toggles. */
+.sai-fbtatc4z__off-badge[hidden],
+.sai-fbtatc4z__compare[hidden] {
+  display: none;
 }
 
 .sai-fbtatc4z__cta {
@@ -526,6 +548,10 @@
 {%- assign subtitle             = content.subtitle             | default: '' | escape -%}
 {%- assign cta_label            = content.cta_label            | default: '+ ADD' | escape -%}
 {%- assign variant_modal_title  = content.variant_modal_title  | default: 'Choose variant' | escape -%}
+{%- assign main_product_label   = content.main_product_label   | default: 'Product on this page' | escape -%}
+
+{%- assign show_main_product = content.show_main_product -%}
+{%- if show_main_product == nil -%}{%- assign show_main_product = false -%}{%- endif -%}
 
 {%- assign show_compare_price = content.show_compare_price -%}
 {%- if show_compare_price == nil -%}{%- assign show_compare_price = true -%}{%- endif -%}
@@ -578,8 +604,13 @@
   {%- endfor -%}
 {%- endif -%}
 
-{%- if resolved_count == 0 -%}
-  {%- comment -%} no recos — collapse widget; do not emit the script tag {%- endcomment -%}
+{%- comment -%}
+  Collapse the whole widget when there's nothing to render — that's BOTH
+  no resolved recommendations AND the merchant hasn't opted to include the
+  main product card.
+{%- endcomment -%}
+{%- if resolved_count == 0 and show_main_product != true -%}
+  {%- comment -%} nothing to render — skip script tag + host element {%- endcomment -%}
 {%- else -%}
 
 <script src="{{ 'sai-snippet-fbtatc4z.js' | asset_url }}" async></script>
@@ -593,6 +624,70 @@
   </div>
 
   <ul class="sai-fbtatc4z__list">
+    {%- if show_main_product -%}
+      <li class="sai-fbtatc4z__list-section-header" aria-hidden="true">{{ main_product_label }}</li>
+      {%- assign mv = product.selected_or_first_available_variant -%}
+      {%- if show_compare_price and product.compare_at_price and product.compare_at_price > product.price -%}
+        {%- assign _m_has_compare = true -%}
+        {%- assign _m_off_amount = product.compare_at_price | minus: product.price -%}
+        {%- assign _m_off_pct = _m_off_amount | times: 100 | divided_by: product.compare_at_price -%}
+      {%- else -%}
+        {%- assign _m_has_compare = false -%}
+      {%- endif -%}
+      <li class="sai-fbtatc4z__card sai-fbtatc4z__card--main" data-product-id="{{ product.id }}">
+        <a class="sai-fbtatc4z__media" href="{{ product.url }}" style="{{ media_style }}" tabindex="-1" aria-hidden="true">
+          {%- if product.featured_image -%}
+            <img
+              class="sai-fbtatc4z__image"
+              src="{{ product.featured_image | image_url: width: 320 }}"
+              alt="{{ product.featured_image.alt | default: product.title | escape }}"
+              style="{{ image_style }}"
+              loading="lazy"
+            >
+          {%- endif -%}
+        </a>
+        <div class="sai-fbtatc4z__body">
+          <a class="sai-fbtatc4z__title" href="{{ product.url }}">{{ product.title }}</a>
+          <div class="sai-fbtatc4z__price-row">
+            <span class="sai-fbtatc4z__price">{{ product.price | money }}</span>
+            {%- if show_compare_price -%}
+              <span class="sai-fbtatc4z__compare"{% unless _m_has_compare %} hidden{% endunless %}>
+                {%- if _m_has_compare -%}{{ product.compare_at_price | money }}{%- endif -%}
+              </span>
+            {%- endif -%}
+            {%- if show_discount_badge -%}
+              <span class="sai-fbtatc4z__off-badge"{% unless _m_has_compare %} hidden{% endunless %}>
+                {%- if _m_has_compare -%}{{ _m_off_pct }}% OFF{%- endif -%}
+              </span>
+            {%- endif -%}
+          </div>
+          {%- if product.variants.size > 1 -%}
+            <button type="button" class="sai-fbtatc4z__variant-trigger" data-variant-trigger aria-haspopup="dialog">
+              <span class="sai-fbtatc4z__variant-label">{{ mv.title }}</span>
+              <svg class="sai-fbtatc4z__variant-chevron" viewBox="0 0 14 14" fill="none" focusable="false" aria-hidden="true">
+                <path d="M3 5L7 9L11 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          {%- endif -%}
+        </div>
+        <button
+          type="button"
+          class="sai-fbtatc4z__cta"
+          data-fbtatc-cta
+          data-product-id="{{ product.id }}"
+          data-variant-id="{{ mv.id }}"
+          {%- unless mv.available %} disabled aria-disabled="true"{%- endunless -%}
+        >
+          <span data-fbtatc-cta-label>{{ cta_label }}</span>
+          <span class="sai-fbtatc4z__loader" data-fbtatc-loader hidden aria-hidden="true">
+            <svg class="sai-fbtatc4z__spinner" viewBox="0 0 24 24" fill="none" focusable="false">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-opacity="0.25" stroke-width="3"/>
+              <path d="M22 12a10 10 0 0 0-10-10" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+            </svg>
+          </span>
+        </button>
+      </li>
+    {%- endif -%}
     {%- for handle in fbt_handles -%}
       {%- if handle == product.handle -%}{%- continue -%}{%- endif -%}
       {%- assign r = all_products[handle] -%}
@@ -686,6 +781,32 @@
   "variantModalTitle": {{ variant_modal_title | json }},
   "products": [
     {%- assign first_product = true -%}
+    {%- if show_main_product -%}
+      {%- assign first_product = false -%}
+      {
+        "id": {{ product.id | json }},
+        "title": {{ product.title | json }},
+        "url": {{ product.url | json }},
+        "variantId": {{ product.selected_or_first_available_variant.id | json }},
+        "price": {{ product.price | json }},
+        "compareAtPrice": {{ product.compare_at_price | json }},
+        "available": {{ product.available | json }},
+        "options": {{ product.options | json }},
+        "variants": [
+          {%- for v in product.variants -%}
+            {%- unless forloop.first -%},{%- endunless -%}
+            {
+              "id": {{ v.id | json }},
+              "title": {{ v.title | json }},
+              "price": {{ v.price | json }},
+              "compareAtPrice": {{ v.compare_at_price | json }},
+              "available": {{ v.available | json }},
+              "options": {{ v.options | json }}
+            }
+          {%- endfor -%}
+        ]
+      }
+    {%- endif -%}
     {%- for handle in fbt_handles -%}
       {%- if handle == product.handle -%}{%- continue -%}{%- endif -%}
       {%- assign r = all_products[handle] -%}
