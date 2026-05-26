@@ -350,6 +350,39 @@
   animation: sai-fbtatc4z-spin 0.8s linear infinite;
 }
 
+/* Variant trigger pill rendered below the product title in `below_title`
+   mode. Click opens the quickshop. Hidden in `on_atc` mode (the +ADD
+   button is the picker trigger there). */
+.sai-fbtatc4z__variant-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  align-self: flex-start;
+  margin-block-start: 0.375rem;
+  padding: 0.5rem 0.875rem;
+  background: transparent;
+  color: var(--sai-fbtatc4z-fg);
+  border: 1px solid rgba(0, 0, 0, 0.24);
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.sai-fbtatc4z__variant-trigger:hover {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.4);
+}
+
+.sai-fbtatc4z__variant-chevron {
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+  flex-shrink: 0;
+}
+
 .sai-fbtatc4z__error {
   margin: var(--sai-size-3) var(--sai-size-5) var(--sai-size-5);
   padding: 0.5rem 0.75rem;
@@ -552,6 +585,10 @@
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
+  /* center text inside the pill — without justify-content the inner
+     <span> packs to flex-start and characters like "S" sit off-center
+     on text-only pills. */
+  justify-content: center;
   gap: 8px;
   min-inline-size: 64px;
   padding: 10px 14px;
@@ -580,8 +617,14 @@
   padding: 9px 13px;
 }
 
-.sai-fbtatc4z__quickshop-pill--oos {
-  opacity: 0.45;
+/* OOS pills get an explicit grey background + strike-through so the
+   unavailable state reads regardless of theme contrast. Opacity stays
+   moderate so the text is still legible. */
+.sai-fbtatc4z__quickshop-pill--oos,
+.sai-fbtatc4z__quickshop-pill--oos:hover {
+  background: #f1f3f6;
+  border-color: rgba(0, 0, 0, 0.12);
+  color: rgba(0, 0, 0, 0.5);
   text-decoration: line-through;
   cursor: not-allowed;
 }
@@ -671,6 +714,11 @@
 
 {%- assign show_main_product = content.show_main_product -%}
 {%- if show_main_product == nil -%}{%- assign show_main_product = false -%}{%- endif -%}
+
+{%- assign variant_selector_mode = content.variant_selector_mode -%}
+{%- if variant_selector_mode != 'below_title' and variant_selector_mode != 'on_atc' -%}
+  {%- assign variant_selector_mode = 'below_title' -%}
+{%- endif -%}
 
 {%- assign show_compare_price = content.show_compare_price -%}
 {%- if show_compare_price == nil -%}{%- assign show_compare_price = true -%}{%- endif -%}
@@ -780,6 +828,14 @@
               </span>
             {%- endif -%}
           </div>
+          {%- if variant_selector_mode == 'below_title' and product.variants.size > 1 -%}
+            <button type="button" class="sai-fbtatc4z__variant-trigger" data-variant-trigger aria-haspopup="dialog">
+              <span class="sai-fbtatc4z__variant-label">{{ mv.title }}</span>
+              <svg class="sai-fbtatc4z__variant-chevron" viewBox="0 0 14 14" fill="none" focusable="false" aria-hidden="true">
+                <path d="M3 5L7 9L11 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          {%- endif -%}
         </div>
         <button
           type="button"
@@ -847,6 +903,14 @@
               </span>
             {%- endif -%}
           </div>
+          {%- if variant_selector_mode == 'below_title' and r.variants.size > 1 -%}
+            <button type="button" class="sai-fbtatc4z__variant-trigger" data-variant-trigger aria-haspopup="dialog">
+              <span class="sai-fbtatc4z__variant-label">{{ rv.title }}</span>
+              <svg class="sai-fbtatc4z__variant-chevron" viewBox="0 0 14 14" fill="none" focusable="false" aria-hidden="true">
+                <path d="M3 5L7 9L11 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          {%- endif -%}
         </div>
         <button
           type="button"
@@ -882,6 +946,7 @@
   "afterAddAction": {{ after_add_action | json }},
   "ctaLabel": {{ cta_label | json }},
   "variantModalTitle": {{ variant_modal_title | json }},
+  "variantSelectorMode": {{ variant_selector_mode | json }},
   "products": [
     {%- assign first_product = true -%}
     {%- if show_main_product -%}

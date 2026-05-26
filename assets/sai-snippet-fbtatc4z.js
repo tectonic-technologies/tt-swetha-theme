@@ -230,17 +230,34 @@
     }
 
     _onClick(evt) {
+      // Below-title pill click → open the quickshop. The pill only exists
+      // when variant_selector_mode == 'below_title' AND the product has >1
+      // variant (Liquid gates the markup).
+      const trigger = evt.target.closest('[data-variant-trigger]')
+      if (trigger && this.contains(trigger)) {
+        evt.preventDefault()
+        const card = trigger.closest('[data-product-id]')
+        if (!card) return
+        const cardCta = card.querySelector('[data-fbtatc-cta]')
+        this._openQuickshop(card.dataset.productId, cardCta)
+        return
+      }
+
       const button = evt.target.closest('[data-fbtatc-cta]')
       if (!button || !this.contains(button)) return
       evt.preventDefault()
       if (button.disabled || button.getAttribute('aria-disabled') === 'true') return
       const productId = button.dataset.productId
       const product = this._productsById.get(String(productId))
-      // Multi-variant ATC opens the mini-PDP / quickshop so the shopper can
-      // pick a variant in-context. Single-variant ATC adds directly. The
-      // modal's own ATC button funnels back through `_addToCart` with the
-      // committed variant id.
-      if (product && isMeaningfulOptionSet(product) && (product.variants?.length || 0) > 1) {
+      const multiVariant =
+        product && isMeaningfulOptionSet(product) && (product.variants?.length || 0) > 1
+
+      // In `on_atc` mode, +ADD on a multi-variant product opens the
+      // quickshop. In `below_title` mode the picker is the dedicated pill
+      // above — +ADD just adds the currently-selected variant directly so
+      // the shopper isn't re-prompted after they already chose.
+      const selectorMode = this._data?.variantSelectorMode || 'below_title'
+      if (multiVariant && selectorMode === 'on_atc') {
         this._openQuickshop(productId, button)
         return
       }
@@ -611,6 +628,12 @@
 
     _syncCardPrice(card, variant) {
       if (!card) return
+      // Below-title variant pill label reflects the shopper's last pick so
+      // re-opens of the picker and direct +ADD clicks line up.
+      const triggerLabel = card.querySelector('.sai-fbtatc4z__variant-label')
+      if (triggerLabel) {
+        triggerLabel.textContent = variant.title || (variant.options || []).join(' / ')
+      }
       const priceEl = card.querySelector('.sai-fbtatc4z__price')
       if (priceEl) priceEl.textContent = formatMoney(variant.price, this._data?.currency)
       const compareEl = card.querySelector('.sai-fbtatc4z__compare')
