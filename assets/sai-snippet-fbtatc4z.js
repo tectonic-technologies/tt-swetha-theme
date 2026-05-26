@@ -416,7 +416,7 @@
       overlay.className = 'sai-fbtatc4z__quickshop'
       overlay.setAttribute('role', 'dialog')
       overlay.setAttribute('aria-modal', 'true')
-      overlay.setAttribute('aria-label', this._data?.variantModalTitle || 'Choose variant')
+      overlay.setAttribute('aria-label', 'Choose variant')
 
       const backdrop = document.createElement('div')
       backdrop.className = 'sai-fbtatc4z__quickshop-backdrop'

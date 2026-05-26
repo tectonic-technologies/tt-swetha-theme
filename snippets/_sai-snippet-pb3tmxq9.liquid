@@ -1005,7 +1005,6 @@
 {%- assign total_label   = content.total_label   | default: 'Total' | escape -%}
 {%- assign total_subtext = content.total_subtext | default: 'Selected items will be added to cart.' | escape -%}
 {%- assign section_description    = content.section_description    | default: '' | escape -%}
-{%- assign variant_modal_title    = content.variant_modal_title    | default: 'Choose variant' | escape -%}
 
 {%- assign lock_main = content.lock_main_product -%}
 {%- if lock_main == nil -%}{%- assign lock_main = false -%}{%- endif -%}
@@ -1423,7 +1422,6 @@
   "currency": {{ shop.currency | json }},
   "moneyFormat": {{ shop.money_format | json }},
   "afterAddAction": {{ after_add_action | json }},
-  "variantModalTitle": {{ variant_modal_title | json }},
   "order": [{{ product.id | json }}{%- for handle in fbt_handles -%}{%- assign r = all_products[handle] -%}{%- if r == empty -%}{%- continue -%}{%- endif -%},{{ r.id | json }}{%- endfor -%}],
   "products": [
     {

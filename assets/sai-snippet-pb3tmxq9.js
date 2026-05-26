@@ -508,7 +508,7 @@
         overlay.className = 'sai-pb3tmxq9__modal-overlay'
         overlay.setAttribute('role', 'dialog')
         overlay.setAttribute('aria-modal', 'true')
-        overlay.setAttribute('aria-label', this._data?.variantModalTitle || 'Choose variant')
+        overlay.setAttribute('aria-label', 'Choose variant')
 
         const backdrop = document.createElement('div')
         backdrop.className = 'sai-pb3tmxq9__modal-backdrop'
