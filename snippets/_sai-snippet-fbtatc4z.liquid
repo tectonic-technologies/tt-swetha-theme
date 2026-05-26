@@ -38,8 +38,12 @@
  * the Studio style panel can override them.
  * ============================================================================= */
 
+/* The quickshop overlay is appended to document.body (escapes the snippet
+   element's stacking context so the modal can sit above PDP chrome), so
+   the custom properties must be declared on BOTH selectors — otherwise the
+   panel inherits no value and renders transparent. */
 .sai-fbtatc4z,
-.sai-fbtatc4z__modal-overlay {
+.sai-fbtatc4z__quickshop {
   --sai-fbtatc4z-card-bg: #ffffff;
   --sai-fbtatc4z-card-border: rgba(0, 0, 0, 0.1);
   --sai-fbtatc4z-card-radius: 12px;
