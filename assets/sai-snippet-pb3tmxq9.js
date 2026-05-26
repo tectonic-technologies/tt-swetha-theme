@@ -137,14 +137,13 @@
   }
 
   function isValueAvailableForTuple(product, optionIndex, value, tuple) {
-    // Gift card products (and other Shopify quirks) report every variant
-    // with `available: false` even though the variants are purchasable.
-    // Fall back to "any variant matching the tuple" when no variant on the
-    // product is reported as available.
-    const anyAvailable = product.variants.some((v) => v.available)
+    // Always respect `v.available`. The earlier gift-card workaround
+    // (treat every variant as available when ALL are unavailable) hid
+    // genuine sold-out states — if every variant is OOS the merchant
+    // wants the product shown as unavailable, not magically purchasable.
     return product.variants.some((v) => {
       if (v.options?.[optionIndex] !== value) return false
-      if (anyAvailable && !v.available) return false
+      if (!v.available) return false
       return (v.options || []).every((val, i) => i === optionIndex || val === tuple[i])
     })
   }

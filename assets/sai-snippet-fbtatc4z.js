@@ -136,12 +136,14 @@
 
   // Cross-axis availability — given the locked-in other-axis values, is
   // {optName: optValue} reachable by *some available* variant? Used to grey
-  // out pills as the shopper narrows their selection.
+  // out pills as the shopper narrows their selection. Always respects
+  // `v.available` — if every variant is OOS the merchant wants the product
+  // shown as fully unavailable (e.g. sold-out gift cards), not silently
+  // marked available because of a historical Shopify gift-card quirk.
   function isOptionValueAvailable(product, optName, optValue, currentValues) {
     const names = optionNames(product)
-    const anyAvailable = (product.variants || []).some((v) => v.available)
     for (const v of product.variants || []) {
-      if (anyAvailable && !v.available) continue
+      if (!v.available) continue
       const vOpts = v.options || []
       let hit = true
       for (let i = 0; i < names.length; i++) {
