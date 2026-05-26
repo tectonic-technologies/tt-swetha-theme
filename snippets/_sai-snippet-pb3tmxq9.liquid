@@ -198,6 +198,15 @@
   letter-spacing: 0.02em;
 }
 
+/* Author styles override the UA `[hidden]` rule, so a `<span hidden>`
+   placeholder would still render its background. Re-assert
+   `display: none` at author specificity for the badge + compare nodes
+   that the variant-picker toggles on/off. */
+.sai-pb3tmxq9__off-badge[hidden],
+.sai-pb3tmxq9__compare[hidden] {
+  display: none;
+}
+
 .sai-pb3tmxq9__variant-trigger {
   appearance: none;
   background: transparent;
@@ -660,27 +669,36 @@
   text-align: start;
 }
 
-/* ── Modal ───────────────────────────────────────────────────────────────── */
+/* ── Variant picker quickshop / mini-PDP ──────────────────────────────────
+   Mobile bottom sheet → desktop centred modal at ≥750px. Mirrors the
+   fbtatc4z / i2m3o6sr quickshop pattern. The bottom button here is "Done"
+   (not "Add to cart") because pb3tmxq9 is a bundle widget — picking a
+   variant commits to the card; the bundle ATC outside the modal is what
+   actually adds. */
 
 .sai-pb3tmxq9__modal-overlay {
   position: fixed;
   inset: 0;
-  background: var(--sai-pb3tmxq9-modal-overlay-bg);
-  display: flex;
-  align-items: center;
-  justify-content: center;
   z-index: 2147483000;
-  padding: 1rem;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.45);
   font-family: var(--sai-font-body, inherit);
   color: var(--sai-pb3tmxq9-fg);
+  opacity: 0;
+  pointer-events: none;
+  transition: background-color 0.22s ease, opacity 0.22s ease;
   box-sizing: border-box;
-  animation: sai-pb3tmxq9-overlay-in 220ms ease forwards;
 }
 
-.sai-pb3tmxq9__modal-overlay[data-closing="true"] {
-  animation: sai-pb3tmxq9-overlay-out 220ms ease forwards;
-  pointer-events: none;
+.sai-pb3tmxq9__modal-overlay--open {
+  background-color: rgba(0, 0, 0, 0.65);
+  opacity: 1;
+  pointer-events: auto;
 }
+
+.sai-pb3tmxq9__modal-overlay[hidden] { display: none !important; }
 
 .sai-pb3tmxq9__modal-overlay *,
 .sai-pb3tmxq9__modal-overlay *::before,
@@ -688,192 +706,251 @@
   box-sizing: border-box;
 }
 
-@keyframes sai-pb3tmxq9-overlay-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes sai-pb3tmxq9-overlay-out {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-  }
-}
-
-@keyframes sai-pb3tmxq9-card-in {
-  from {
-    transform: translateY(100vh);
-  }
-  to {
-    transform: translateY(0);
-  }
-}
-
-@keyframes sai-pb3tmxq9-card-out {
-  from {
-    transform: translateY(0);
-  }
-  to {
-    transform: translateY(100vh);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .sai-pb3tmxq9__modal-overlay,
-  .sai-pb3tmxq9__modal-overlay[data-closing="true"],
-  .sai-pb3tmxq9__modal-card,
-  .sai-pb3tmxq9__modal-overlay[data-closing="true"] .sai-pb3tmxq9__modal-card {
-    animation-duration: 1ms !important;
-  }
+.sai-pb3tmxq9__modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: transparent;
+  cursor: pointer;
 }
 
 .sai-pb3tmxq9__modal-card {
-  background: var(--sai-pb3tmxq9-modal-card-bg);
-  border-radius: 16px;
+  position: relative;
+  z-index: 1;
   inline-size: 100%;
-  max-inline-size: 34rem;
-  max-block-size: calc(100vh - 2rem);
-  overflow-y: auto;
+  max-block-size: 88vh;
+  background: var(--sai-pb3tmxq9-modal-card-bg);
+  color: var(--sai-pb3tmxq9-fg);
+  border-radius: 16px 16px 0 0;
+  padding: 20px 20px 22px;
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
-  padding: 1.5rem;
-  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.3);
-  animation: sai-pb3tmxq9-card-in 320ms cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
-  will-change: transform;
+  gap: 18px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  transform: translateY(100%);
+  transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-.sai-pb3tmxq9__modal-overlay[data-closing="true"] .sai-pb3tmxq9__modal-card {
-  animation: sai-pb3tmxq9-card-out 260ms cubic-bezier(0.4, 0, 0.6, 1) forwards;
-}
-
-.sai-pb3tmxq9__modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sai-size-3);
-  margin-block-end: 0.5rem;
-}
-
-.sai-pb3tmxq9__modal-title {
-  margin: 0;
-  font-family: var(--sai-font-heading, var(--sai-font-body));
-  font-size: 1rem;
-  font-weight: 600;
-  line-height: 1.3;
-  color: var(--sai-pb3tmxq9-fg);
+.sai-pb3tmxq9__modal-overlay--open .sai-pb3tmxq9__modal-card {
+  transform: translateY(0);
 }
 
 .sai-pb3tmxq9__modal-close {
-  appearance: none;
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  inline-size: 32px;
+  block-size: 32px;
+  padding: 0;
   background: transparent;
+  color: var(--sai-pb3tmxq9-fg);
   border: none;
+  border-radius: 50%;
   cursor: pointer;
-  color: inherit;
-  padding: 0.25rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
+.sai-pb3tmxq9__modal-close:hover { background: rgba(0, 0, 0, 0.06); }
+
+.sai-pb3tmxq9__modal-header {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 16px;
+  align-items: flex-start;
+  padding-inline-end: 36px;
+}
+
+.sai-pb3tmxq9__modal-media {
+  inline-size: 96px;
+  aspect-ratio: 1 / 1;
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.sai-pb3tmxq9__modal-image {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+
+.sai-pb3tmxq9__modal-meta { min-inline-size: 0; padding-block-start: 4px; }
+
+.sai-pb3tmxq9__modal-title {
+  display: block;
+  margin: 0 0 8px;
+  font-family: var(--sai-font-heading, var(--sai-font-body));
+  font-size: 17px;
+  line-height: 1.25;
+  font-weight: 700;
+  color: var(--sai-pb3tmxq9-fg);
+  text-decoration: none;
+}
+
+.sai-pb3tmxq9__modal-title:hover { text-decoration: underline; }
+
+.sai-pb3tmxq9__modal-price {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.sai-pb3tmxq9__modal-price-compare {
+  font-weight: 400;
+  text-decoration: line-through;
+  opacity: 0.55;
+  font-size: 13px;
+}
+
+.sai-pb3tmxq9__modal-price-compare[hidden] { display: none; }
+
 .sai-pb3tmxq9__modal-groups {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 12px;
 }
 
 .sai-pb3tmxq9__modal-group {
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 10px;
+  padding: 12px 14px;
   display: flex;
   flex-direction: column;
-  gap: 0.625rem;
+  gap: 10px;
 }
 
-.sai-pb3tmxq9__modal-group-label {
-  font-size: 0.9375rem;
+.sai-pb3tmxq9__modal-group-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.sai-pb3tmxq9__modal-group-name {
+  color: var(--sai-pb3tmxq9-fg);
+  opacity: 0.55;
+}
+
+.sai-pb3tmxq9__modal-group-selected {
+  color: var(--sai-pb3tmxq9-fg);
   font-weight: 600;
-}
-
-.sai-pb3tmxq9__modal-group-label [data-group-current] {
-  font-weight: 500;
-  color: rgba(0, 0, 0, 0.65);
 }
 
 .sai-pb3tmxq9__modal-pills {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.625rem;
+  gap: 8px;
 }
 
 .sai-pb3tmxq9__pill {
-  appearance: none;
-  border: 1px solid var(--sai-pb3tmxq9-card-border);
-  background: var(--sai-pb3tmxq9-pill-bg);
-  color: var(--sai-pb3tmxq9-pill-fg);
-  border-radius: 999px;
-  padding: 0.625rem 1.125rem;
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.9375rem;
-  font-weight: 600;
+  flex: 0 0 auto;
   display: inline-flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.125rem;
-  min-inline-size: 5.5rem;
+  gap: 8px;
+  min-inline-size: 64px;
+  padding: 10px 14px;
+  background: var(--sai-pb3tmxq9-modal-card-bg);
+  color: var(--sai-pb3tmxq9-fg);
+  border: 1px solid rgba(0, 0, 0, 0.22);
+  border-radius: 999px;
+  font-family: var(--sai-font-body, inherit);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
   line-height: 1.2;
-  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+  text-align: center;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
-.sai-pb3tmxq9__pill[data-selected="true"] {
-  background: var(--sai-pb3tmxq9-pill-selected-bg);
-  color: var(--sai-pb3tmxq9-pill-selected-fg);
-  border-color: var(--sai-pb3tmxq9-pill-selected-bg);
+.sai-pb3tmxq9__pill:hover { border-color: rgba(0, 0, 0, 0.6); }
+
+.sai-pb3tmxq9__pill[data-selected="true"],
+.sai-pb3tmxq9__pill[data-selected="true"]:hover {
+  border-color: var(--sai-pb3tmxq9-fg);
+  border-width: 2px;
+  padding: 9px 13px;
 }
 
-.sai-pb3tmxq9__pill[data-unavailable="true"] {
-  cursor: not-allowed;
-  color: var(--sai-pb3tmxq9-pill-disabled-fg);
-}
-
-.sai-pb3tmxq9__pill[data-unavailable="true"] .sai-pb3tmxq9__pill-value {
+.sai-pb3tmxq9__pill[data-unavailable="true"],
+.sai-pb3tmxq9__pill[data-unavailable="true"]:hover {
+  background: #f1f3f6;
+  border-color: rgba(0, 0, 0, 0.12);
+  color: rgba(0, 0, 0, 0.5);
   text-decoration: line-through;
+  cursor: not-allowed;
 }
 
-.sai-pb3tmxq9__pill-value {
-  font-weight: var(--sai-font-body-weight-bold, 600);
+.sai-pb3tmxq9__pill-swatch {
+  display: inline-block;
+  inline-size: 18px;
+  block-size: 18px;
+  border-radius: 50%;
+  background-size: cover;
+  background-position: center;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  flex-shrink: 0;
 }
 
 .sai-pb3tmxq9__modal-stock {
-  font-size: 0.9375rem;
+  font-size: 0.875rem;
   font-weight: 600;
   color: var(--sai-pb3tmxq9-low-stock-fg);
   padding-block-start: 0.5rem;
-  border-block-start: 1px solid var(--sai-pb3tmxq9-card-border);
+  margin: 0;
 }
 
-.sai-pb3tmxq9__modal-stock[hidden] {
-  display: none;
-}
+.sai-pb3tmxq9__modal-stock[hidden] { display: none; }
 
 .sai-pb3tmxq9__modal-done {
-  appearance: none;
+  inline-size: 100%;
+  margin-block-start: 4px;
+  padding: 16px 20px;
   background: var(--sai-pb3tmxq9-done-bg);
   color: var(--sai-pb3tmxq9-done-fg);
   border: none;
-  border-radius: 12px;
-  padding: 1rem 1.25rem;
-  font: inherit;
-  font-size: 1rem;
+  border-radius: 4px;
+  font-family: var(--sai-font-heading, var(--sai-font-body));
+  font-size: 14px;
   font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
   cursor: pointer;
-  letter-spacing: 0.05em;
+  transition: opacity 0.15s ease;
+}
+
+.sai-pb3tmxq9__modal-done:hover:not(:disabled) { opacity: 0.88; }
+.sai-pb3tmxq9__modal-done:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Desktop — centred panel with constrained width + soft fade-up. */
+@media (min-width: 750px) {
+  .sai-pb3tmxq9__modal-overlay { align-items: center; }
+  .sai-pb3tmxq9__modal-card {
+    max-inline-size: 420px;
+    max-block-size: 80vh;
+    border-radius: 16px;
+    transform: translateY(20px);
+    opacity: 0;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+  }
+  .sai-pb3tmxq9__modal-overlay--open .sai-pb3tmxq9__modal-card {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sai-pb3tmxq9__modal-overlay,
+  .sai-pb3tmxq9__modal-card {
+    transition: none;
+  }
 }
 
 /* ── Add-to-cart loader ──────────────────────────────────────────────────── */
@@ -1073,15 +1150,26 @@
             {%- endif -%}
           </a>
           <a class="sai-pb3tmxq9__title" href="{{ product.url }}">{{ product.title }}</a>
+          {%- if product.compare_at_price and product.compare_at_price > product.price -%}
+            {%- assign p_has_compare = true -%}
+            {%- assign p_off_amount = product.compare_at_price | minus: product.price -%}
+            {%- assign p_off_pct = p_off_amount | times: 100 | divided_by: product.compare_at_price -%}
+          {%- else -%}
+            {%- assign p_has_compare = false -%}
+          {%- endif -%}
           <div class="sai-pb3tmxq9__price-row">
             <span class="sai-pb3tmxq9__price">{{ product.price | money }}</span>
-            {%- if product.compare_at_price and product.compare_at_price > product.price -%}
-              <span class="sai-pb3tmxq9__compare">{{ product.compare_at_price | money }}</span>
-              {%- if show_discount_badge -%}
-                {%- assign p_off_amount = product.compare_at_price | minus: product.price -%}
-                {%- assign p_off_pct = p_off_amount | times: 100 | divided_by: product.compare_at_price -%}
-                <span class="sai-pb3tmxq9__off-badge">{{ p_off_pct }}% OFF</span>
-              {%- endif -%}
+            {%- comment -%}
+              Always SSR the compare + off-badge nodes (toggling `hidden`)
+              so the variant-picker modal's `_commitModal` can flip them on
+              when the shopper switches from a non-discount variant to a
+              discount one. Without these as DOM placeholders, the JS
+              querySelectors return null and the new discount silently fails
+              to surface.
+            {%- endcomment -%}
+            <span class="sai-pb3tmxq9__compare"{% unless p_has_compare %} hidden{% endunless %}>{%- if p_has_compare -%}{{ product.compare_at_price | money }}{%- endif -%}</span>
+            {%- if show_discount_badge -%}
+              <span class="sai-pb3tmxq9__off-badge"{% unless p_has_compare %} hidden{% endunless %}>{%- if p_has_compare -%}{{ p_off_pct }}% OFF{%- endif -%}</span>
             {%- endif -%}
           </div>
           {%- if product.variants.size > 1 -%}
@@ -1125,15 +1213,18 @@
               {%- endif -%}
             </a>
             <a class="sai-pb3tmxq9__title" href="{{ r.url }}">{{ r.title }}</a>
+            {%- if r.compare_at_price and r.compare_at_price > r.price -%}
+              {%- assign r_has_compare = true -%}
+              {%- assign r_off_amount = r.compare_at_price | minus: r.price -%}
+              {%- assign r_off_pct = r_off_amount | times: 100 | divided_by: r.compare_at_price -%}
+            {%- else -%}
+              {%- assign r_has_compare = false -%}
+            {%- endif -%}
             <div class="sai-pb3tmxq9__price-row">
               <span class="sai-pb3tmxq9__price">{{ r.price | money }}</span>
-              {%- if r.compare_at_price and r.compare_at_price > r.price -%}
-                <span class="sai-pb3tmxq9__compare">{{ r.compare_at_price | money }}</span>
-                {%- if show_discount_badge -%}
-                  {%- assign r_off_amount = r.compare_at_price | minus: r.price -%}
-                  {%- assign r_off_pct = r_off_amount | times: 100 | divided_by: r.compare_at_price -%}
-                  <span class="sai-pb3tmxq9__off-badge">{{ r_off_pct }}% OFF</span>
-                {%- endif -%}
+              <span class="sai-pb3tmxq9__compare"{% unless r_has_compare %} hidden{% endunless %}>{%- if r_has_compare -%}{{ r.compare_at_price | money }}{%- endif -%}</span>
+              {%- if show_discount_badge -%}
+                <span class="sai-pb3tmxq9__off-badge"{% unless r_has_compare %} hidden{% endunless %}>{%- if r_has_compare -%}{{ r_off_pct }}% OFF{%- endif -%}</span>
               {%- endif -%}
             </div>
             {%- if r.variants.size > 1 -%}
@@ -1188,15 +1279,18 @@
         </a>
         <div class="sai-pb3tmxq9__info">
           <a class="sai-pb3tmxq9__title" href="{{ product.url }}">{{ product.title }}</a>
+          {%- if product.compare_at_price and product.compare_at_price > product.price -%}
+            {%- assign p_has_compare = true -%}
+            {%- assign p_off_amount = product.compare_at_price | minus: product.price -%}
+            {%- assign p_off_pct = p_off_amount | times: 100 | divided_by: product.compare_at_price -%}
+          {%- else -%}
+            {%- assign p_has_compare = false -%}
+          {%- endif -%}
           <div class="sai-pb3tmxq9__price-row">
             <span class="sai-pb3tmxq9__price">{{ product.price | money }}</span>
-            {%- if product.compare_at_price and product.compare_at_price > product.price -%}
-              {%- assign p_off_amount = product.compare_at_price | minus: product.price -%}
-              {%- assign p_off_pct = p_off_amount | times: 100 | divided_by: product.compare_at_price -%}
-              <span class="sai-pb3tmxq9__compare">{{ product.compare_at_price | money }}</span>
-              {%- if show_discount_badge -%}
-                <span class="sai-pb3tmxq9__off-badge">{{ p_off_pct }}% OFF</span>
-              {%- endif -%}
+            <span class="sai-pb3tmxq9__compare"{% unless p_has_compare %} hidden{% endunless %}>{%- if p_has_compare -%}{{ product.compare_at_price | money }}{%- endif -%}</span>
+            {%- if show_discount_badge -%}
+              <span class="sai-pb3tmxq9__off-badge"{% unless p_has_compare %} hidden{% endunless %}>{%- if p_has_compare -%}{{ p_off_pct }}% OFF{%- endif -%}</span>
             {%- endif -%}
           </div>
           {%- if product.variants.size > 1 -%}
@@ -1250,15 +1344,18 @@
           </a>
           <div class="sai-pb3tmxq9__info">
             <a class="sai-pb3tmxq9__title" href="{{ r.url }}">{{ r.title }}</a>
+            {%- if r.compare_at_price and r.compare_at_price > r.price -%}
+              {%- assign r_has_compare = true -%}
+              {%- assign r_off_amount = r.compare_at_price | minus: r.price -%}
+              {%- assign r_off_pct = r_off_amount | times: 100 | divided_by: r.compare_at_price -%}
+            {%- else -%}
+              {%- assign r_has_compare = false -%}
+            {%- endif -%}
             <div class="sai-pb3tmxq9__price-row">
               <span class="sai-pb3tmxq9__price">{{ r.price | money }}</span>
-              {%- if r.compare_at_price and r.compare_at_price > r.price -%}
-                {%- assign r_off_amount = r.compare_at_price | minus: r.price -%}
-                {%- assign r_off_pct = r_off_amount | times: 100 | divided_by: r.compare_at_price -%}
-                <span class="sai-pb3tmxq9__compare">{{ r.compare_at_price | money }}</span>
-                {%- if show_discount_badge -%}
-                  <span class="sai-pb3tmxq9__off-badge">{{ r_off_pct }}% OFF</span>
-                {%- endif -%}
+              <span class="sai-pb3tmxq9__compare"{% unless r_has_compare %} hidden{% endunless %}>{%- if r_has_compare -%}{{ r.compare_at_price | money }}{%- endif -%}</span>
+              {%- if show_discount_badge -%}
+                <span class="sai-pb3tmxq9__off-badge"{% unless r_has_compare %} hidden{% endunless %}>{%- if r_has_compare -%}{{ r_off_pct }}% OFF{%- endif -%}</span>
               {%- endif -%}
             </div>
             {%- if r.variants.size > 1 -%}
@@ -1348,7 +1445,8 @@
             "available": {{ v.available | json }},
             "options": {{ v.options | json }},
             "inventoryQty": {{ v.inventory_quantity | json }},
-            "inventoryManaged": {{ v.inventory_management | json }}
+            "inventoryManaged": {{ v.inventory_management | json }},
+            "featuredImage": {%- if v.featured_image -%}{{ v.featured_image | image_url: width: 400 | json }}{%- else -%}null{%- endif -%}
           }
         {%- endfor -%}
       ]
@@ -1377,7 +1475,8 @@
             "available": {{ v.available | json }},
             "options": {{ v.options | json }},
             "inventoryQty": {{ v.inventory_quantity | json }},
-            "inventoryManaged": {{ v.inventory_management | json }}
+            "inventoryManaged": {{ v.inventory_management | json }},
+            "featuredImage": {%- if v.featured_image -%}{{ v.featured_image | image_url: width: 400 | json }}{%- else -%}null{%- endif -%}
           }
         {%- endfor -%}
       ]
