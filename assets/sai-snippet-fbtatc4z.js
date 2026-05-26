@@ -51,17 +51,31 @@
     }
   }
 
-  function formatMoney(cents, currency) {
+  // Formats cents to a string matching the shop's Liquid `| money` output.
+  // Accepts either the full data payload `{ moneyFormat, currency }` or a
+  // legacy currency string. Using `shop.money_format` (e.g. `"${{amount}}"`)
+  // makes JS-rendered prices match SSR ones; `Intl.NumberFormat` was
+  // producing `US$699.95` while Liquid renders `$699.95`.
+  function formatMoney(cents, ctx) {
     if (cents == null) return ''
     const fn = window.Spectrum?.formatMoney
     if (typeof fn === 'function') return fn(cents)
     const value = Number(cents) / 100
     if (!Number.isFinite(value)) return ''
-    try {
-      return value.toLocaleString(undefined, { style: 'currency', currency: currency || 'USD' })
-    } catch (_) {
-      return value.toFixed(2)
+    const moneyFormat = ctx && typeof ctx === 'object' ? ctx.moneyFormat : null
+    if (typeof moneyFormat === 'string' && moneyFormat.includes('{{')) {
+      return moneyFormat
+        .replace(/{{\s*amount\s*}}/g, value.toFixed(2))
+        .replace(/{{\s*amount_no_decimals\s*}}/g, String(Math.round(value)))
+        .replace(/{{\s*amount_with_comma_separator\s*}}/g, value.toFixed(2).replace('.', ','))
+        .replace(/{{\s*amount_no_decimals_with_comma_separator\s*}}/g, String(Math.round(value)))
+        .replace(/{{\s*amount_with_space_separator\s*}}/g, value.toFixed(2).replace('.', ' '))
+        .replace(/{{\s*amount_no_decimals_with_space_separator\s*}}/g, String(Math.round(value)))
+        .replace(/{{\s*amount_with_apostrophe_separator\s*}}/g, value.toFixed(2).replace('.', "'"))
     }
+    // No money_format available — `$X.XX` is the right default for the
+    // majority of shops (USD/CAD/AUD/NZD). Avoids Intl's "US$" prefix.
+    return `$${value.toFixed(2)}`
   }
 
   function offPercent(price, compareAt) {
@@ -147,7 +161,11 @@
     const variants = product.variants || []
     if (preselectedId) {
       const target = variants.find((v) => String(v.id) === String(preselectedId))
-      if (target) return target
+      // Only honor the preselected variant if it's available — opening the
+      // picker on an OOS variant traps the shopper on a "Sold out" pill
+      // until they manually flip both axes. Fall through to the first
+      // available variant if the preselected one isn't purchasable.
+      if (target?.available) return target
     }
     return variants.find((v) => v.available) || variants[0] || null
   }
@@ -569,14 +587,13 @@
 
       // Price + compare-at — live-update; compare hidden when not on sale.
       const priceEl = m.overlay.querySelector('[data-qs-price]')
-      if (priceEl)
-        priceEl.textContent = formatMoney(variant?.price ?? product.price, this._data?.currency)
+      if (priceEl) priceEl.textContent = formatMoney(variant?.price ?? product.price, this._data)
       const compareEl = m.overlay.querySelector('[data-qs-compare]')
       if (compareEl) {
         const compare = variant?.compareAtPrice ?? product.compareAtPrice
         const price = variant?.price ?? product.price
         if (compare && Number(compare) > Number(price)) {
-          compareEl.textContent = formatMoney(compare, this._data?.currency)
+          compareEl.textContent = formatMoney(compare, this._data)
           compareEl.hidden = false
         } else {
           compareEl.hidden = true
@@ -635,13 +652,13 @@
         triggerLabel.textContent = variant.title || (variant.options || []).join(' / ')
       }
       const priceEl = card.querySelector('.sai-fbtatc4z__price')
-      if (priceEl) priceEl.textContent = formatMoney(variant.price, this._data?.currency)
+      if (priceEl) priceEl.textContent = formatMoney(variant.price, this._data)
       const compareEl = card.querySelector('.sai-fbtatc4z__compare')
       const offEl = card.querySelector('.sai-fbtatc4z__off-badge')
       const off = offPercent(variant.price, variant.compareAtPrice)
       if (compareEl) {
         if (off != null) {
-          compareEl.textContent = formatMoney(variant.compareAtPrice, this._data?.currency)
+          compareEl.textContent = formatMoney(variant.compareAtPrice, this._data)
           compareEl.hidden = false
         } else {
           compareEl.hidden = true

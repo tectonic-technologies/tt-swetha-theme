@@ -57,23 +57,29 @@
     }
   }
 
-  function formatMoney(cents, currency) {
+  // Formats cents to a string matching the shop's Liquid `| money` output.
+  // Accepts the full data payload (`{ moneyFormat, currency }`) or a legacy
+  // currency-string for backward compat. Using `shop.money_format` makes
+  // JS-rendered prices match SSR ones — Intl.NumberFormat produced
+  // `US$699.95` while Liquid renders `$699.95`.
+  function formatMoney(cents, ctx) {
     if (cents == null) return ''
     const fn = window.Spectrum?.formatMoney
     if (typeof fn === 'function') return fn(cents)
-    // Fallback: Intl.NumberFormat with the currency from the payload.
-    // The server-rendered initial markup used `| money`; this fallback
-    // only fires after variant switches / live total updates.
     const value = Number(cents) / 100
     if (!Number.isFinite(value)) return ''
-    try {
-      return value.toLocaleString(undefined, {
-        style: 'currency',
-        currency: currency || 'USD',
-      })
-    } catch (_) {
-      return value.toFixed(2)
+    const moneyFormat = ctx && typeof ctx === 'object' ? ctx.moneyFormat : null
+    if (typeof moneyFormat === 'string' && moneyFormat.includes('{{')) {
+      return moneyFormat
+        .replace(/{{\s*amount\s*}}/g, value.toFixed(2))
+        .replace(/{{\s*amount_no_decimals\s*}}/g, String(Math.round(value)))
+        .replace(/{{\s*amount_with_comma_separator\s*}}/g, value.toFixed(2).replace('.', ','))
+        .replace(/{{\s*amount_no_decimals_with_comma_separator\s*}}/g, String(Math.round(value)))
+        .replace(/{{\s*amount_with_space_separator\s*}}/g, value.toFixed(2).replace('.', ' '))
+        .replace(/{{\s*amount_no_decimals_with_space_separator\s*}}/g, String(Math.round(value)))
+        .replace(/{{\s*amount_with_apostrophe_separator\s*}}/g, value.toFixed(2).replace('.', "'"))
     }
+    return `$${value.toFixed(2)}`
   }
 
   function offPercent(price, compareAt) {
@@ -345,7 +351,7 @@
         if (!totalEl) return
         const variants = this._selectedVariants()
         const cents = variants.reduce((sum, v) => sum + (Number(v.price) || 0), 0)
-        totalEl.textContent = cents > 0 ? formatMoney(cents, this._data.currency) : ''
+        totalEl.textContent = cents > 0 ? formatMoney(cents, this._data) : ''
       }
 
       _setError(message) {
@@ -709,14 +715,14 @@
         // Live price + compare-at.
         const priceEl = card.querySelector('[data-modal-price]')
         if (priceEl) {
-          priceEl.textContent = formatMoney(variant?.price ?? product.price, this._data.currency)
+          priceEl.textContent = formatMoney(variant?.price ?? product.price, this._data)
         }
         const compareEl = card.querySelector('[data-modal-compare]')
         if (compareEl) {
           const compare = variant?.compareAtPrice ?? product.compareAtPrice
           const price = variant?.price ?? product.price
           if (compare && Number(compare) > Number(price)) {
-            compareEl.textContent = formatMoney(compare, this._data.currency)
+            compareEl.textContent = formatMoney(compare, this._data)
             compareEl.hidden = false
           } else {
             compareEl.hidden = true
@@ -765,13 +771,13 @@
           const label = card.querySelector('.sai-pb3tmxq9__variant-label')
           if (label) label.textContent = variant.title || (variant.options || []).join(' / ')
           const priceEl = card.querySelector('.sai-pb3tmxq9__price')
-          if (priceEl) priceEl.textContent = formatMoney(variant.price, this._data.currency)
+          if (priceEl) priceEl.textContent = formatMoney(variant.price, this._data)
           const compareEl = card.querySelector('.sai-pb3tmxq9__compare')
           const offEl = card.querySelector('.sai-pb3tmxq9__off-badge')
           const off = offPercent(variant.price, variant.compareAtPrice)
           if (compareEl) {
             if (off != null) {
-              compareEl.textContent = formatMoney(variant.compareAtPrice, this._data.currency)
+              compareEl.textContent = formatMoney(variant.compareAtPrice, this._data)
               compareEl.hidden = false
             } else {
               compareEl.hidden = true

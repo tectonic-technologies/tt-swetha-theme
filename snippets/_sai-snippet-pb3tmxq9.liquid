@@ -1174,7 +1174,7 @@
           </div>
           {%- if product.variants.size > 1 -%}
             <button type="button" class="sai-pb3tmxq9__variant-trigger" data-variant-trigger aria-haspopup="dialog">
-              <span class="sai-pb3tmxq9__variant-label">{{ product.variants.first.title }}</span>
+              <span class="sai-pb3tmxq9__variant-label">{{ product.selected_or_first_available_variant.title }}</span>
               <svg class="sai-pb3tmxq9__chevron" width="12" height="12" viewBox="0 0 14 14" fill="none" focusable="false" aria-hidden="true">
                 <path d="M3 5L7 9L11 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
@@ -1229,7 +1229,7 @@
             </div>
             {%- if r.variants.size > 1 -%}
               <button type="button" class="sai-pb3tmxq9__variant-trigger" data-variant-trigger aria-haspopup="dialog">
-                <span class="sai-pb3tmxq9__variant-label">{{ r.variants.first.title }}</span>
+                <span class="sai-pb3tmxq9__variant-label">{{ r.selected_or_first_available_variant.title }}</span>
                 <svg class="sai-pb3tmxq9__chevron" width="12" height="12" viewBox="0 0 14 14" fill="none" focusable="false" aria-hidden="true">
                   <path d="M3 5L7 9L11 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
@@ -1295,7 +1295,7 @@
           </div>
           {%- if product.variants.size > 1 -%}
             <button type="button" class="sai-pb3tmxq9__variant-trigger" data-variant-trigger aria-haspopup="dialog">
-              <span class="sai-pb3tmxq9__variant-label">{{ product.variants.first.title }}</span>
+              <span class="sai-pb3tmxq9__variant-label">{{ product.selected_or_first_available_variant.title }}</span>
               <svg class="sai-pb3tmxq9__chevron" width="14" height="14" viewBox="0 0 14 14" fill="none" focusable="false" aria-hidden="true">
                 <path d="M3 5L7 9L11 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
@@ -1360,7 +1360,7 @@
             </div>
             {%- if r.variants.size > 1 -%}
               <button type="button" class="sai-pb3tmxq9__variant-trigger" data-variant-trigger aria-haspopup="dialog">
-                <span class="sai-pb3tmxq9__variant-label">{{ r.variants.first.title }}</span>
+                <span class="sai-pb3tmxq9__variant-label">{{ r.selected_or_first_available_variant.title }}</span>
                 <svg class="sai-pb3tmxq9__chevron" width="14" height="14" viewBox="0 0 14 14" fill="none" focusable="false" aria-hidden="true">
                   <path d="M3 5L7 9L11 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
@@ -1421,6 +1421,7 @@
 {
   "main": {{ product.id | json }},
   "currency": {{ shop.currency | json }},
+  "moneyFormat": {{ shop.money_format | json }},
   "afterAddAction": {{ after_add_action | json }},
   "variantModalTitle": {{ variant_modal_title | json }},
   "order": [{{ product.id | json }}{%- for handle in fbt_handles -%}{%- assign r = all_products[handle] -%}{%- if r == empty -%}{%- continue -%}{%- endif -%},{{ r.id | json }}{%- endfor -%}],
