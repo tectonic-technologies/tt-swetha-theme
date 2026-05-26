@@ -72,19 +72,26 @@
     return Math.round(((c - p) / c) * 100)
   }
 
-  // ── Multi-option helpers ────────────────────────────────────────────────
+  // ── Multi-option helpers (name-keyed, mirrors i2m3o6sr) ───────────────
   // A Shopify product has 1–3 option types (Size, Color, Material, etc.).
-  // `product.options` is the list of option names, `variant.options` is the
-  // tuple of values for one variant. Helpers below operate on the full tuple.
+  // `product.options` is the list of option names; `variant.options` is the
+  // ordered tuple of values for that variant. The quickshop tracks the
+  // shopper's current selection in an `{ [optName]: value }` map for
+  // cleaner pill bookkeeping than positional indices.
 
-  function optionCount(product) {
-    return Math.min(product.options?.length || 0, product.variants?.[0]?.options?.length || 0)
+  function optionNames(product) {
+    return (product.options || []).map((o) => (typeof o === 'string' ? o : o.name))
   }
 
-  function uniqueValuesForOption(product, optionIndex) {
+  function isMeaningfulOptionSet(product) {
+    const names = optionNames(product)
+    return !(names.length === 1 && names[0] === 'Title')
+  }
+
+  function uniqueValuesByOptionIndex(product, optionIndex) {
     const seen = new Set()
     const values = []
-    for (const v of product.variants) {
+    for (const v of product.variants || []) {
       const value = v.options?.[optionIndex]
       if (value != null && !seen.has(value)) {
         seen.add(value)
@@ -94,28 +101,76 @@
     return values
   }
 
-  function findVariantByTuple(product, tuple) {
-    return (
-      product.variants.find((v) => (v.options || []).every((val, i) => val === tuple[i])) || null
-    )
+  // Find first variant whose values match every locked-in option from the
+  // current selection map. Returns null when nothing matches yet (e.g. the
+  // shopper changed one axis to a value with no co-occurring variant).
+  function findVariantByOptions(product, optionValues) {
+    const names = optionNames(product)
+    for (const v of product.variants || []) {
+      const vOpts = v.options || []
+      let hit = true
+      for (let i = 0; i < names.length; i++) {
+        if (vOpts[i] !== optionValues[names[i]]) {
+          hit = false
+          break
+        }
+      }
+      if (hit) return v
+    }
+    return null
   }
 
-  function findVariantForValue(product, optionIndex, value) {
-    const matches = product.variants.filter((v) => v.options?.[optionIndex] === value)
-    if (matches.length === 0) return null
-    return matches.find((v) => v.available) || matches[0]
+  // Cross-axis availability — given the locked-in other-axis values, is
+  // {optName: optValue} reachable by *some available* variant? Used to grey
+  // out pills as the shopper narrows their selection.
+  function isOptionValueAvailable(product, optName, optValue, currentValues) {
+    const names = optionNames(product)
+    const anyAvailable = (product.variants || []).some((v) => v.available)
+    for (const v of product.variants || []) {
+      if (anyAvailable && !v.available) continue
+      const vOpts = v.options || []
+      let hit = true
+      for (let i = 0; i < names.length; i++) {
+        const name = names[i]
+        const target = name === optName ? optValue : currentValues[name]
+        if (target != null && target !== '' && vOpts[i] !== target) {
+          hit = false
+          break
+        }
+      }
+      if (hit) return true
+    }
+    return false
   }
 
-  function isValueAvailableForTuple(product, optionIndex, value, tuple) {
-    // Gift card products (and other Shopify quirks) report every variant
-    // with `available: false`. Fall back to "any variant matching the tuple"
-    // when no variant on the product reports available.
-    const anyAvailable = product.variants.some((v) => v.available)
-    return product.variants.some((v) => {
-      if (v.options?.[optionIndex] !== value) return false
-      if (anyAvailable && !v.available) return false
-      return (v.options || []).every((val, i) => i === optionIndex || val === tuple[i])
+  function pickInitialVariant(product, preselectedId) {
+    const variants = product.variants || []
+    if (preselectedId) {
+      const target = variants.find((v) => String(v.id) === String(preselectedId))
+      if (target) return target
+    }
+    return variants.find((v) => v.available) || variants[0] || null
+  }
+
+  function optionValuesFromVariant(product, variant) {
+    const out = {}
+    const names = optionNames(product)
+    const vOpts = variant?.options || []
+    names.forEach((n, i) => {
+      out[n] = vOpts[i] ?? ''
     })
+    return out
+  }
+
+  // Derive a per-value swatch image by taking the featuredImage of the
+  // first variant matching that value. Works best on Color (each variant
+  // usually has its own image); for Size etc. it falls back to null and
+  // the pill renders text-only. Same trick i2m3o6sr uses.
+  function swatchImageForValue(product, optionIndex, value) {
+    for (const v of product.variants || []) {
+      if (v.options?.[optionIndex] === value && v.featuredImage) return v.featuredImage
+    }
+    return null
   }
 
   class SaiFbtAtcWidget extends HTMLElement {
@@ -126,7 +181,6 @@
       this._afterAddAction = 'stay'
       this._ctaTimers = new Map()
       this._modal = null
-      this._modalCandidate = null
       this._scrollLock = null
       this._track = noopTrack
       this._emit = noopEmit
@@ -146,9 +200,9 @@
       // fire after the user has navigated away.
       for (const t of this._ctaTimers.values()) clearTimeout(t)
       this._ctaTimers.clear()
-      // Tear down an open modal — `_closeModal` removes the document-level
-      // keydown listener that would otherwise leak.
-      if (this._modal) this._closeModal()
+      // Tear down an open quickshop — removes the document-level keydown
+      // listener + restores scroll-lock that would otherwise leak.
+      if (this._modal) this._closeQuickshop()
     }
 
     setAnalytics(track, emit) {
@@ -176,19 +230,20 @@
     }
 
     _onClick(evt) {
-      const variantTrigger = evt.target.closest('[data-variant-trigger]')
-      if (variantTrigger && this.contains(variantTrigger)) {
-        evt.preventDefault()
-        const card = variantTrigger.closest('[data-product-id]')
-        if (!card) return
-        this._openModal(card.dataset.productId)
-        return
-      }
       const button = evt.target.closest('[data-fbtatc-cta]')
       if (!button || !this.contains(button)) return
       evt.preventDefault()
       if (button.disabled || button.getAttribute('aria-disabled') === 'true') return
       const productId = button.dataset.productId
+      const product = this._productsById.get(String(productId))
+      // Multi-variant ATC opens the mini-PDP / quickshop so the shopper can
+      // pick a variant in-context. Single-variant ATC adds directly. The
+      // modal's own ATC button funnels back through `_addToCart` with the
+      // committed variant id.
+      if (product && isMeaningfulOptionSet(product) && (product.variants?.length || 0) > 1) {
+        this._openQuickshop(productId, button)
+        return
+      }
       const variantId = button.dataset.variantId
       if (!variantId) return
       this._addToCart(button, productId, variantId)
@@ -300,253 +355,309 @@
       this._setError('')
     }
 
-    // ── Variant picker modal ────────────────────────────────────────────
-    // Mirrors pb3tmxq9 — a centered overlay with one pill group per option
-    // type. Pills cross-disable on tuple conflicts; committing writes the
-    // resolved variant id back onto the card's CTA and updates the price.
+    // ── Mini-PDP / quickshop ────────────────────────────────────────────
+    // Triggered when +ADD is clicked on a multi-variant product. The modal
+    // *is* the purchase surface — image + title + live price + option pills
+    // (with swatches when variants carry per-value featured images) + ATC
+    // button. ATC inside the modal funnels back through `_addToCart` with
+    // the committed variantId and closes on success.
 
-    _openModal(productId) {
+    _openQuickshop(productId, triggerButton) {
       const product = this._productsById.get(String(productId))
-      if (!product || !product.variants || product.variants.length < 2) return
+      if (!product || (product.variants?.length || 0) < 2) return
 
-      const card = this.querySelector(`[data-product-id="${CSS.escape(productId)}"]`)
-      if (!card) return
-
-      const cta = card.querySelector('[data-fbtatc-cta]')
-      const currentVariantId = cta?.dataset.variantId
-      const currentVariant =
-        product.variants.find((v) => String(v.id) === String(currentVariantId)) ||
-        product.variants[0]
-      const initialTuple = (currentVariant.options || []).slice()
-      const numOptions = optionCount(product)
-
-      this._modalCandidate = { productId, optionValues: initialTuple.slice() }
+      const initialVariant = pickInitialVariant(product, triggerButton?.dataset.variantId)
+      this._modal = {
+        productId: String(productId),
+        product,
+        triggerButton,
+        optionValues: optionValuesFromVariant(product, initialVariant),
+        variantId: initialVariant ? String(initialVariant.id) : '',
+      }
 
       const overlay = document.createElement('div')
-      overlay.className = 'sai-fbtatc4z__modal-overlay'
+      overlay.className = 'sai-fbtatc4z__quickshop'
       overlay.setAttribute('role', 'dialog')
       overlay.setAttribute('aria-modal', 'true')
-      overlay.setAttribute('aria-label', 'Variant picker')
+      overlay.setAttribute('aria-label', this._data?.variantModalTitle || 'Choose variant')
 
-      const modalCard = document.createElement('div')
-      modalCard.className = 'sai-fbtatc4z__modal-card'
-      overlay.appendChild(modalCard)
+      const backdrop = document.createElement('div')
+      backdrop.className = 'sai-fbtatc4z__quickshop-backdrop'
+      backdrop.addEventListener('click', () => this._closeQuickshop())
+      overlay.appendChild(backdrop)
 
-      const header = document.createElement('div')
-      header.className = 'sai-fbtatc4z__modal-header'
-      const title = document.createElement('h3')
-      title.className = 'sai-fbtatc4z__modal-title'
-      // Server-validated string; payload prop falls back to 'Choose variant'
-      // so the header is never blank.
-      title.textContent = this._data?.variantModalTitle || 'Choose variant'
-      header.appendChild(title)
+      const panel = document.createElement('div')
+      panel.className = 'sai-fbtatc4z__quickshop-panel'
+      overlay.appendChild(panel)
+
       const closeBtn = document.createElement('button')
       closeBtn.type = 'button'
-      closeBtn.className = 'sai-fbtatc4z__modal-close'
+      closeBtn.className = 'sai-fbtatc4z__quickshop-close'
       closeBtn.setAttribute('aria-label', 'Close')
       closeBtn.textContent = '×'
-      closeBtn.addEventListener('click', () => this._closeModal())
-      header.appendChild(closeBtn)
-      modalCard.appendChild(header)
+      closeBtn.addEventListener('click', () => this._closeQuickshop())
+      panel.appendChild(closeBtn)
 
-      const groupsContainer = document.createElement('div')
-      groupsContainer.className = 'sai-fbtatc4z__modal-groups'
-      modalCard.appendChild(groupsContainer)
+      // Header: image + title + price (all live-update on variant change).
+      const header = document.createElement('div')
+      header.className = 'sai-fbtatc4z__quickshop-header'
+      const media = document.createElement('div')
+      media.className = 'sai-fbtatc4z__quickshop-media'
+      const img = document.createElement('img')
+      img.className = 'sai-fbtatc4z__quickshop-image'
+      img.dataset.qsImage = ''
+      img.alt = product.title || ''
+      media.appendChild(img)
+      header.appendChild(media)
 
-      for (let i = 0; i < numOptions; i++) {
-        const optionName = product.options?.[i] || `Option ${i + 1}`
-        const values = uniqueValuesForOption(product, i)
+      const meta = document.createElement('div')
+      meta.className = 'sai-fbtatc4z__quickshop-meta'
+      const titleEl = document.createElement('a')
+      titleEl.className = 'sai-fbtatc4z__quickshop-title'
+      titleEl.dataset.qsTitle = ''
+      titleEl.href = product.url || '#'
+      titleEl.textContent = product.title || ''
+      meta.appendChild(titleEl)
+      const priceWrap = document.createElement('p')
+      priceWrap.className = 'sai-fbtatc4z__quickshop-price'
+      const priceEl = document.createElement('span')
+      priceEl.dataset.qsPrice = ''
+      priceWrap.appendChild(priceEl)
+      const compareEl = document.createElement('span')
+      compareEl.className = 'sai-fbtatc4z__quickshop-price-compare'
+      compareEl.dataset.qsCompare = ''
+      compareEl.hidden = true
+      priceWrap.appendChild(compareEl)
+      meta.appendChild(priceWrap)
+      header.appendChild(meta)
+      panel.appendChild(header)
 
-        const group = document.createElement('div')
-        group.className = 'sai-fbtatc4z__modal-group'
-        group.dataset.optionIndex = String(i)
+      // Option groups — one per product option type.
+      const optionsContainer = document.createElement('div')
+      optionsContainer.className = 'sai-fbtatc4z__quickshop-options'
+      panel.appendChild(optionsContainer)
 
-        // Group label built with text nodes — no innerHTML, no HTML escape
-        // helper (the snippet-library style guide bans client-side escaping).
-        const groupLabel = document.createElement('div')
-        groupLabel.className = 'sai-fbtatc4z__modal-group-label'
-        groupLabel.appendChild(document.createTextNode(`${optionName}: `))
-        const currentSpan = document.createElement('span')
-        currentSpan.setAttribute('data-group-current', '')
-        currentSpan.textContent = initialTuple[i] || ''
-        groupLabel.appendChild(currentSpan)
-        group.appendChild(groupLabel)
+      const names = optionNames(product)
+      const meaningful = isMeaningfulOptionSet(product)
+      if (meaningful) {
+        names.forEach((optName, i) => {
+          const group = document.createElement('div')
+          group.className = 'sai-fbtatc4z__quickshop-group'
 
-        const pills = document.createElement('div')
-        pills.className = 'sai-fbtatc4z__modal-pills'
-        group.appendChild(pills)
+          const head = document.createElement('div')
+          head.className = 'sai-fbtatc4z__quickshop-group-head'
+          const nameEl = document.createElement('span')
+          nameEl.className = 'sai-fbtatc4z__quickshop-group-name'
+          nameEl.textContent = `${optName}:`
+          head.appendChild(nameEl)
+          const selectedEl = document.createElement('span')
+          selectedEl.className = 'sai-fbtatc4z__quickshop-group-selected'
+          selectedEl.dataset.qsSelected = optName
+          selectedEl.textContent = this._modal.optionValues[optName] || ''
+          head.appendChild(selectedEl)
+          group.appendChild(head)
 
-        for (const value of values) {
-          const pill = document.createElement('button')
-          pill.type = 'button'
-          pill.className = 'sai-fbtatc4z__pill'
-          pill.dataset.value = value
-          pill.dataset.optionIndex = String(i)
-          pill.textContent = value
-          pill.addEventListener('click', () => {
-            if (pill.dataset.unavailable === 'true') return
-            this._modalCandidate.optionValues[i] = value
-            this._refreshModal(modalCard, product)
-          })
-          pills.appendChild(pill)
-        }
+          const pills = document.createElement('div')
+          pills.className = 'sai-fbtatc4z__quickshop-group-pills'
+          pills.dataset.qsPills = optName
+          pills.setAttribute('role', 'radiogroup')
+          pills.setAttribute('aria-label', optName)
+          group.appendChild(pills)
 
-        groupsContainer.appendChild(group)
+          for (const value of uniqueValuesByOptionIndex(product, i)) {
+            const pill = document.createElement('button')
+            pill.type = 'button'
+            pill.className = 'sai-fbtatc4z__quickshop-pill'
+            pill.setAttribute('role', 'radio')
+            pill.dataset.optionName = optName
+            pill.dataset.optionValue = value
+            const swatchUrl = swatchImageForValue(product, i, value)
+            if (swatchUrl) {
+              const swatch = document.createElement('span')
+              swatch.className = 'sai-fbtatc4z__quickshop-pill-swatch'
+              swatch.style.backgroundImage = `url('${swatchUrl}')`
+              pill.appendChild(swatch)
+            }
+            const label = document.createElement('span')
+            label.textContent = value
+            pill.appendChild(label)
+            pill.addEventListener('click', () => {
+              if (pill.getAttribute('aria-disabled') === 'true') return
+              this._modal.optionValues[optName] = value
+              this._refreshQuickshop()
+            })
+            pills.appendChild(pill)
+          }
+          optionsContainer.appendChild(group)
+        })
       }
 
-      const doneBtn = document.createElement('button')
-      doneBtn.type = 'button'
-      doneBtn.className = 'sai-fbtatc4z__modal-done'
-      doneBtn.textContent = 'DONE'
-      doneBtn.addEventListener('click', () => this._commitModal())
-      modalCard.appendChild(doneBtn)
-
-      overlay.addEventListener('click', (e) => {
-        if (e.target === overlay) this._closeModal()
-      })
+      const atc = document.createElement('button')
+      atc.type = 'button'
+      atc.className = 'sai-fbtatc4z__quickshop-atc'
+      atc.dataset.qsAtc = ''
+      atc.textContent = this._data?.ctaLabel || 'Add to cart'
+      atc.addEventListener('click', () => this._commitQuickshop())
+      panel.appendChild(atc)
 
       const onKey = (e) => {
-        if (e.key === 'Escape') this._closeModal()
+        if (e.key === 'Escape') this._closeQuickshop()
       }
       document.addEventListener('keydown', onKey)
+      this._modal.onKey = onKey
 
-      // Inline scroll-lock — saves prior value so close can restore it
-      // byte-for-byte. CSS-class scroll-lock would need a global body
-      // selector which the snippet-library style guide bans.
+      // Scroll-lock inline — restored byte-for-byte on close.
       this._scrollLock = document.body.style.overflow
       document.body.style.overflow = 'hidden'
 
       document.body.appendChild(overlay)
-      this._modal = { overlay, onKey }
+      this._modal.overlay = overlay
+      // Trigger transition on next frame so the slide-up animates.
+      requestAnimationFrame(() => overlay.classList.add('sai-fbtatc4z__quickshop--open'))
 
-      this._refreshModal(modalCard, product)
+      this._refreshQuickshop()
     }
 
-    _refreshModal(modalCard, product) {
-      const candidate = this._modalCandidate
-      if (!candidate) return
-      const tuple = candidate.optionValues
+    _refreshQuickshop() {
+      const m = this._modal
+      if (!m || !m.overlay) return
+      const product = m.product
+      const variant = findVariantByOptions(product, m.optionValues)
+      m.variantId = variant ? String(variant.id) : ''
 
-      const pills = modalCard.querySelectorAll('.sai-fbtatc4z__pill')
-      for (const pill of pills) {
-        const i = Number.parseInt(pill.dataset.optionIndex || '0', 10)
-        const value = pill.dataset.value
-        const isAvailable = isValueAvailableForTuple(product, i, value, tuple)
-        const isSelected = tuple[i] === value
+      // Pills — toggle selected + cross-disable on unavailable combinations.
+      for (const pills of m.overlay.querySelectorAll('[data-qs-pills]')) {
+        const optName = pills.dataset.qsPills
+        for (const pill of pills.querySelectorAll('.sai-fbtatc4z__quickshop-pill')) {
+          const value = pill.dataset.optionValue
+          const selected = m.optionValues[optName] === value
+          pill.classList.toggle('sai-fbtatc4z__quickshop-pill--selected', selected)
+          pill.setAttribute('aria-checked', selected ? 'true' : 'false')
+          const available = isOptionValueAvailable(product, optName, value, m.optionValues)
+          pill.classList.toggle('sai-fbtatc4z__quickshop-pill--oos', !available)
+          pill.setAttribute('aria-disabled', available ? 'false' : 'true')
+        }
+        const sel = m.overlay.querySelector(`[data-qs-selected="${CSS.escape(optName)}"]`)
+        if (sel) sel.textContent = m.optionValues[optName] || ''
+      }
 
-        if (isSelected) pill.dataset.selected = 'true'
-        else delete pill.dataset.selected
+      // Image — prefer the variant's featuredImage, fall back to the
+      // product's. Variants without their own image inherit the product
+      // image (matches Shopify's own behaviour on the PDP).
+      const img = m.overlay.querySelector('[data-qs-image]')
+      if (img) {
+        img.src = variant?.featuredImage || product.imageUrl || ''
+        img.alt = product.title || ''
+      }
 
-        if (isAvailable) {
-          delete pill.dataset.unavailable
-          pill.disabled = false
+      // Price + compare-at — live-update; compare hidden when not on sale.
+      const priceEl = m.overlay.querySelector('[data-qs-price]')
+      if (priceEl)
+        priceEl.textContent = formatMoney(variant?.price ?? product.price, this._data?.currency)
+      const compareEl = m.overlay.querySelector('[data-qs-compare]')
+      if (compareEl) {
+        const compare = variant?.compareAtPrice ?? product.compareAtPrice
+        const price = variant?.price ?? product.price
+        if (compare && Number(compare) > Number(price)) {
+          compareEl.textContent = formatMoney(compare, this._data?.currency)
+          compareEl.hidden = false
         } else {
-          pill.dataset.unavailable = 'true'
-          pill.disabled = true
+          compareEl.hidden = true
         }
       }
 
-      const groups = modalCard.querySelectorAll('.sai-fbtatc4z__modal-group')
-      for (const group of groups) {
-        const i = Number.parseInt(group.dataset.optionIndex || '0', 10)
-        const span = group.querySelector('[data-group-current]')
-        if (span) span.textContent = tuple[i] || ''
-      }
+      const atc = m.overlay.querySelector('[data-qs-atc]')
+      if (atc) atc.disabled = !m.variantId || !variant?.available
     }
 
-    _commitModal() {
-      const candidate = this._modalCandidate
-      if (!candidate) return this._closeModal()
-      const product = this._productsById.get(String(candidate.productId))
-      if (!product) return this._closeModal()
-
-      const lastIndex = optionCount(product) - 1
-      const variant =
-        findVariantByTuple(product, candidate.optionValues) ||
-        findVariantForValue(product, lastIndex, candidate.optionValues[lastIndex])
-      if (!variant) return this._closeModal()
-
-      const card = this.querySelector(`[data-product-id="${CSS.escape(candidate.productId)}"]`)
-      if (card) {
-        const triggerLabel = card.querySelector('.sai-fbtatc4z__variant-label')
-        if (triggerLabel) {
-          triggerLabel.textContent = variant.title || (variant.options || []).join(' / ')
-        }
-        const priceEl = card.querySelector('.sai-fbtatc4z__price')
-        if (priceEl) priceEl.textContent = formatMoney(variant.price, this._data?.currency)
-        const compareEl = card.querySelector('.sai-fbtatc4z__compare')
-        const offEl = card.querySelector('.sai-fbtatc4z__off-badge')
-        const off = offPercent(variant.price, variant.compareAtPrice)
-        if (compareEl) {
-          if (off != null) {
-            compareEl.textContent = formatMoney(variant.compareAtPrice, this._data?.currency)
-            compareEl.hidden = false
-          } else {
-            compareEl.hidden = true
-          }
-        }
-        if (offEl) {
-          if (off != null) {
-            offEl.textContent = `${off}% OFF`
-            offEl.hidden = false
-          } else {
-            offEl.hidden = true
-          }
-        }
-        const ctaBtn = card.querySelector('[data-fbtatc-cta]')
-        if (ctaBtn) {
-          ctaBtn.dataset.variantId = String(variant.id)
-          if (variant.available) {
-            ctaBtn.disabled = false
-            ctaBtn.removeAttribute('aria-disabled')
-          } else {
-            ctaBtn.disabled = true
-            ctaBtn.setAttribute('aria-disabled', 'true')
-          }
-        }
-      }
+    async _commitQuickshop() {
+      const m = this._modal
+      if (!m || !m.variantId) return
+      const variant = (m.product.variants || []).find((v) => String(v.id) === m.variantId)
+      if (!variant) return
 
       this._track(`${FEATURE_SLUG}:variant_selected`, {
-        product_id: candidate.productId,
-        variant_id: String(variant.id),
+        product_id: m.productId,
+        variant_id: m.variantId,
         variant_title: variant.title,
         option_values: variant.options,
       })
 
-      this._closeModal()
+      // Reflect the picked variant on the card so subsequent ATC clicks
+      // (after re-open) start from the shopper's last choice.
+      const card = this.querySelector(`[data-product-id="${CSS.escape(m.productId)}"]`)
+      const cardCta = card?.querySelector('[data-fbtatc-cta]')
+      if (cardCta) {
+        cardCta.dataset.variantId = m.variantId
+        if (variant.available) {
+          cardCta.disabled = false
+          cardCta.removeAttribute('aria-disabled')
+        }
+      }
+      this._syncCardPrice(card, variant)
+
+      // Pin the trigger button (and keep the modal open) while the add is
+      // in flight so the user can't double-tap into multiple cart adds.
+      const trigger = m.triggerButton
+      const atc = m.overlay.querySelector('[data-qs-atc]')
+      if (atc) atc.disabled = true
+
+      try {
+        await this._addToCart(trigger || cardCta, m.productId, m.variantId)
+      } finally {
+        this._closeQuickshop()
+      }
     }
 
-    _closeModal() {
+    _syncCardPrice(card, variant) {
+      if (!card) return
+      const priceEl = card.querySelector('.sai-fbtatc4z__price')
+      if (priceEl) priceEl.textContent = formatMoney(variant.price, this._data?.currency)
+      const compareEl = card.querySelector('.sai-fbtatc4z__compare')
+      const offEl = card.querySelector('.sai-fbtatc4z__off-badge')
+      const off = offPercent(variant.price, variant.compareAtPrice)
+      if (compareEl) {
+        if (off != null) {
+          compareEl.textContent = formatMoney(variant.compareAtPrice, this._data?.currency)
+          compareEl.hidden = false
+        } else {
+          compareEl.hidden = true
+        }
+      }
+      if (offEl) {
+        if (off != null) {
+          offEl.textContent = `${off}% OFF`
+          offEl.hidden = false
+        } else {
+          offEl.hidden = true
+        }
+      }
+    }
+
+    _closeQuickshop() {
       const m = this._modal
-      if (!m) return
+      if (!m || !m.overlay) return
       document.removeEventListener('keydown', m.onKey)
 
       const overlay = m.overlay
-      overlay.dataset.closing = 'true'
+      overlay.classList.remove('sai-fbtatc4z__quickshop--open')
 
-      const restoreScroll = () => {
-        document.body.style.overflow = this._scrollLock || ''
-        this._scrollLock = null
-      }
+      document.body.style.overflow = this._scrollLock || ''
+      this._scrollLock = null
 
-      const cleanup = () => {
+      // Wait out the slide-down transition before removing the node.
+      // Safety timeout in case `transitionend` never fires (background tab,
+      // prefers-reduced-motion).
+      let removed = false
+      const remove = () => {
+        if (removed) return
+        removed = true
         if (overlay.parentNode) overlay.parentNode.removeChild(overlay)
-        restoreScroll()
       }
-
-      let cleanedUp = false
-      const once = () => {
-        if (cleanedUp) return
-        cleanedUp = true
-        cleanup()
-      }
-      overlay.addEventListener('animationend', once, { once: true })
-      // Safety net — if the close animation never fires (browser tab in
-      // background, prefers-reduced-motion, etc.), tear down anyway.
-      setTimeout(once, 360)
+      overlay.addEventListener('transitionend', remove, { once: true })
+      setTimeout(remove, 320)
 
       this._modal = null
-      this._modalCandidate = null
     }
   }
 

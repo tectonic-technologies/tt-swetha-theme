@@ -346,36 +346,6 @@
   animation: sai-fbtatc4z-spin 0.8s linear infinite;
 }
 
-.sai-fbtatc4z__variant-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  align-self: flex-start;
-  margin-block-start: 0.375rem;
-  padding: 0.5rem 0.875rem;
-  background: transparent;
-  color: var(--sai-fbtatc4z-fg);
-  border: 1px solid rgba(0, 0, 0, 0.24);
-  border-radius: 999px;
-  font-family: inherit;
-  font-size: 0.875rem;
-  font-weight: 500;
-  line-height: 1.2;
-  cursor: pointer;
-  transition: background 120ms ease, border-color 120ms ease;
-}
-
-.sai-fbtatc4z__variant-trigger:hover {
-  background: rgba(0, 0, 0, 0.04);
-  border-color: rgba(0, 0, 0, 0.4);
-}
-
-.sai-fbtatc4z__variant-chevron {
-  inline-size: 0.875rem;
-  block-size: 0.875rem;
-  flex-shrink: 0;
-}
-
 .sai-fbtatc4z__error {
   margin: var(--sai-size-3) var(--sai-size-5) var(--sai-size-5);
   padding: 0.5rem 0.75rem;
@@ -389,145 +359,290 @@
   display: none;
 }
 
-/* ── Variant picker modal ───────────────────────────────────────────── */
+/* ── Mini-PDP / quickshop ─────────────────────────────────────────────
+   Triggered when the shopper clicks +ADD on a multi-variant product. Full
+   bottom sheet on mobile, centred modal on desktop. The modal IS the
+   purchase surface (image + title + price + options + ATC inside) —
+   picking a value updates image/price live; clicking ATC inside the
+   modal adds the resolved variant and closes. Mirrors the i2m3o6sr
+   Shop-the-Look quickshop pattern. */
 
-.sai-fbtatc4z__modal-overlay {
+.sai-fbtatc4z__quickshop {
   position: fixed;
   inset: 0;
   z-index: 9999;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
-  padding: 1rem;
-  background: var(--sai-fbtatc4z-modal-overlay-bg);
-  animation: sai-fbtatc4z-fade-in 160ms ease forwards;
+  background-color: rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  pointer-events: none;
+  transition: background-color 0.22s ease, opacity 0.22s ease;
 }
 
-.sai-fbtatc4z__modal-overlay[data-closing="true"] {
-  animation: sai-fbtatc4z-fade-out 160ms ease forwards;
+.sai-fbtatc4z__quickshop[hidden] { display: none !important; }
+
+.sai-fbtatc4z__quickshop--open {
+  background-color: rgba(0, 0, 0, 0.65);
+  opacity: 1;
+  pointer-events: auto;
 }
 
-.sai-fbtatc4z__modal-card {
+.sai-fbtatc4z__quickshop-backdrop {
+  position: absolute;
+  inset: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.sai-fbtatc4z__quickshop-panel {
+  position: relative;
+  z-index: 1;
   inline-size: 100%;
-  max-inline-size: 26rem;
-  max-block-size: 90vh;
-  overflow-y: auto;
-  padding: 1.25rem;
-  background: var(--sai-fbtatc4z-modal-card-bg);
+  max-block-size: 88vh;
+  background: var(--sai-fbtatc4z-card-bg);
   color: var(--sai-fbtatc4z-fg);
-  border-radius: 12px;
+  border-radius: 16px 16px 0 0;
+  padding: 20px 20px 22px;
+  box-sizing: border-box;
+  transform: translateY(100%);
+  transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
   font-family: var(--sai-font-body);
 }
 
-.sai-fbtatc4z__modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-block-end: 0.75rem;
+.sai-fbtatc4z__quickshop--open .sai-fbtatc4z__quickshop-panel {
+  transform: translateY(0);
 }
 
-.sai-fbtatc4z__modal-title {
-  margin: 0;
-  font-family: var(--sai-font-heading, var(--sai-font-body));
-  font-size: 1rem;
-  font-weight: 600;
-  line-height: 1.3;
-  color: var(--sai-fbtatc4z-fg);
-}
-
-.sai-fbtatc4z__modal-close {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  inline-size: 2rem;
-  block-size: 2rem;
+.sai-fbtatc4z__quickshop-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  inline-size: 32px;
+  block-size: 32px;
   padding: 0;
   background: transparent;
   color: var(--sai-fbtatc4z-fg);
   border: none;
-  border-radius: 999px;
-  font-size: 1.25rem;
+  border-radius: 50%;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  line-height: 1;
 }
 
-.sai-fbtatc4z__modal-close:hover {
+.sai-fbtatc4z__quickshop-close:hover {
   background: rgba(0, 0, 0, 0.06);
 }
 
-.sai-fbtatc4z__modal-groups {
+.sai-fbtatc4z__quickshop-header {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 16px;
+  align-items: flex-start;
+  padding-inline-end: 36px;
+}
+
+.sai-fbtatc4z__quickshop-media {
+  inline-size: 96px;
+  aspect-ratio: 1 / 1;
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.sai-fbtatc4z__quickshop-image {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+
+.sai-fbtatc4z__quickshop-meta {
+  min-inline-size: 0;
+  padding-block-start: 4px;
+}
+
+.sai-fbtatc4z__quickshop-title {
+  display: block;
+  font-family: var(--sai-font-heading, var(--sai-font-body));
+  font-size: 17px;
+  line-height: 1.25;
+  font-weight: 700;
+  color: var(--sai-fbtatc4z-fg);
+  text-decoration: none;
+  margin: 0 0 8px;
+}
+
+.sai-fbtatc4z__quickshop-title:hover {
+  text-decoration: underline;
+}
+
+.sai-fbtatc4z__quickshop-price {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.sai-fbtatc4z__quickshop-price-compare {
+  font-weight: 400;
+  text-decoration: line-through;
+  opacity: 0.55;
+  font-size: 13px;
+}
+
+.sai-fbtatc4z__quickshop-price-compare[hidden] {
+  display: none;
+}
+
+.sai-fbtatc4z__quickshop-options {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 12px;
 }
 
-.sai-fbtatc4z__modal-group-label {
-  margin-block-end: 0.5rem;
-  font-size: 0.875rem;
-  font-weight: 600;
+.sai-fbtatc4z__quickshop-group {
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sai-fbtatc4z__quickshop-group-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.sai-fbtatc4z__quickshop-group-name {
   color: var(--sai-fbtatc4z-fg);
+  opacity: 0.55;
 }
 
-.sai-fbtatc4z__modal-pills {
+.sai-fbtatc4z__quickshop-group-selected {
+  color: var(--sai-fbtatc4z-fg);
+  font-weight: 600;
+}
+
+.sai-fbtatc4z__quickshop-group-pills {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: 8px;
 }
 
-.sai-fbtatc4z__pill {
+.sai-fbtatc4z__quickshop-pill {
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
-  padding: 0.5rem 0.875rem;
-  background: var(--sai-fbtatc4z-pill-bg);
-  color: var(--sai-fbtatc4z-pill-fg);
-  border: 1px solid transparent;
+  gap: 8px;
+  min-inline-size: 64px;
+  padding: 10px 14px;
+  background: var(--sai-fbtatc4z-card-bg);
+  color: var(--sai-fbtatc4z-fg);
+  border: 1px solid rgba(0, 0, 0, 0.22);
   border-radius: 999px;
-  font-family: inherit;
-  font-size: 0.875rem;
+  font-family: var(--sai-font-body);
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
-  transition: background 120ms ease, color 120ms ease;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  line-height: 1.2;
+  text-align: center;
+  box-sizing: border-box;
 }
 
-.sai-fbtatc4z__pill[data-selected="true"] {
-  background: var(--sai-fbtatc4z-pill-selected-bg);
-  color: var(--sai-fbtatc4z-pill-selected-fg);
+.sai-fbtatc4z__quickshop-pill:hover {
+  border-color: rgba(0, 0, 0, 0.6);
 }
 
-.sai-fbtatc4z__pill[data-unavailable="true"] {
-  color: var(--sai-fbtatc4z-pill-disabled-fg);
+.sai-fbtatc4z__quickshop-pill--selected,
+.sai-fbtatc4z__quickshop-pill--selected:hover {
+  border-color: var(--sai-fbtatc4z-fg);
+  border-width: 2px;
+  padding: 9px 13px;
+}
+
+.sai-fbtatc4z__quickshop-pill--oos {
+  opacity: 0.45;
   text-decoration: line-through;
   cursor: not-allowed;
 }
 
-.sai-fbtatc4z__modal-done {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+.sai-fbtatc4z__quickshop-pill-swatch {
+  display: inline-block;
+  inline-size: 18px;
+  block-size: 18px;
+  border-radius: 50%;
+  background-size: cover;
+  background-position: center;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  flex-shrink: 0;
+}
+
+.sai-fbtatc4z__quickshop-atc {
   inline-size: 100%;
-  margin-block-start: 1.25rem;
-  padding: 0.75rem 1rem;
-  background: var(--sai-fbtatc4z-done-bg);
-  color: var(--sai-fbtatc4z-done-fg);
+  margin-block-start: 4px;
+  padding: 16px 20px;
+  background: var(--sai-fbtatc4z-cta-bg);
+  color: var(--sai-fbtatc4z-cta-fg);
   border: none;
-  border-radius: 8px;
-  font-family: inherit;
-  font-size: 0.9375rem;
-  font-weight: 600;
+  border-radius: 4px;
+  font-family: var(--sai-font-heading, var(--sai-font-body));
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
   cursor: pointer;
+  transition: opacity 0.15s ease;
 }
 
-.sai-fbtatc4z__modal-done:hover {
-  opacity: 0.92;
+.sai-fbtatc4z__quickshop-atc:hover:not(:disabled) {
+  opacity: 0.88;
 }
 
-@keyframes sai-fbtatc4z-fade-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
+.sai-fbtatc4z__quickshop-atc:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
-@keyframes sai-fbtatc4z-fade-out {
-  from { opacity: 1; }
-  to   { opacity: 0; }
+/* Desktop modal — centred panel with constrained width + soft fade-up. */
+@media (min-width: 750px) {
+  .sai-fbtatc4z__quickshop {
+    align-items: center;
+  }
+  .sai-fbtatc4z__quickshop-panel {
+    max-inline-size: 420px;
+    max-block-size: 80vh;
+    border-radius: 16px;
+    transform: translateY(20px);
+    opacity: 0;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+  }
+  .sai-fbtatc4z__quickshop--open .sai-fbtatc4z__quickshop-panel {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sai-fbtatc4z__quickshop,
+  .sai-fbtatc4z__quickshop-panel {
+    transition: none;
+  }
 }
 
 @keyframes sai-fbtatc4z-spin {
@@ -661,14 +776,6 @@
               </span>
             {%- endif -%}
           </div>
-          {%- if product.variants.size > 1 -%}
-            <button type="button" class="sai-fbtatc4z__variant-trigger" data-variant-trigger aria-haspopup="dialog">
-              <span class="sai-fbtatc4z__variant-label">{{ mv.title }}</span>
-              <svg class="sai-fbtatc4z__variant-chevron" viewBox="0 0 14 14" fill="none" focusable="false" aria-hidden="true">
-                <path d="M3 5L7 9L11 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </button>
-          {%- endif -%}
         </div>
         <button
           type="button"
@@ -736,14 +843,6 @@
               </span>
             {%- endif -%}
           </div>
-          {%- if r.variants.size > 1 -%}
-            <button type="button" class="sai-fbtatc4z__variant-trigger" data-variant-trigger aria-haspopup="dialog">
-              <span class="sai-fbtatc4z__variant-label">{{ rv.title }}</span>
-              <svg class="sai-fbtatc4z__variant-chevron" viewBox="0 0 14 14" fill="none" focusable="false" aria-hidden="true">
-                <path d="M3 5L7 9L11 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </button>
-          {%- endif -%}
         </div>
         <button
           type="button"
@@ -792,6 +891,7 @@
         "compareAtPrice": {{ product.compare_at_price | json }},
         "available": {{ product.available | json }},
         "options": {{ product.options | json }},
+        "imageUrl": {%- if product.featured_image -%}{{ product.featured_image | image_url: width: 320 | json }}{%- else -%}null{%- endif -%},
         "variants": [
           {%- for v in product.variants -%}
             {%- unless forloop.first -%},{%- endunless -%}
@@ -801,7 +901,8 @@
               "price": {{ v.price | json }},
               "compareAtPrice": {{ v.compare_at_price | json }},
               "available": {{ v.available | json }},
-              "options": {{ v.options | json }}
+              "options": {{ v.options | json }},
+              "featuredImage": {%- if v.featured_image -%}{{ v.featured_image | image_url: width: 320 | json }}{%- else -%}null{%- endif -%}
             }
           {%- endfor -%}
         ]
@@ -822,6 +923,7 @@
         "compareAtPrice": {{ r.compare_at_price | json }},
         "available": {{ r.available | json }},
         "options": {{ r.options | json }},
+        "imageUrl": {%- if r.featured_image -%}{{ r.featured_image | image_url: width: 320 | json }}{%- else -%}null{%- endif -%},
         "variants": [
           {%- for v in r.variants -%}
             {%- unless forloop.first -%},{%- endunless -%}
@@ -831,7 +933,8 @@
               "price": {{ v.price | json }},
               "compareAtPrice": {{ v.compare_at_price | json }},
               "available": {{ v.available | json }},
-              "options": {{ v.options | json }}
+              "options": {{ v.options | json }},
+              "featuredImage": {%- if v.featured_image -%}{{ v.featured_image | image_url: width: 320 | json }}{%- else -%}null{%- endif -%}
             }
           {%- endfor -%}
         ]
