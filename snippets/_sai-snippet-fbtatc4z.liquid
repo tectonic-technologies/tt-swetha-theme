@@ -150,17 +150,19 @@
 }
 
 /* "Product on this page" — inline grey pill above the main product
-   card, visually attached to the row below it. Sits outside the divider
-   chain (the divider rule is `__card + __card`), so it doesn't
-   introduce a divider above the main card. */
+   card, visually attached to the row below it. The <li> is the layout
+   wrapper (margin, alignment); the inner <span> is the visible pill,
+   and is what the `sub_header` style node targets so the Studio
+   Styling panel can change its background / typography / border /
+   spacing. Sits outside the divider chain (`__card + __card`), so it
+   doesn't introduce a divider above the main card. */
 .sai-fbtatc4z__list-section-header {
   display: flex;
   margin: 0.75rem 1.25rem 0;
   padding: 0;
 }
 
-.sai-fbtatc4z__list-section-header::before {
-  content: attr(data-label);
+.sai-fbtatc4z__sub-header-pill {
   display: inline-flex;
   align-items: center;
   padding: 0.1875rem 0.625rem;
@@ -885,7 +887,9 @@
 
   <ul class="sai-fbtatc4z__list">
     {%- if show_main_product -%}
-      <li class="sai-fbtatc4z__list-section-header" data-label="{{ main_product_label }}" aria-label="{{ main_product_label }}"></li>
+      <li class="sai-fbtatc4z__list-section-header">
+        <span class="sai-fbtatc4z__sub-header-pill">{{ main_product_label }}</span>
+      </li>
       {%- assign mv = product.selected_or_first_available_variant -%}
       {%- if show_compare_price and product.compare_at_price and product.compare_at_price > product.price -%}
         {%- assign _m_has_compare = true -%}
