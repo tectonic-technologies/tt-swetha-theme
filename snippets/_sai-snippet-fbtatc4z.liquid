@@ -801,7 +801,7 @@
 {% endstylesheet %}
 
 {%- assign content = variant.content -%}
-{%- assign heading              = content.heading              | default: '"You will also love!"' | escape -%}
+{%- assign heading              = content.heading              | default: 'You will also love!' | escape -%}
 {%- assign subtitle             = content.subtitle             | default: '' | escape -%}
 {%- assign cta_label            = content.cta_label            | default: '+ ADD' | escape -%}
 {%- assign main_product_label   = content.main_product_label   | default: 'Product on this page' | escape -%}
@@ -817,12 +817,18 @@
 {%- assign show_compare_price = content.show_compare_price -%}
 {%- if show_compare_price == nil -%}{%- assign show_compare_price = true -%}{%- endif -%}
 
-{%- assign show_discount_badge = content.show_discount_badge -%}
-{%- if show_discount_badge == nil -%}{%- assign show_discount_badge = true -%}{%- endif -%}
+{%- comment -%}
+  Discount badge visibility is derived — it shows whenever the
+  compare-at price is enabled AND the product is actually on sale.
+  No separate toggle: enabling compare-at without the badge would be
+  surprising, and disabling compare-at while keeping the badge would
+  surface "% OFF" without context.
+{%- endcomment -%}
+{%- assign show_discount_badge = show_compare_price -%}
 
 {%- assign after_add_action = content.after_add_action -%}
-{%- if after_add_action != 'stay' and after_add_action != 'redirect-to-cart' and after_add_action != 'redirect-to-checkout' -%}
-  {%- assign after_add_action = 'stay' -%}
+{%- if after_add_action != 'open-cart-drawer' and after_add_action != 'show-added-state' -%}
+  {%- assign after_add_action = 'open-cart-drawer' -%}
 {%- endif -%}
 
 {%- assign image_aspect_ratio = content.image_aspect_ratio -%}
@@ -854,14 +860,21 @@
   safe test is `r == empty`. Skip the main product handle — this widget is
   cross-sell only, never the PDP product itself.
 {%- endcomment -%}
+{%- comment -%}
+  Pre-pass: count recommendations that (a) resolve to a real product
+  drop AND (b) have at least one available variant. Out-of-stock
+  products are filtered here so the SSR loop and the collapse-gate
+  agree — surfacing a "Sold out" card in a cross-sell widget reads
+  as merchant error rather than honest discoverability.
+{%- endcomment -%}
 {%- assign resolved_count = 0 -%}
 {%- if fbt_handles != nil -%}
   {%- for handle in fbt_handles -%}
     {%- if handle == product.handle -%}{%- continue -%}{%- endif -%}
     {%- assign r = all_products[handle] -%}
-    {%- unless r == empty -%}
-      {%- assign resolved_count = resolved_count | plus: 1 -%}
-    {%- endunless -%}
+    {%- if r == empty -%}{%- continue -%}{%- endif -%}
+    {%- unless r.available -%}{%- continue -%}{%- endunless -%}
+    {%- assign resolved_count = resolved_count | plus: 1 -%}
   {%- endfor -%}
 {%- endif -%}
 
@@ -955,6 +968,9 @@
       {%- if handle == product.handle -%}{%- continue -%}{%- endif -%}
       {%- assign r = all_products[handle] -%}
       {%- if r == empty -%}{%- continue -%}{%- endif -%}
+      {%- comment -%} Skip fully-OOS recommendations so the merchant
+      doesn't get a row that can never be added. {%- endcomment -%}
+      {%- unless r.available -%}{%- continue -%}{%- endunless -%}
       {%- assign rv = r.selected_or_first_available_variant -%}
       <li class="sai-fbtatc4z__card" data-product-id="{{ r.id }}">
         <a class="sai-fbtatc4z__media" href="{{ r.url }}" style="{{ media_style }}" tabindex="-1" aria-hidden="true">
@@ -1077,6 +1093,7 @@
       {%- if handle == product.handle -%}{%- continue -%}{%- endif -%}
       {%- assign r = all_products[handle] -%}
       {%- if r == empty -%}{%- continue -%}{%- endif -%}
+      {%- unless r.available -%}{%- continue -%}{%- endunless -%}
       {%- unless first_product -%},{%- endunless -%}
       {%- assign first_product = false -%}
       {
