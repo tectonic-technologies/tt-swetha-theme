@@ -340,41 +340,30 @@
 
       let succeeded = false
       try {
-        // Two add paths gated by `after_add_action`:
-        //   open-cart-drawer  →  Spectrum.cart.addAndOpen — adds + opens
-        //                        the theme's cart drawer + fires cart events.
-        //   show-added-state  →  direct POST /cart/add.js — quietly adds
-        //                        without touching the drawer; the button's
-        //                        "Added ✓" feedback IS the confirmation.
+        // Two add paths gated by `after_add_action`. Both go through the
+        // Spectrum SDK so the theme's cart icon/counter receives the
+        // `cart:added` + `cart:updated` events and reflects the new line
+        // without a page reload. The only difference is whether we also
+        // open the theme's drawer afterwards.
+        //   open-cart-drawer  →  cart.addAndOpen — add + section refresh + drawer open
+        //   show-added-state  →  cart.add        — add + events only (no drawer)
+        const cartApi = window.Spectrum?.cart
+        if (!cartApi || typeof cartApi.add !== 'function') {
+          throw new Error('Spectrum cart API unavailable')
+        }
+        let cartResponse
         if (this._afterAddAction === 'show-added-state') {
-          const body = new FormData()
-          body.append('id', variantId)
-          body.append('quantity', '1')
-          const res = await fetch('/cart/add.js', {
-            method: 'POST',
-            headers: { Accept: 'application/json' },
-            body,
-          })
-          if (!res.ok) {
-            let msg = 'Could not add to cart'
-            try {
-              const j = await res.json()
-              if (j?.description) msg = j.description
-              else if (j?.message) msg = j.message
-            } catch (_) {}
-            throw new Error(msg)
-          }
+          cartResponse = await cartApi.add([{ id: variantId, quantity: 1 }])
         } else {
-          const cartApi = window.Spectrum?.cart
-          if (!cartApi || typeof cartApi.addAndOpen !== 'function') {
+          if (typeof cartApi.addAndOpen !== 'function') {
             throw new Error('Spectrum cart API unavailable')
           }
-          const cartResponse = await cartApi.addAndOpen([{ id: variantId, quantity: 1 }], {
+          cartResponse = await cartApi.addAndOpen([{ id: variantId, quantity: 1 }], {
             sourceId: `spectrum-${SNIPPET_ID}`,
           })
-          if (cartResponse && cartResponse.ok === false) {
-            throw new Error(cartResponse.error?.message || 'Could not add to cart')
-          }
+        }
+        if (cartResponse && cartResponse.ok === false) {
+          throw new Error(cartResponse.error?.message || 'Could not add to cart')
         }
 
         succeeded = true
