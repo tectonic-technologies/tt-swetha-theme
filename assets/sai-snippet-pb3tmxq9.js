@@ -531,6 +531,16 @@
         overlay.setAttribute('role', 'dialog')
         overlay.setAttribute('aria-modal', 'true')
         overlay.setAttribute('aria-label', 'Choose variant')
+        // Carry the host's data-spectrum-* attrs onto the overlay so
+        // Studio's instance-scoped style bake (descendant of
+        // `[data-spectrum-instance-id="X"][data-spectrum-variant-id="Y"]`)
+        // can reach the modal's inner elements. Without this the overlay
+        // lives in <body> and the bake selector never matches.
+        const wrapper = this.closest('[data-spectrum-instance-id]')
+        const instanceId = wrapper?.getAttribute('data-spectrum-instance-id')
+        const variantId = wrapper?.getAttribute('data-spectrum-variant-id')
+        if (instanceId) overlay.setAttribute('data-spectrum-instance-id', instanceId)
+        if (variantId) overlay.setAttribute('data-spectrum-variant-id', variantId)
 
         const backdrop = document.createElement('div')
         backdrop.className = 'sai-pb3tmxq9__modal-backdrop'

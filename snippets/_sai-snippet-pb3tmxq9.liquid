@@ -1020,8 +1020,13 @@
 {%- assign show_ratings = content.show_ratings -%}
 {%- if show_ratings == nil -%}{%- assign show_ratings = true -%}{%- endif -%}
 
-{%- assign show_discount_badge = content.show_discount_badge -%}
-{%- if show_discount_badge == nil -%}{%- assign show_discount_badge = true -%}{%- endif -%}
+{%- comment -%}
+  Discount badge visibility is derived — it shows whenever the
+  compare-at price is enabled AND the product is on sale. No separate
+  toggle: pb3tmxq9 doesn't have a compare-price prop today so the
+  badge is always allowed to render when the product itself is on sale.
+{%- endcomment -%}
+{%- assign show_discount_badge = true -%}
 
 {%- comment -%}
   Layout + select-prop allowlists. `| default:` is not enough — the merchant
@@ -1083,9 +1088,11 @@
 {%- if fbt_handles != nil -%}
   {%- for handle in fbt_handles -%}
     {%- assign r = all_products[handle] -%}
-    {%- unless r == empty -%}
-      {%- assign resolved_count = resolved_count | plus: 1 -%}
-    {%- endunless -%}
+    {%- if r == empty -%}{%- continue -%}{%- endif -%}
+    {%- comment -%} Filter fully-OOS recos so they don't ship in the
+    bundle UI — Add to cart would fail on them anyway. {%- endcomment -%}
+    {%- unless r.available -%}{%- continue -%}{%- endunless -%}
+    {%- assign resolved_count = resolved_count | plus: 1 -%}
   {%- endfor -%}
 {%- endif -%}
 
@@ -1184,6 +1191,7 @@
         {%- for handle in fbt_handles -%}
           {%- assign r = all_products[handle] -%}
           {%- if r == empty -%}{%- continue -%}{%- endif -%}
+          {%- unless r.available -%}{%- continue -%}{%- endunless -%}
           {%- if forloop.first -%}
             <div class="sai-pb3tmxq9__plus" aria-hidden="true">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" focusable="false">
@@ -1328,6 +1336,7 @@
     {%- for handle in fbt_handles -%}
       {%- assign r = all_products[handle] -%}
       {%- if r == empty -%}{%- continue -%}{%- endif -%}
+      {%- unless r.available -%}{%- continue -%}{%- endunless -%}
       <div class="sai-pb3tmxq9__card sai-pb3tmxq9__card--reco" data-product-id="{{ r.id }}">
         <div class="sai-pb3tmxq9__row">
           <a class="sai-pb3tmxq9__media" href="{{ r.url }}" style="{{ media_style }}" tabindex="-1" aria-hidden="true">
@@ -1422,7 +1431,7 @@
   "currency": {{ shop.currency | json }},
   "moneyFormat": {{ shop.money_format | json }},
   "afterAddAction": {{ after_add_action | json }},
-  "order": [{{ product.id | json }}{%- for handle in fbt_handles -%}{%- assign r = all_products[handle] -%}{%- if r == empty -%}{%- continue -%}{%- endif -%},{{ r.id | json }}{%- endfor -%}],
+  "order": [{{ product.id | json }}{%- for handle in fbt_handles -%}{%- assign r = all_products[handle] -%}{%- if r == empty -%}{%- continue -%}{%- endif -%}{%- unless r.available -%}{%- continue -%}{%- endunless -%},{{ r.id | json }}{%- endfor -%}],
   "products": [
     {
       "id": {{ product.id | json }},
@@ -1453,6 +1462,7 @@
     {%- for handle in fbt_handles -%}
     {%- assign r = all_products[handle] -%}
     {%- if r == empty -%}{%- continue -%}{%- endif -%}
+    {%- unless r.available -%}{%- continue -%}{%- endunless -%}
     ,
     {
       "id": {{ r.id | json }},

@@ -461,6 +461,18 @@
       overlay.setAttribute('role', 'dialog')
       overlay.setAttribute('aria-modal', 'true')
       overlay.setAttribute('aria-label', 'Choose variant')
+      // The Studio style bake is scoped via
+      // `[data-spectrum-instance-id="X"][data-spectrum-variant-id="Y"] .target`.
+      // Since the overlay is appended to <body> (escapes the snippet
+      // stacking context so it can rise above PDP chrome), the bake
+      // selector can't reach inner elements unless those data attrs
+      // ride along on the overlay itself. Copy them from the host
+      // wrapper so the merchant's Styling-panel edits apply.
+      const wrapper = this.closest('[data-spectrum-instance-id]')
+      const instanceId = wrapper?.getAttribute('data-spectrum-instance-id')
+      const variantId = wrapper?.getAttribute('data-spectrum-variant-id')
+      if (instanceId) overlay.setAttribute('data-spectrum-instance-id', instanceId)
+      if (variantId) overlay.setAttribute('data-spectrum-variant-id', variantId)
 
       const backdrop = document.createElement('div')
       backdrop.className = 'sai-fbtatc4z__quickshop-backdrop'
