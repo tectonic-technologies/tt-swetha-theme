@@ -230,7 +230,7 @@
       super()
       this._data = null
       this._productsById = new Map()
-      this._afterAddAction = 'open-cart-drawer'
+      this._afterAddAction = 'stay'
       this._ctaTimers = new Map()
       this._modal = null
       this._scrollLock = null
@@ -271,7 +271,7 @@
         this._data = null
         return
       }
-      this._afterAddAction = this._data.afterAddAction || 'open-cart-drawer'
+      this._afterAddAction = this._data.afterAddAction || 'stay'
       for (const p of this._data.products || []) {
         this._productsById.set(String(p.id), p)
       }
@@ -340,37 +340,16 @@
 
       let succeeded = false
       try {
-        // Two add paths gated by `after_add_action`. Both refresh the
-        // theme's cart icon counter without a page reload.
-        //   open-cart-drawer  →  cart.addAndOpen — add + section refresh + drawer open
-        //   show-added-state  →  cart.add(sections) + manual icon-bubble swap
-        //                        + cart-update event firehose (no drawer)
         const cartApi = window.Spectrum?.cart
-        if (!cartApi || typeof cartApi.add !== 'function') {
+        if (!cartApi || typeof cartApi.addAndOpen !== 'function') {
           throw new Error('Spectrum cart API unavailable')
         }
-        const items = [{ id: variantId, quantity: 1 }]
-        let cartResponse
-        if (this._afterAddAction === 'show-added-state') {
-          // Request only `cart-icon-bubble`. Including `cart-drawer` or
-          // `cart-notification` would have us innerHTML-swap their roots
-          // — which on Dawn-family themes blows away the
-          // `<cart-drawer>` / `<cart-notification>` custom-element state
-          // (no `renderContents()` invocation here). Themes that need
-          // their drawer refreshed open it on the cart-update DOM event
-          // we still dispatch.
-          cartResponse = await cartApi.add(items, { sections: ['cart-icon-bubble'] })
-          if (cartResponse && cartResponse.ok !== false) {
-            this._refreshCartIcon(cartResponse, items)
-          }
-        } else {
-          if (typeof cartApi.addAndOpen !== 'function') {
-            throw new Error('Spectrum cart API unavailable')
-          }
-          cartResponse = await cartApi.addAndOpen(items, {
-            sourceId: `spectrum-${SNIPPET_ID}`,
-          })
-        }
+        // addAndOpen handles section refresh + drawer-open detection + cart
+        // event dispatch. We pass a single-variant items list; the API
+        // batches gracefully whether it's 1 or N items.
+        const cartResponse = await cartApi.addAndOpen([{ id: variantId, quantity: 1 }], {
+          sourceId: `spectrum-${SNIPPET_ID}`,
+        })
         if (cartResponse && cartResponse.ok === false) {
           throw new Error(cartResponse.error?.message || 'Could not add to cart')
         }
@@ -385,51 +364,6 @@
         if (succeeded) {
           this._enterSuccessState(button)
         }
-      }
-    }
-
-    // Swap the cart-icon-bubble (and friends) section HTML and dispatch the
-    // cart-update event firehose themes listen to. Mirrors the part of the
-    // SDK's `_integrateCartAdd` that updates the icon — minus the drawer
-    // open. Needed for the `show-added-state` path; the drawer path's
-    // addAndOpen already does this work itself.
-    _refreshCartIcon(cartResponse, items) {
-      const sections = cartResponse?.sections
-      if (sections && typeof sections === 'object') {
-        for (const [sectionId, html] of Object.entries(sections)) {
-          if (typeof html !== 'string' || !html) continue
-          const target = document.getElementById(`shopify-section-${sectionId}`)
-          if (!target) continue
-          try {
-            const doc = new DOMParser().parseFromString(html, 'text/html')
-            const incoming = doc.getElementById(`shopify-section-${sectionId}`)
-            if (incoming) target.innerHTML = incoming.innerHTML
-          } catch (_) {
-            // malformed section html — leave DOM untouched
-          }
-        }
-      }
-      const detail = {
-        resource: 'cart',
-        sourceId: `spectrum-${SNIPPET_ID}`,
-        data: { items, sections },
-      }
-      // `cart:update` is load-bearing for Horizon; the others cover Dawn-
-      // family and themes with their own pub/sub bridges.
-      const eventNames = [
-        'cart:update',
-        'cart:updated',
-        'cart:refresh',
-        'cart:item-added',
-        'cart:build',
-      ]
-      for (const name of eventNames) {
-        try {
-          document.dispatchEvent(new CustomEvent(name, { detail, bubbles: true }))
-        } catch (_) {}
-        try {
-          window.dispatchEvent(new CustomEvent(name, { detail }))
-        } catch (_) {}
       }
     }
 
@@ -457,13 +391,18 @@
       button.disabled = true
       labelEl.textContent = 'Added ✓'
 
-      // Brief success feedback then revert. Both `open-cart-drawer` and
-      // `show-added-state` use this same revert path — the difference
-      // between modes is whether the drawer also opens during _addToCart,
-      // not what the button does afterwards.
+      const action = this._afterAddAction || 'stay'
       const prev = this._ctaTimers.get(button)
       if (prev) clearTimeout(prev)
       const timer = setTimeout(() => {
+        if (action === 'redirect-to-cart') {
+          window.location.href = '/cart'
+          return
+        }
+        if (action === 'redirect-to-checkout') {
+          window.location.href = '/checkout'
+          return
+        }
         button.removeAttribute('data-state')
         labelEl.textContent = baseLabel
         if (button.getAttribute('aria-disabled') !== 'true') {
@@ -522,18 +461,6 @@
       overlay.setAttribute('role', 'dialog')
       overlay.setAttribute('aria-modal', 'true')
       overlay.setAttribute('aria-label', 'Choose variant')
-      // The Studio style bake is scoped via
-      // `[data-spectrum-instance-id="X"][data-spectrum-variant-id="Y"] .target`.
-      // Since the overlay is appended to <body> (escapes the snippet
-      // stacking context so it can rise above PDP chrome), the bake
-      // selector can't reach inner elements unless those data attrs
-      // ride along on the overlay itself. Copy them from the host
-      // wrapper so the merchant's Styling-panel edits apply.
-      const wrapper = this.closest('[data-spectrum-instance-id]')
-      const instanceId = wrapper?.getAttribute('data-spectrum-instance-id')
-      const variantId = wrapper?.getAttribute('data-spectrum-variant-id')
-      if (instanceId) overlay.setAttribute('data-spectrum-instance-id', instanceId)
-      if (variantId) overlay.setAttribute('data-spectrum-variant-id', variantId)
 
       const backdrop = document.createElement('div')
       backdrop.className = 'sai-fbtatc4z__quickshop-backdrop'

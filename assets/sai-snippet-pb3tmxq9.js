@@ -181,12 +181,10 @@
         if (!this._data) return
 
         // Resolved once at init from the server-validated payload (Liquid
-        // allowlist-guards the value before serializing). Branches the
-        // cart-add path: 'open-cart-drawer' calls addAndOpen (drawer
-        // opens), 'show-added-state' calls add + manual icon-bubble
-        // refresh (no drawer). Defaults to 'open-cart-drawer' if the
-        // payload omits the key.
-        this._afterAddAction = this._data.afterAddAction || 'open-cart-drawer'
+        // allowlist-guards the value before serializing); used by
+        // `_enterSuccessState` to decide what to do after the success-state
+        // timeout. Defaults to 'stay' if the payload omits the key.
+        this._afterAddAction = this._data.afterAddAction || 'stay'
 
         for (const p of this._data.products) {
           this._productsById.set(String(p.id), p)
@@ -402,36 +400,17 @@
 
         let succeeded = false
         try {
-          // Two add paths gated by `after_add_action`. Both refresh the
-          // theme's cart icon counter without a page reload.
-          //   open-cart-drawer  →  cart.addAndOpen — add + section refresh + drawer open
-          //   show-added-state  →  cart.add(sections) + manual icon-bubble swap
-          //                        + cart-update event firehose (no drawer)
           const cartApi = window.Spectrum?.cart
-          if (!cartApi || typeof cartApi.add !== 'function') {
+          if (!cartApi || typeof cartApi.addAndOpen !== 'function') {
             throw new Error('Spectrum cart API unavailable')
           }
-          let cartResponse
-          if (this._afterAddAction === 'show-added-state') {
-            // Request only `cart-icon-bubble`. Including `cart-drawer`
-            // or `cart-notification` would have us innerHTML-swap their
-            // roots — which on Dawn-family themes blows away the
-            // `<cart-drawer>` / `<cart-notification>` custom-element
-            // state (no `renderContents()` invocation here). Themes
-            // that need their drawer refreshed open it on the
-            // cart-update DOM event we still dispatch.
-            cartResponse = await cartApi.add(items, { sections: ['cart-icon-bubble'] })
-            if (cartResponse && cartResponse.ok !== false) {
-              this._refreshCartIcon(cartResponse, items)
-            }
-          } else {
-            if (typeof cartApi.addAndOpen !== 'function') {
-              throw new Error('Spectrum cart API unavailable')
-            }
-            cartResponse = await cartApi.addAndOpen(items, {
-              sourceId: `spectrum-${SNIPPET_ID}`,
-            })
-          }
+          // addAndOpen performs the section detection, server-side render
+          // request, section-swap, drawer-open cascade, and cart-update
+          // event firehose. This snippet was the original reference for
+          // that flow; it now lives in spectrum-sdk.js.
+          const cartResponse = await cartApi.addAndOpen(items, {
+            sourceId: `spectrum-${SNIPPET_ID}`,
+          })
           if (cartResponse && cartResponse.ok === false) {
             throw new Error(cartResponse.error?.message || 'Could not add to cart')
           }
@@ -442,6 +421,11 @@
           // without any field-level matching.
           this._track(`${FEATURE_SLUG}:added_to_cart`, atcPayload)
           this._emit(`${FEATURE_SLUG}:added_to_cart`, atcPayload)
+
+          // `_afterAddAction` was resolved at init from `_data.afterAddAction`
+          // — `_enterSuccessState` reads it in the `finally` block below to
+          // decide whether to stay on page, navigate to /cart, or
+          // navigate to /checkout once the brief confirmation expires.
         } catch (err) {
           // No `:add_to_cart_failed` event — by convention, an
           // `:add_to_cart` intent without a matching `:added_to_cart`
@@ -463,51 +447,6 @@
             cta.disabled = empty
             cta.toggleAttribute('aria-disabled', empty)
           }
-        }
-      }
-
-      // Swap the cart-icon-bubble (and friends) section HTML and dispatch
-      // the cart-update event firehose themes listen to. Mirrors the part
-      // of the SDK's `_integrateCartAdd` that updates the icon — minus
-      // the drawer open. Needed for the `show-added-state` path; the
-      // drawer path's addAndOpen already does this work itself.
-      _refreshCartIcon(cartResponse, items) {
-        const sections = cartResponse?.sections
-        if (sections && typeof sections === 'object') {
-          for (const [sectionId, html] of Object.entries(sections)) {
-            if (typeof html !== 'string' || !html) continue
-            const target = document.getElementById(`shopify-section-${sectionId}`)
-            if (!target) continue
-            try {
-              const doc = new DOMParser().parseFromString(html, 'text/html')
-              const incoming = doc.getElementById(`shopify-section-${sectionId}`)
-              if (incoming) target.innerHTML = incoming.innerHTML
-            } catch (_) {
-              // malformed section html — leave DOM untouched
-            }
-          }
-        }
-        const detail = {
-          resource: 'cart',
-          sourceId: `spectrum-${SNIPPET_ID}`,
-          data: { items, sections },
-        }
-        // `cart:update` is load-bearing for Horizon; the others cover Dawn-
-        // family and themes with their own pub/sub bridges.
-        const eventNames = [
-          'cart:update',
-          'cart:updated',
-          'cart:refresh',
-          'cart:item-added',
-          'cart:build',
-        ]
-        for (const name of eventNames) {
-          try {
-            document.dispatchEvent(new CustomEvent(name, { detail, bubbles: true }))
-          } catch (_) {}
-          try {
-            window.dispatchEvent(new CustomEvent(name, { detail }))
-          } catch (_) {}
         }
       }
 
@@ -533,12 +472,17 @@
         cta.setAttribute('aria-disabled', 'true')
         cta.setAttribute('data-state', 'added')
         labelEl.textContent = 'Added to cart ✓'
-        // Brief success feedback then revert. Both `open-cart-drawer` and
-        // `show-added-state` use this same revert path — the difference
-        // between modes is whether the drawer also opens during _submit,
-        // not what the CTA does afterwards.
+        const action = this._afterAddAction || 'stay'
         if (this._successTimer) clearTimeout(this._successTimer)
         this._successTimer = setTimeout(() => {
+          if (action === 'redirect-to-cart') {
+            window.location.href = '/cart'
+            return
+          }
+          if (action === 'redirect-to-checkout') {
+            window.location.href = '/checkout'
+            return
+          }
           cta.removeAttribute('data-state')
           // _updateCta restores the "Add To Cart (N)" label from
           // _ctaBaseLabel + current selection count, and flips disabled
@@ -587,16 +531,6 @@
         overlay.setAttribute('role', 'dialog')
         overlay.setAttribute('aria-modal', 'true')
         overlay.setAttribute('aria-label', 'Choose variant')
-        // Carry the host's data-spectrum-* attrs onto the overlay so
-        // Studio's instance-scoped style bake (descendant of
-        // `[data-spectrum-instance-id="X"][data-spectrum-variant-id="Y"]`)
-        // can reach the modal's inner elements. Without this the overlay
-        // lives in <body> and the bake selector never matches.
-        const wrapper = this.closest('[data-spectrum-instance-id]')
-        const instanceId = wrapper?.getAttribute('data-spectrum-instance-id')
-        const variantId = wrapper?.getAttribute('data-spectrum-variant-id')
-        if (instanceId) overlay.setAttribute('data-spectrum-instance-id', instanceId)
-        if (variantId) overlay.setAttribute('data-spectrum-variant-id', variantId)
 
         const backdrop = document.createElement('div')
         backdrop.className = 'sai-pb3tmxq9__modal-backdrop'

@@ -1013,23 +1013,15 @@
 {%- if show_total_price == nil -%}{%- assign show_total_price = true -%}{%- endif -%}
 
 {%- assign after_add_action = content.after_add_action -%}
-{%- if after_add_action != 'open-cart-drawer' and after_add_action != 'show-added-state' -%}
-  {%- assign after_add_action = 'open-cart-drawer' -%}
+{%- if after_add_action != 'stay' and after_add_action != 'redirect-to-cart' and after_add_action != 'redirect-to-checkout' -%}
+  {%- assign after_add_action = 'stay' -%}
 {%- endif -%}
 
 {%- assign show_ratings = content.show_ratings -%}
 {%- if show_ratings == nil -%}{%- assign show_ratings = true -%}{%- endif -%}
 
-{%- assign show_compare_price = content.show_compare_price -%}
-{%- if show_compare_price == nil -%}{%- assign show_compare_price = true -%}{%- endif -%}
-
-{%- comment -%}
-  Discount badge visibility is derived from `show_compare_price` —
-  enabling compare-at without the badge would surprise, and disabling
-  compare-at while keeping the badge would surface "% OFF" without
-  context. Single toggle keeps the merchant model simple.
-{%- endcomment -%}
-{%- assign show_discount_badge = show_compare_price -%}
+{%- assign show_discount_badge = content.show_discount_badge -%}
+{%- if show_discount_badge == nil -%}{%- assign show_discount_badge = true -%}{%- endif -%}
 
 {%- comment -%}
   Layout + select-prop allowlists. `| default:` is not enough — the merchant
@@ -1091,11 +1083,9 @@
 {%- if fbt_handles != nil -%}
   {%- for handle in fbt_handles -%}
     {%- assign r = all_products[handle] -%}
-    {%- if r == empty -%}{%- continue -%}{%- endif -%}
-    {%- comment -%} Filter fully-OOS recos so they don't ship in the
-    bundle UI — Add to cart would fail on them anyway. {%- endcomment -%}
-    {%- unless r.available -%}{%- continue -%}{%- endunless -%}
-    {%- assign resolved_count = resolved_count | plus: 1 -%}
+    {%- unless r == empty -%}
+      {%- assign resolved_count = resolved_count | plus: 1 -%}
+    {%- endunless -%}
   {%- endfor -%}
 {%- endif -%}
 
@@ -1159,7 +1149,7 @@
             {%- endif -%}
           </a>
           <a class="sai-pb3tmxq9__title" href="{{ product.url }}">{{ product.title }}</a>
-          {%- if show_compare_price and product.compare_at_price and product.compare_at_price > product.price -%}
+          {%- if product.compare_at_price and product.compare_at_price > product.price -%}
             {%- assign p_has_compare = true -%}
             {%- assign p_off_amount = product.compare_at_price | minus: product.price -%}
             {%- assign p_off_pct = p_off_amount | times: 100 | divided_by: product.compare_at_price -%}
@@ -1169,17 +1159,14 @@
           <div class="sai-pb3tmxq9__price-row">
             <span class="sai-pb3tmxq9__price">{{ product.price | money }}</span>
             {%- comment -%}
-              When show_compare_price is on, SSR both nodes as DOM
-              placeholders (toggling `hidden`) so the variant-picker's
-              `_commitModal` can flip them on when the shopper switches
-              from a non-discount variant to a discount one. When the
-              merchant turned the toggle off, omit the nodes entirely
-              — the JS querySelector then returns null and the swap
-              code is a noop, which is the correct behaviour.
+              Always SSR the compare + off-badge nodes (toggling `hidden`)
+              so the variant-picker modal's `_commitModal` can flip them on
+              when the shopper switches from a non-discount variant to a
+              discount one. Without these as DOM placeholders, the JS
+              querySelectors return null and the new discount silently fails
+              to surface.
             {%- endcomment -%}
-            {%- if show_compare_price -%}
-              <span class="sai-pb3tmxq9__compare"{% unless p_has_compare %} hidden{% endunless %}>{%- if p_has_compare -%}{{ product.compare_at_price | money }}{%- endif -%}</span>
-            {%- endif -%}
+            <span class="sai-pb3tmxq9__compare"{% unless p_has_compare %} hidden{% endunless %}>{%- if p_has_compare -%}{{ product.compare_at_price | money }}{%- endif -%}</span>
             {%- if show_discount_badge -%}
               <span class="sai-pb3tmxq9__off-badge"{% unless p_has_compare %} hidden{% endunless %}>{%- if p_has_compare -%}{{ p_off_pct }}% OFF{%- endif -%}</span>
             {%- endif -%}
@@ -1197,7 +1184,6 @@
         {%- for handle in fbt_handles -%}
           {%- assign r = all_products[handle] -%}
           {%- if r == empty -%}{%- continue -%}{%- endif -%}
-          {%- unless r.available -%}{%- continue -%}{%- endunless -%}
           {%- if forloop.first -%}
             <div class="sai-pb3tmxq9__plus" aria-hidden="true">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" focusable="false">
@@ -1226,7 +1212,7 @@
               {%- endif -%}
             </a>
             <a class="sai-pb3tmxq9__title" href="{{ r.url }}">{{ r.title }}</a>
-            {%- if show_compare_price and r.compare_at_price and r.compare_at_price > r.price -%}
+            {%- if r.compare_at_price and r.compare_at_price > r.price -%}
               {%- assign r_has_compare = true -%}
               {%- assign r_off_amount = r.compare_at_price | minus: r.price -%}
               {%- assign r_off_pct = r_off_amount | times: 100 | divided_by: r.compare_at_price -%}
@@ -1235,9 +1221,7 @@
             {%- endif -%}
             <div class="sai-pb3tmxq9__price-row">
               <span class="sai-pb3tmxq9__price">{{ r.price | money }}</span>
-              {%- if show_compare_price -%}
-                <span class="sai-pb3tmxq9__compare"{% unless r_has_compare %} hidden{% endunless %}>{%- if r_has_compare -%}{{ r.compare_at_price | money }}{%- endif -%}</span>
-              {%- endif -%}
+              <span class="sai-pb3tmxq9__compare"{% unless r_has_compare %} hidden{% endunless %}>{%- if r_has_compare -%}{{ r.compare_at_price | money }}{%- endif -%}</span>
               {%- if show_discount_badge -%}
                 <span class="sai-pb3tmxq9__off-badge"{% unless r_has_compare %} hidden{% endunless %}>{%- if r_has_compare -%}{{ r_off_pct }}% OFF{%- endif -%}</span>
               {%- endif -%}
@@ -1294,7 +1278,7 @@
         </a>
         <div class="sai-pb3tmxq9__info">
           <a class="sai-pb3tmxq9__title" href="{{ product.url }}">{{ product.title }}</a>
-          {%- if show_compare_price and product.compare_at_price and product.compare_at_price > product.price -%}
+          {%- if product.compare_at_price and product.compare_at_price > product.price -%}
             {%- assign p_has_compare = true -%}
             {%- assign p_off_amount = product.compare_at_price | minus: product.price -%}
             {%- assign p_off_pct = p_off_amount | times: 100 | divided_by: product.compare_at_price -%}
@@ -1303,9 +1287,7 @@
           {%- endif -%}
           <div class="sai-pb3tmxq9__price-row">
             <span class="sai-pb3tmxq9__price">{{ product.price | money }}</span>
-            {%- if show_compare_price -%}
-              <span class="sai-pb3tmxq9__compare"{% unless p_has_compare %} hidden{% endunless %}>{%- if p_has_compare -%}{{ product.compare_at_price | money }}{%- endif -%}</span>
-            {%- endif -%}
+            <span class="sai-pb3tmxq9__compare"{% unless p_has_compare %} hidden{% endunless %}>{%- if p_has_compare -%}{{ product.compare_at_price | money }}{%- endif -%}</span>
             {%- if show_discount_badge -%}
               <span class="sai-pb3tmxq9__off-badge"{% unless p_has_compare %} hidden{% endunless %}>{%- if p_has_compare -%}{{ p_off_pct }}% OFF{%- endif -%}</span>
             {%- endif -%}
@@ -1346,7 +1328,6 @@
     {%- for handle in fbt_handles -%}
       {%- assign r = all_products[handle] -%}
       {%- if r == empty -%}{%- continue -%}{%- endif -%}
-      {%- unless r.available -%}{%- continue -%}{%- endunless -%}
       <div class="sai-pb3tmxq9__card sai-pb3tmxq9__card--reco" data-product-id="{{ r.id }}">
         <div class="sai-pb3tmxq9__row">
           <a class="sai-pb3tmxq9__media" href="{{ r.url }}" style="{{ media_style }}" tabindex="-1" aria-hidden="true">
@@ -1362,7 +1343,7 @@
           </a>
           <div class="sai-pb3tmxq9__info">
             <a class="sai-pb3tmxq9__title" href="{{ r.url }}">{{ r.title }}</a>
-            {%- if show_compare_price and r.compare_at_price and r.compare_at_price > r.price -%}
+            {%- if r.compare_at_price and r.compare_at_price > r.price -%}
               {%- assign r_has_compare = true -%}
               {%- assign r_off_amount = r.compare_at_price | minus: r.price -%}
               {%- assign r_off_pct = r_off_amount | times: 100 | divided_by: r.compare_at_price -%}
@@ -1371,9 +1352,7 @@
             {%- endif -%}
             <div class="sai-pb3tmxq9__price-row">
               <span class="sai-pb3tmxq9__price">{{ r.price | money }}</span>
-              {%- if show_compare_price -%}
-                <span class="sai-pb3tmxq9__compare"{% unless r_has_compare %} hidden{% endunless %}>{%- if r_has_compare -%}{{ r.compare_at_price | money }}{%- endif -%}</span>
-              {%- endif -%}
+              <span class="sai-pb3tmxq9__compare"{% unless r_has_compare %} hidden{% endunless %}>{%- if r_has_compare -%}{{ r.compare_at_price | money }}{%- endif -%}</span>
               {%- if show_discount_badge -%}
                 <span class="sai-pb3tmxq9__off-badge"{% unless r_has_compare %} hidden{% endunless %}>{%- if r_has_compare -%}{{ r_off_pct }}% OFF{%- endif -%}</span>
               {%- endif -%}
@@ -1443,7 +1422,7 @@
   "currency": {{ shop.currency | json }},
   "moneyFormat": {{ shop.money_format | json }},
   "afterAddAction": {{ after_add_action | json }},
-  "order": [{{ product.id | json }}{%- for handle in fbt_handles -%}{%- assign r = all_products[handle] -%}{%- if r == empty -%}{%- continue -%}{%- endif -%}{%- unless r.available -%}{%- continue -%}{%- endunless -%},{{ r.id | json }}{%- endfor -%}],
+  "order": [{{ product.id | json }}{%- for handle in fbt_handles -%}{%- assign r = all_products[handle] -%}{%- if r == empty -%}{%- continue -%}{%- endif -%},{{ r.id | json }}{%- endfor -%}],
   "products": [
     {
       "id": {{ product.id | json }},
@@ -1474,7 +1453,6 @@
     {%- for handle in fbt_handles -%}
     {%- assign r = all_products[handle] -%}
     {%- if r == empty -%}{%- continue -%}{%- endif -%}
-    {%- unless r.available -%}{%- continue -%}{%- endunless -%}
     ,
     {
       "id": {{ r.id | json }},
