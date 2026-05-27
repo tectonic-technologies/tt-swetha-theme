@@ -340,25 +340,29 @@
 
       let succeeded = false
       try {
-        // Two add paths gated by `after_add_action`. Both go through the
-        // Spectrum SDK so the theme's cart icon/counter receives the
-        // `cart:added` + `cart:updated` events and reflects the new line
-        // without a page reload. The only difference is whether we also
-        // open the theme's drawer afterwards.
+        // Two add paths gated by `after_add_action`. Both refresh the
+        // theme's cart icon counter without a page reload.
         //   open-cart-drawer  →  cart.addAndOpen — add + section refresh + drawer open
-        //   show-added-state  →  cart.add        — add + events only (no drawer)
+        //   show-added-state  →  cart.add(sections) + manual icon-bubble swap
+        //                        + cart-update event firehose (no drawer)
         const cartApi = window.Spectrum?.cart
         if (!cartApi || typeof cartApi.add !== 'function') {
           throw new Error('Spectrum cart API unavailable')
         }
+        const items = [{ id: variantId, quantity: 1 }]
         let cartResponse
         if (this._afterAddAction === 'show-added-state') {
-          cartResponse = await cartApi.add([{ id: variantId, quantity: 1 }])
+          cartResponse = await cartApi.add(items, {
+            sections: ['cart-icon-bubble', 'cart-drawer', 'cart-notification'],
+          })
+          if (cartResponse && cartResponse.ok !== false) {
+            this._refreshCartIcon(cartResponse, items)
+          }
         } else {
           if (typeof cartApi.addAndOpen !== 'function') {
             throw new Error('Spectrum cart API unavailable')
           }
-          cartResponse = await cartApi.addAndOpen([{ id: variantId, quantity: 1 }], {
+          cartResponse = await cartApi.addAndOpen(items, {
             sourceId: `spectrum-${SNIPPET_ID}`,
           })
         }
@@ -376,6 +380,51 @@
         if (succeeded) {
           this._enterSuccessState(button)
         }
+      }
+    }
+
+    // Swap the cart-icon-bubble (and friends) section HTML and dispatch the
+    // cart-update event firehose themes listen to. Mirrors the part of the
+    // SDK's `_integrateCartAdd` that updates the icon — minus the drawer
+    // open. Needed for the `show-added-state` path; the drawer path's
+    // addAndOpen already does this work itself.
+    _refreshCartIcon(cartResponse, items) {
+      const sections = cartResponse?.sections
+      if (sections && typeof sections === 'object') {
+        for (const [sectionId, html] of Object.entries(sections)) {
+          if (typeof html !== 'string' || !html) continue
+          const target = document.getElementById(`shopify-section-${sectionId}`)
+          if (!target) continue
+          try {
+            const doc = new DOMParser().parseFromString(html, 'text/html')
+            const incoming = doc.getElementById(`shopify-section-${sectionId}`)
+            if (incoming) target.innerHTML = incoming.innerHTML
+          } catch (_) {
+            // malformed section html — leave DOM untouched
+          }
+        }
+      }
+      const detail = {
+        resource: 'cart',
+        sourceId: `spectrum-${SNIPPET_ID}`,
+        data: { items, sections },
+      }
+      // `cart:update` is load-bearing for Horizon; the others cover Dawn-
+      // family and themes with their own pub/sub bridges.
+      const eventNames = [
+        'cart:update',
+        'cart:updated',
+        'cart:refresh',
+        'cart:item-added',
+        'cart:build',
+      ]
+      for (const name of eventNames) {
+        try {
+          document.dispatchEvent(new CustomEvent(name, { detail, bubbles: true }))
+        } catch (_) {}
+        try {
+          window.dispatchEvent(new CustomEvent(name, { detail }))
+        } catch (_) {}
       }
     }
 
