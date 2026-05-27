@@ -57,29 +57,23 @@
     }
   }
 
-  // Formats cents to a string matching the shop's Liquid `| money` output.
-  // Accepts the full data payload (`{ moneyFormat, currency }`) or a legacy
-  // currency-string for backward compat. Using `shop.money_format` makes
-  // JS-rendered prices match SSR ones — Intl.NumberFormat produced
-  // `US$699.95` while Liquid renders `$699.95`.
-  function formatMoney(cents, ctx) {
+  function formatMoney(cents, currency) {
     if (cents == null) return ''
     const fn = window.Spectrum?.formatMoney
     if (typeof fn === 'function') return fn(cents)
+    // Fallback: Intl.NumberFormat with the currency from the payload.
+    // The server-rendered initial markup used `| money`; this fallback
+    // only fires after variant switches / live total updates.
     const value = Number(cents) / 100
     if (!Number.isFinite(value)) return ''
-    const moneyFormat = ctx && typeof ctx === 'object' ? ctx.moneyFormat : null
-    if (typeof moneyFormat === 'string' && moneyFormat.includes('{{')) {
-      return moneyFormat
-        .replace(/{{\s*amount\s*}}/g, value.toFixed(2))
-        .replace(/{{\s*amount_no_decimals\s*}}/g, String(Math.round(value)))
-        .replace(/{{\s*amount_with_comma_separator\s*}}/g, value.toFixed(2).replace('.', ','))
-        .replace(/{{\s*amount_no_decimals_with_comma_separator\s*}}/g, String(Math.round(value)))
-        .replace(/{{\s*amount_with_space_separator\s*}}/g, value.toFixed(2).replace('.', ' '))
-        .replace(/{{\s*amount_no_decimals_with_space_separator\s*}}/g, String(Math.round(value)))
-        .replace(/{{\s*amount_with_apostrophe_separator\s*}}/g, value.toFixed(2).replace('.', "'"))
+    try {
+      return value.toLocaleString(undefined, {
+        style: 'currency',
+        currency: currency || 'USD',
+      })
+    } catch (_) {
+      return value.toFixed(2)
     }
-    return `$${value.toFixed(2)}`
   }
 
   function offPercent(price, compareAt) {
@@ -124,37 +118,15 @@
     return matches.find((v) => v.available) || matches[0]
   }
 
-  // Derive a per-value swatch image by taking the featuredImage of the
-  // first variant whose options[optionIndex] === value. Works best on
-  // Color (each variant tends to have its own image); Size/Material fall
-  // back to null and the pill renders text-only. Same trick i2m3o6sr and
-  // fbtatc4z use.
-  function swatchImageForValueByIndex(product, optionIndex, value) {
-    for (const v of product.variants || []) {
-      if (v.options?.[optionIndex] === value && v.featuredImage) return v.featuredImage
-    }
-    return null
-  }
-
-  // Focusable elements inside the modal panel. Used to scope Tab
-  // navigation to the modal (Tab trap) and to pick initial focus.
-  const FOCUSABLE_SELECTOR =
-    'a[href], button:not([disabled]):not([aria-disabled="true"]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-
-  function focusablesIn(container) {
-    return Array.from(container.querySelectorAll(FOCUSABLE_SELECTOR)).filter(
-      (el) => !el.hidden && el.offsetParent !== null,
-    )
-  }
-
   function isValueAvailableForTuple(product, optionIndex, value, tuple) {
-    // Always respect `v.available`. The earlier gift-card workaround
-    // (treat every variant as available when ALL are unavailable) hid
-    // genuine sold-out states — if every variant is OOS the merchant
-    // wants the product shown as unavailable, not magically purchasable.
+    // Gift card products (and other Shopify quirks) report every variant
+    // with `available: false` even though the variants are purchasable.
+    // Fall back to "any variant matching the tuple" when no variant on the
+    // product is reported as available.
+    const anyAvailable = product.variants.some((v) => v.available)
     return product.variants.some((v) => {
       if (v.options?.[optionIndex] !== value) return false
-      if (!v.available) return false
+      if (anyAvailable && !v.available) return false
       return (v.options || []).every((val, i) => i === optionIndex || val === tuple[i])
     })
   }
@@ -361,7 +333,7 @@
         if (!totalEl) return
         const variants = this._selectedVariants()
         const cents = variants.reduce((sum, v) => sum + (Number(v.price) || 0), 0)
-        totalEl.textContent = cents > 0 ? formatMoney(cents, this._data) : ''
+        totalEl.textContent = cents > 0 ? formatMoney(cents, this._data.currency) : ''
       }
 
       _setError(message) {
@@ -494,14 +466,6 @@
 
       // ── Variant modal ──────────────────────────────────────────────────────
 
-      // ── Variant picker mini-PDP (quickshop) ───────────────────────────
-      // Mobile bottom sheet → desktop centred modal. Header carries the
-      // product image + title + live-updating price; one option group per
-      // option type with name-keyed pills and per-value swatches (where the
-      // first matching variant has a featuredImage). DONE button commits
-      // the variant to the row + closes — does NOT add to cart (pb3tmxq9
-      // is a bundle widget, the aggregate ATC outside the modal does the
-      // adding). Mirrors fbtatc4z / i2m3o6sr quickshop visuals.
       _openModal(productId) {
         const product = this._productsById.get(String(productId))
         if (!product || product.variants.length < 2) return
@@ -509,82 +473,36 @@
         const row = this._rows.get(productId)
         if (!row) return
 
-        // Double-open guard: if a previous overlay is still mid-close
-        // (DOM still attached during slide-out), sync-remove it before
-        // building a new one. Prevents two aria-modal dialogs being
-        // simultaneously live in the DOM.
-        for (const stale of document.querySelectorAll('.sai-pb3tmxq9__modal-overlay')) {
-          if (stale.parentNode) stale.parentNode.removeChild(stale)
-        }
-
         const currentVariant = product.variants.find((v) => String(v.id) === row.variantId)
         const initialTuple = (currentVariant || product.variants[0]).options.slice()
         const numOptions = optionCount(product)
 
         this._modalCandidate = { productId, optionValues: initialTuple.slice() }
-        // Captured so the close path can return focus to the trigger
-        // element, completing the role=dialog + aria-modal contract.
-        this._modalPreviousFocus = document.activeElement
 
         const overlay = document.createElement('div')
         overlay.className = 'sai-pb3tmxq9__modal-overlay'
         overlay.setAttribute('role', 'dialog')
         overlay.setAttribute('aria-modal', 'true')
-        overlay.setAttribute('aria-label', 'Choose variant')
-
-        const backdrop = document.createElement('div')
-        backdrop.className = 'sai-pb3tmxq9__modal-backdrop'
-        backdrop.addEventListener('click', () => this._closeModal())
-        overlay.appendChild(backdrop)
+        overlay.setAttribute('aria-label', 'Variant picker')
 
         const card = document.createElement('div')
         card.className = 'sai-pb3tmxq9__modal-card'
         overlay.appendChild(card)
 
-        // Floating close button (top-right of panel).
+        // Header: just the close button — group labels carry the
+        // "Option: <value>" copy, so a separate title would duplicate.
+        const header = document.createElement('div')
+        header.className = 'sai-pb3tmxq9__modal-header'
         const closeBtn = document.createElement('button')
         closeBtn.type = 'button'
         closeBtn.className = 'sai-pb3tmxq9__modal-close'
         closeBtn.setAttribute('aria-label', 'Close')
         closeBtn.appendChild(makeIcon('close'))
         closeBtn.addEventListener('click', () => this._closeModal())
-        card.appendChild(closeBtn)
-
-        // Header: image + title + live price (variant picks update all three).
-        const header = document.createElement('div')
-        header.className = 'sai-pb3tmxq9__modal-header'
-        const media = document.createElement('div')
-        media.className = 'sai-pb3tmxq9__modal-media'
-        const img = document.createElement('img')
-        img.className = 'sai-pb3tmxq9__modal-image'
-        img.dataset.modalImage = ''
-        img.alt = product.title || ''
-        media.appendChild(img)
-        header.appendChild(media)
-
-        const meta = document.createElement('div')
-        meta.className = 'sai-pb3tmxq9__modal-meta'
-        const titleEl = document.createElement('a')
-        titleEl.className = 'sai-pb3tmxq9__modal-title'
-        titleEl.dataset.modalTitle = ''
-        titleEl.href = product.url || '#'
-        titleEl.textContent = product.title || ''
-        meta.appendChild(titleEl)
-        const priceWrap = document.createElement('p')
-        priceWrap.className = 'sai-pb3tmxq9__modal-price'
-        const priceEl = document.createElement('span')
-        priceEl.dataset.modalPrice = ''
-        priceWrap.appendChild(priceEl)
-        const compareEl = document.createElement('span')
-        compareEl.className = 'sai-pb3tmxq9__modal-price-compare'
-        compareEl.dataset.modalCompare = ''
-        compareEl.hidden = true
-        priceWrap.appendChild(compareEl)
-        meta.appendChild(priceWrap)
-        header.appendChild(meta)
+        header.appendChild(closeBtn)
         card.appendChild(header)
 
-        // One bordered group per option type.
+        // One <fieldset>-style group per option type.
         const groupsContainer = document.createElement('div')
         groupsContainer.className = 'sai-pb3tmxq9__modal-groups'
         card.appendChild(groupsContainer)
@@ -597,46 +515,30 @@
           group.className = 'sai-pb3tmxq9__modal-group'
           group.dataset.optionIndex = String(i)
 
-          const head = document.createElement('div')
-          head.className = 'sai-pb3tmxq9__modal-group-head'
-          const nameEl = document.createElement('span')
-          nameEl.className = 'sai-pb3tmxq9__modal-group-name'
-          nameEl.textContent = `${optionName}:`
-          head.appendChild(nameEl)
-          const selectedEl = document.createElement('span')
-          selectedEl.className = 'sai-pb3tmxq9__modal-group-selected'
-          selectedEl.setAttribute('data-group-current', '')
-          selectedEl.textContent = initialTuple[i] || ''
-          head.appendChild(selectedEl)
-          group.appendChild(head)
+          // Build the group label as text-only nodes — no innerHTML. The
+          // option-name and current-value strings come from the server-rendered
+          // JSON payload (so they're already `| json`-escaped on the wire), but
+          // we still use textContent here because the snippet-library rule
+          // bans client-side HTML escaping helpers entirely.
+          const groupLabel = document.createElement('div')
+          groupLabel.className = 'sai-pb3tmxq9__modal-group-label'
+          groupLabel.appendChild(document.createTextNode(`${optionName}: `))
+          const currentSpan = document.createElement('span')
+          currentSpan.setAttribute('data-group-current', '')
+          currentSpan.textContent = initialTuple[i] || ''
+          groupLabel.appendChild(currentSpan)
+          group.appendChild(groupLabel)
 
           const pills = document.createElement('div')
           pills.className = 'sai-pb3tmxq9__modal-pills'
-          pills.setAttribute('role', 'radiogroup')
-          pills.setAttribute('aria-label', optionName)
           group.appendChild(pills)
 
           for (const value of values) {
             const pill = document.createElement('button')
             pill.type = 'button'
             pill.className = 'sai-pb3tmxq9__pill'
-            pill.setAttribute('role', 'radio')
             pill.dataset.value = value
             pill.dataset.optionIndex = String(i)
-
-            // Swatch — first variant with this value contributes its
-            // featuredImage. Works on Color products; Size/Material fall
-            // back to a text-only pill.
-            const swatchUrl = swatchImageForValueByIndex(product, i, value)
-            if (swatchUrl) {
-              const swatch = document.createElement('span')
-              swatch.className = 'sai-pb3tmxq9__pill-swatch'
-              // setProperty is the canonical safe API for URL values;
-              // direct assignment works today but is fragile to future
-              // changes if the URL ever comes from a non-trusted source.
-              swatch.style.setProperty('background-image', `url("${swatchUrl}")`)
-              pill.appendChild(swatch)
-            }
 
             const valueLabel = document.createElement('span')
             valueLabel.className = 'sai-pb3tmxq9__pill-value'
@@ -655,10 +557,9 @@
           groupsContainer.appendChild(group)
         }
 
-        const stock = document.createElement('p')
+        const stock = document.createElement('div')
         stock.className = 'sai-pb3tmxq9__modal-stock'
         stock.dataset.modalStock = 'true'
-        stock.hidden = true
         card.appendChild(stock)
 
         const doneBtn = document.createElement('button')
@@ -668,51 +569,24 @@
         doneBtn.addEventListener('click', () => this._commitModal())
         card.appendChild(doneBtn)
 
-        // Keyboard contract: Escape closes; Tab is trapped inside the
-        // panel so keyboard users can't navigate into the page
-        // underneath while the modal is visible (role=dialog + aria-modal).
+        overlay.addEventListener('click', (e) => {
+          if (e.target === overlay) this._closeModal()
+        })
+
         const onKey = (e) => {
-          if (e.key === 'Escape') {
-            this._closeModal()
-            return
-          }
-          if (e.key !== 'Tab') return
-          const focusables = focusablesIn(card)
-          if (focusables.length === 0) {
-            e.preventDefault()
-            return
-          }
-          const first = focusables[0]
-          const last = focusables[focusables.length - 1]
-          const active = document.activeElement
-          if (e.shiftKey && (active === first || !card.contains(active))) {
-            e.preventDefault()
-            last.focus()
-          } else if (!e.shiftKey && (active === last || !card.contains(active))) {
-            e.preventDefault()
-            first.focus()
-          }
+          if (e.key === 'Escape') this._closeModal()
         }
         document.addEventListener('keydown', onKey)
 
-        // Inline scroll-lock — restored byte-for-byte on close.
+        // Scroll-lock via inline style: save the prior value so close can
+        // restore it byte-for-byte. CSS-class scroll-lock relies on a global
+        // `body.<class>` selector which the snippet-library style guide bans;
+        // managing overflow inline keeps the rule per-instance.
         this._scrollLock = document.body.style.overflow
         document.body.style.overflow = 'hidden'
 
         document.body.appendChild(overlay)
         this._modal = { overlay, onKey }
-        // Trigger slide-up on next frame, then place initial focus inside
-        // the panel — the close button is the least disruptive landing
-        // spot (pill values still auto-announce on Tab).
-        requestAnimationFrame(() => {
-          overlay.classList.add('sai-pb3tmxq9__modal-overlay--open')
-          const target =
-            card.querySelector('.sai-pb3tmxq9__modal-close') ||
-            card.querySelector(FOCUSABLE_SELECTOR)
-          if (target && typeof target.focus === 'function') {
-            target.focus({ preventScroll: true })
-          }
-        })
 
         this._refreshModal(card, product)
       }
@@ -724,7 +598,6 @@
         const numOptions = optionCount(product)
         const lastIndex = numOptions - 1
 
-        // Pills — selected + cross-disable on unreachable combinations.
         const pills = card.querySelectorAll('.sai-pb3tmxq9__pill')
         for (const pill of pills) {
           const i = Number.parseInt(pill.dataset.optionIndex || '0', 10)
@@ -738,16 +611,12 @@
           if (isAvailable) {
             delete pill.dataset.unavailable
             pill.disabled = false
-            pill.setAttribute('aria-disabled', 'false')
           } else {
             pill.dataset.unavailable = 'true'
             pill.disabled = true
-            pill.setAttribute('aria-disabled', 'true')
           }
-          pill.setAttribute('aria-checked', isSelected ? 'true' : 'false')
         }
 
-        // Group "Color: Red" labels.
         const groups = card.querySelectorAll('.sai-pb3tmxq9__modal-group')
         for (const group of groups) {
           const i = Number.parseInt(group.dataset.optionIndex || '0', 10)
@@ -758,32 +627,6 @@
         const variant =
           findVariantByTuple(product, tuple) ||
           findVariantForValue(product, lastIndex, tuple[lastIndex])
-
-        // Header image — prefer the variant's featured image, fall back to
-        // the product's. Variants without their own image inherit the
-        // product image, matching Shopify's PDP behaviour.
-        const img = card.querySelector('[data-modal-image]')
-        if (img) {
-          img.src = variant?.featuredImage || product.imageUrl || ''
-          img.alt = product.title || ''
-        }
-
-        // Live price + compare-at.
-        const priceEl = card.querySelector('[data-modal-price]')
-        if (priceEl) {
-          priceEl.textContent = formatMoney(variant?.price ?? product.price, this._data)
-        }
-        const compareEl = card.querySelector('[data-modal-compare]')
-        if (compareEl) {
-          const compare = variant?.compareAtPrice ?? product.compareAtPrice
-          const price = variant?.price ?? product.price
-          if (compare && Number(compare) > Number(price)) {
-            compareEl.textContent = formatMoney(compare, this._data)
-            compareEl.hidden = false
-          } else {
-            compareEl.hidden = true
-          }
-        }
 
         this._renderStockNote(card, variant)
       }
@@ -827,13 +670,13 @@
           const label = card.querySelector('.sai-pb3tmxq9__variant-label')
           if (label) label.textContent = variant.title || (variant.options || []).join(' / ')
           const priceEl = card.querySelector('.sai-pb3tmxq9__price')
-          if (priceEl) priceEl.textContent = formatMoney(variant.price, this._data)
+          if (priceEl) priceEl.textContent = formatMoney(variant.price, this._data.currency)
           const compareEl = card.querySelector('.sai-pb3tmxq9__compare')
           const offEl = card.querySelector('.sai-pb3tmxq9__off-badge')
           const off = offPercent(variant.price, variant.compareAtPrice)
           if (compareEl) {
             if (off != null) {
-              compareEl.textContent = formatMoney(variant.compareAtPrice, this._data)
+              compareEl.textContent = formatMoney(variant.compareAtPrice, this._data.currency)
               compareEl.hidden = false
             } else {
               compareEl.hidden = true
@@ -867,32 +710,39 @@
         document.removeEventListener('keydown', m.onKey)
 
         const overlay = m.overlay
-        overlay.classList.remove('sai-pb3tmxq9__modal-overlay--open')
+        const card = overlay.querySelector('.sai-pb3tmxq9__modal-card')
+        overlay.dataset.closing = 'true'
 
-        // Restore inline body overflow saved at open time. '' is the inert
-        // default when no prior value was recorded.
-        document.body.style.overflow = this._scrollLock || ''
-        this._scrollLock = null
-
-        // Restore focus to the element the shopper was on when the modal
-        // opened — second half of the role=dialog + aria-modal contract.
-        const prev = this._modalPreviousFocus
-        if (prev && typeof prev.focus === 'function' && document.contains(prev)) {
-          prev.focus({ preventScroll: true })
+        const restoreScroll = () => {
+          // Restore whatever the body's overflow was before we opened. If
+          // _scrollLock is null/undefined (no prior modal open recorded),
+          // setting to '' is the safe inert default.
+          document.body.style.overflow = this._scrollLock || ''
+          this._scrollLock = null
         }
-        this._modalPreviousFocus = null
 
-        // Wait out the panel slide-down before removing the node. Safety
-        // timeout in case transitionend never fires (background tab,
-        // prefers-reduced-motion).
-        let removed = false
-        const remove = () => {
-          if (removed) return
-          removed = true
+        const cleanup = () => {
           if (overlay.parentNode) overlay.parentNode.removeChild(overlay)
+          restoreScroll()
         }
-        overlay.addEventListener('transitionend', remove, { once: true })
-        setTimeout(remove, MODAL_CLOSE_TIMEOUT_MS)
+
+        // Wait for the card slide-down to finish before removing the overlay.
+        // animationend fires on whichever element animates last; the card
+        // animation runs longer than the overlay fade. Safety timeout for
+        // reduced-motion / browser quirks where animationend never fires.
+        if (card) {
+          let done = false
+          const fire = () => {
+            if (done) return
+            done = true
+            card.removeEventListener('animationend', fire)
+            cleanup()
+          }
+          card.addEventListener('animationend', fire, { once: true })
+          setTimeout(fire, MODAL_CLOSE_TIMEOUT_MS)
+        } else {
+          cleanup()
+        }
 
         this._modal = null
         this._modalCandidate = null
