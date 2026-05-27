@@ -193,6 +193,38 @@
     return null
   }
 
+  // Tiny SVG icon factory — keeps construction off the DOM-build hot path
+  // and out of innerHTML.
+  function makeIcon(kind) {
+    const svgNS = 'http://www.w3.org/2000/svg'
+    const svg = document.createElementNS(svgNS, 'svg')
+    svg.setAttribute('width', '16')
+    svg.setAttribute('height', '16')
+    svg.setAttribute('viewBox', '0 0 16 16')
+    svg.setAttribute('fill', 'none')
+    svg.setAttribute('focusable', 'false')
+    if (kind === 'close') {
+      const path = document.createElementNS(svgNS, 'path')
+      path.setAttribute('d', 'M3 3L13 13M13 3L3 13')
+      path.setAttribute('stroke', 'currentColor')
+      path.setAttribute('stroke-width', '1.5')
+      path.setAttribute('stroke-linecap', 'round')
+      svg.appendChild(path)
+    }
+    return svg
+  }
+
+  // Focusable elements inside the modal panel. Used to scope Tab navigation
+  // to the modal and to pick the initial focus target.
+  const FOCUSABLE_SELECTOR =
+    'a[href], button:not([disabled]):not([aria-disabled="true"]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
+  function focusablesIn(container) {
+    return Array.from(container.querySelectorAll(FOCUSABLE_SELECTOR)).filter(
+      (el) => !el.hidden && el.offsetParent !== null,
+    )
+  }
+
   class SaiFbtAtcWidget extends HTMLElement {
     constructor() {
       super()
@@ -403,6 +435,14 @@
       const product = this._productsById.get(String(productId))
       if (!product || (product.variants?.length || 0) < 2) return
 
+      // Double-open guard: if a previous overlay is still mid-close (DOM
+      // still attached during the slide-out transition), sync-remove it
+      // before building a new one. Without this two aria-modal dialogs
+      // can be live simultaneously and screen readers double-count.
+      for (const stale of document.querySelectorAll('.sai-fbtatc4z__quickshop')) {
+        if (stale.parentNode) stale.parentNode.removeChild(stale)
+      }
+
       const initialVariant = pickInitialVariant(product, triggerButton?.dataset.variantId)
       this._modal = {
         productId: String(productId),
@@ -410,6 +450,10 @@
         triggerButton,
         optionValues: optionValuesFromVariant(product, initialVariant),
         variantId: initialVariant ? String(initialVariant.id) : '',
+        // Captured so the close path can return focus to the element the
+        // shopper was on when the modal opened — meeting the
+        // role=dialog + aria-modal accessibility contract.
+        previousFocus: document.activeElement,
       }
 
       const overlay = document.createElement('div')
@@ -431,7 +475,7 @@
       closeBtn.type = 'button'
       closeBtn.className = 'sai-fbtatc4z__quickshop-close'
       closeBtn.setAttribute('aria-label', 'Close')
-      closeBtn.textContent = '×'
+      closeBtn.appendChild(makeIcon('close'))
       closeBtn.addEventListener('click', () => this._closeQuickshop())
       panel.appendChild(closeBtn)
 
@@ -512,7 +556,11 @@
             if (swatchUrl) {
               const swatch = document.createElement('span')
               swatch.className = 'sai-fbtatc4z__quickshop-pill-swatch'
-              swatch.style.backgroundImage = `url('${swatchUrl}')`
+              // setProperty defends against future changes to the URL
+              // source — direct string interpolation into `style.cssText`
+              // would be unsafe; .style.backgroundImage works today but
+              // setProperty is the canonical safe API for URL values.
+              swatch.style.setProperty('background-image', `url("${swatchUrl}")`)
               pill.appendChild(swatch)
             }
             const label = document.createElement('span')
@@ -537,8 +585,30 @@
       atc.addEventListener('click', () => this._commitQuickshop())
       panel.appendChild(atc)
 
+      // Keyboard contract: Escape closes; Tab is trapped inside the panel
+      // so keyboard users can't navigate into the page underneath while
+      // the modal is visible (it declares role=dialog + aria-modal).
       const onKey = (e) => {
-        if (e.key === 'Escape') this._closeQuickshop()
+        if (e.key === 'Escape') {
+          this._closeQuickshop()
+          return
+        }
+        if (e.key !== 'Tab') return
+        const focusables = focusablesIn(panel)
+        if (focusables.length === 0) {
+          e.preventDefault()
+          return
+        }
+        const first = focusables[0]
+        const last = focusables[focusables.length - 1]
+        const active = document.activeElement
+        if (e.shiftKey && (active === first || !panel.contains(active))) {
+          e.preventDefault()
+          last.focus()
+        } else if (!e.shiftKey && (active === last || !panel.contains(active))) {
+          e.preventDefault()
+          first.focus()
+        }
       }
       document.addEventListener('keydown', onKey)
       this._modal.onKey = onKey
@@ -549,8 +619,18 @@
 
       document.body.appendChild(overlay)
       this._modal.overlay = overlay
-      // Trigger transition on next frame so the slide-up animates.
-      requestAnimationFrame(() => overlay.classList.add('sai-fbtatc4z__quickshop--open'))
+      // Trigger transition on next frame so the slide-up animates, then
+      // place initial focus inside the panel. Picking the close button
+      // is the least disruptive choice — pills auto-announce on Tab.
+      requestAnimationFrame(() => {
+        overlay.classList.add('sai-fbtatc4z__quickshop--open')
+        const target =
+          panel.querySelector('.sai-fbtatc4z__quickshop-close') ||
+          panel.querySelector(FOCUSABLE_SELECTOR)
+        if (target && typeof target.focus === 'function') {
+          target.focus({ preventScroll: true })
+        }
+      })
 
       this._refreshQuickshop()
     }
@@ -573,6 +653,10 @@
           const available = isOptionValueAvailable(product, optName, value, m.optionValues)
           pill.classList.toggle('sai-fbtatc4z__quickshop-pill--oos', !available)
           pill.setAttribute('aria-disabled', available ? 'false' : 'true')
+          // Set the native `disabled` attribute too — aria-disabled alone
+          // doesn't block Enter/Space activation from keyboard focus on a
+          // <button>. Mirrors pb3tmxq9's belt-and-suspenders pattern.
+          pill.disabled = !available
         }
         const sel = m.overlay.querySelector(`[data-qs-selected="${CSS.escape(optName)}"]`)
         if (sel) sel.textContent = m.optionValues[optName] || ''
@@ -686,6 +770,14 @@
 
       document.body.style.overflow = this._scrollLock || ''
       this._scrollLock = null
+
+      // Restore focus to the element the shopper was on when the modal
+      // opened — the second half of the role=dialog + aria-modal contract.
+      // Guarded against the saved element being detached / unfocusable.
+      const prev = m.previousFocus
+      if (prev && typeof prev.focus === 'function' && document.contains(prev)) {
+        prev.focus({ preventScroll: true })
+      }
 
       // Wait out the slide-down transition before removing the node.
       // Safety timeout in case `transitionend` never fires (background tab,

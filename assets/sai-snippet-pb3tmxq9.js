@@ -136,6 +136,17 @@
     return null
   }
 
+  // Focusable elements inside the modal panel. Used to scope Tab
+  // navigation to the modal (Tab trap) and to pick initial focus.
+  const FOCUSABLE_SELECTOR =
+    'a[href], button:not([disabled]):not([aria-disabled="true"]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
+  function focusablesIn(container) {
+    return Array.from(container.querySelectorAll(FOCUSABLE_SELECTOR)).filter(
+      (el) => !el.hidden && el.offsetParent !== null,
+    )
+  }
+
   function isValueAvailableForTuple(product, optionIndex, value, tuple) {
     // Always respect `v.available`. The earlier gift-card workaround
     // (treat every variant as available when ALL are unavailable) hid
@@ -498,11 +509,22 @@
         const row = this._rows.get(productId)
         if (!row) return
 
+        // Double-open guard: if a previous overlay is still mid-close
+        // (DOM still attached during slide-out), sync-remove it before
+        // building a new one. Prevents two aria-modal dialogs being
+        // simultaneously live in the DOM.
+        for (const stale of document.querySelectorAll('.sai-pb3tmxq9__modal-overlay')) {
+          if (stale.parentNode) stale.parentNode.removeChild(stale)
+        }
+
         const currentVariant = product.variants.find((v) => String(v.id) === row.variantId)
         const initialTuple = (currentVariant || product.variants[0]).options.slice()
         const numOptions = optionCount(product)
 
         this._modalCandidate = { productId, optionValues: initialTuple.slice() }
+        // Captured so the close path can return focus to the trigger
+        // element, completing the role=dialog + aria-modal contract.
+        this._modalPreviousFocus = document.activeElement
 
         const overlay = document.createElement('div')
         overlay.className = 'sai-pb3tmxq9__modal-overlay'
@@ -609,7 +631,10 @@
             if (swatchUrl) {
               const swatch = document.createElement('span')
               swatch.className = 'sai-pb3tmxq9__pill-swatch'
-              swatch.style.backgroundImage = `url('${swatchUrl}')`
+              // setProperty is the canonical safe API for URL values;
+              // direct assignment works today but is fragile to future
+              // changes if the URL ever comes from a non-trusted source.
+              swatch.style.setProperty('background-image', `url("${swatchUrl}")`)
               pill.appendChild(swatch)
             }
 
@@ -643,8 +668,30 @@
         doneBtn.addEventListener('click', () => this._commitModal())
         card.appendChild(doneBtn)
 
+        // Keyboard contract: Escape closes; Tab is trapped inside the
+        // panel so keyboard users can't navigate into the page
+        // underneath while the modal is visible (role=dialog + aria-modal).
         const onKey = (e) => {
-          if (e.key === 'Escape') this._closeModal()
+          if (e.key === 'Escape') {
+            this._closeModal()
+            return
+          }
+          if (e.key !== 'Tab') return
+          const focusables = focusablesIn(card)
+          if (focusables.length === 0) {
+            e.preventDefault()
+            return
+          }
+          const first = focusables[0]
+          const last = focusables[focusables.length - 1]
+          const active = document.activeElement
+          if (e.shiftKey && (active === first || !card.contains(active))) {
+            e.preventDefault()
+            last.focus()
+          } else if (!e.shiftKey && (active === last || !card.contains(active))) {
+            e.preventDefault()
+            first.focus()
+          }
         }
         document.addEventListener('keydown', onKey)
 
@@ -654,8 +701,18 @@
 
         document.body.appendChild(overlay)
         this._modal = { overlay, onKey }
-        // Trigger slide-up on next frame so the transition animates.
-        requestAnimationFrame(() => overlay.classList.add('sai-pb3tmxq9__modal-overlay--open'))
+        // Trigger slide-up on next frame, then place initial focus inside
+        // the panel — the close button is the least disruptive landing
+        // spot (pill values still auto-announce on Tab).
+        requestAnimationFrame(() => {
+          overlay.classList.add('sai-pb3tmxq9__modal-overlay--open')
+          const target =
+            card.querySelector('.sai-pb3tmxq9__modal-close') ||
+            card.querySelector(FOCUSABLE_SELECTOR)
+          if (target && typeof target.focus === 'function') {
+            target.focus({ preventScroll: true })
+          }
+        })
 
         this._refreshModal(card, product)
       }
@@ -816,6 +873,14 @@
         // default when no prior value was recorded.
         document.body.style.overflow = this._scrollLock || ''
         this._scrollLock = null
+
+        // Restore focus to the element the shopper was on when the modal
+        // opened — second half of the role=dialog + aria-modal contract.
+        const prev = this._modalPreviousFocus
+        if (prev && typeof prev.focus === 'function' && document.contains(prev)) {
+          prev.focus({ preventScroll: true })
+        }
+        this._modalPreviousFocus = null
 
         // Wait out the panel slide-down before removing the node. Safety
         // timeout in case transitionend never fires (background tab,
