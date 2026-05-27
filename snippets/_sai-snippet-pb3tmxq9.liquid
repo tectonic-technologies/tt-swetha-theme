@@ -1013,20 +1013,23 @@
 {%- if show_total_price == nil -%}{%- assign show_total_price = true -%}{%- endif -%}
 
 {%- assign after_add_action = content.after_add_action -%}
-{%- if after_add_action != 'stay' and after_add_action != 'redirect-to-cart' and after_add_action != 'redirect-to-checkout' -%}
-  {%- assign after_add_action = 'stay' -%}
+{%- if after_add_action != 'open-cart-drawer' and after_add_action != 'show-added-state' -%}
+  {%- assign after_add_action = 'open-cart-drawer' -%}
 {%- endif -%}
 
 {%- assign show_ratings = content.show_ratings -%}
 {%- if show_ratings == nil -%}{%- assign show_ratings = true -%}{%- endif -%}
 
+{%- assign show_compare_price = content.show_compare_price -%}
+{%- if show_compare_price == nil -%}{%- assign show_compare_price = true -%}{%- endif -%}
+
 {%- comment -%}
-  Discount badge visibility is derived — it shows whenever the
-  compare-at price is enabled AND the product is on sale. No separate
-  toggle: pb3tmxq9 doesn't have a compare-price prop today so the
-  badge is always allowed to render when the product itself is on sale.
+  Discount badge visibility is derived from `show_compare_price` —
+  enabling compare-at without the badge would surprise, and disabling
+  compare-at while keeping the badge would surface "% OFF" without
+  context. Single toggle keeps the merchant model simple.
 {%- endcomment -%}
-{%- assign show_discount_badge = true -%}
+{%- assign show_discount_badge = show_compare_price -%}
 
 {%- comment -%}
   Layout + select-prop allowlists. `| default:` is not enough — the merchant
@@ -1156,7 +1159,7 @@
             {%- endif -%}
           </a>
           <a class="sai-pb3tmxq9__title" href="{{ product.url }}">{{ product.title }}</a>
-          {%- if product.compare_at_price and product.compare_at_price > product.price -%}
+          {%- if show_compare_price and product.compare_at_price and product.compare_at_price > product.price -%}
             {%- assign p_has_compare = true -%}
             {%- assign p_off_amount = product.compare_at_price | minus: product.price -%}
             {%- assign p_off_pct = p_off_amount | times: 100 | divided_by: product.compare_at_price -%}
@@ -1220,7 +1223,7 @@
               {%- endif -%}
             </a>
             <a class="sai-pb3tmxq9__title" href="{{ r.url }}">{{ r.title }}</a>
-            {%- if r.compare_at_price and r.compare_at_price > r.price -%}
+            {%- if show_compare_price and r.compare_at_price and r.compare_at_price > r.price -%}
               {%- assign r_has_compare = true -%}
               {%- assign r_off_amount = r.compare_at_price | minus: r.price -%}
               {%- assign r_off_pct = r_off_amount | times: 100 | divided_by: r.compare_at_price -%}
@@ -1286,7 +1289,7 @@
         </a>
         <div class="sai-pb3tmxq9__info">
           <a class="sai-pb3tmxq9__title" href="{{ product.url }}">{{ product.title }}</a>
-          {%- if product.compare_at_price and product.compare_at_price > product.price -%}
+          {%- if show_compare_price and product.compare_at_price and product.compare_at_price > product.price -%}
             {%- assign p_has_compare = true -%}
             {%- assign p_off_amount = product.compare_at_price | minus: product.price -%}
             {%- assign p_off_pct = p_off_amount | times: 100 | divided_by: product.compare_at_price -%}
@@ -1352,7 +1355,7 @@
           </a>
           <div class="sai-pb3tmxq9__info">
             <a class="sai-pb3tmxq9__title" href="{{ r.url }}">{{ r.title }}</a>
-            {%- if r.compare_at_price and r.compare_at_price > r.price -%}
+            {%- if show_compare_price and r.compare_at_price and r.compare_at_price > r.price -%}
               {%- assign r_has_compare = true -%}
               {%- assign r_off_amount = r.compare_at_price | minus: r.price -%}
               {%- assign r_off_pct = r_off_amount | times: 100 | divided_by: r.compare_at_price -%}

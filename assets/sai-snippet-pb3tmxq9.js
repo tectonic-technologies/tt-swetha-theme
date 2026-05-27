@@ -184,7 +184,7 @@
         // allowlist-guards the value before serializing); used by
         // `_enterSuccessState` to decide what to do after the success-state
         // timeout. Defaults to 'stay' if the payload omits the key.
-        this._afterAddAction = this._data.afterAddAction || 'stay'
+        this._afterAddAction = this._data.afterAddAction || 'open-cart-drawer'
 
         for (const p of this._data.products) {
           this._productsById.set(String(p.id), p)
@@ -400,19 +400,43 @@
 
         let succeeded = false
         try {
-          const cartApi = window.Spectrum?.cart
-          if (!cartApi || typeof cartApi.addAndOpen !== 'function') {
-            throw new Error('Spectrum cart API unavailable')
-          }
-          // addAndOpen performs the section detection, server-side render
-          // request, section-swap, drawer-open cascade, and cart-update
-          // event firehose. This snippet was the original reference for
-          // that flow; it now lives in spectrum-sdk.js.
-          const cartResponse = await cartApi.addAndOpen(items, {
-            sourceId: `spectrum-${SNIPPET_ID}`,
-          })
-          if (cartResponse && cartResponse.ok === false) {
-            throw new Error(cartResponse.error?.message || 'Could not add to cart')
+          // Two add paths gated by `after_add_action`:
+          //   open-cart-drawer  →  Spectrum.cart.addAndOpen — adds the
+          //                        full bundle + opens the theme drawer +
+          //                        fires cart events.
+          //   show-added-state  →  direct POST /cart/add.js with the
+          //                        full items[] batch — quietly adds
+          //                        without touching the drawer; the CTA's
+          //                        "Added ✓" state IS the confirmation.
+          if (this._afterAddAction === 'show-added-state') {
+            const res = await fetch('/cart/add.js', {
+              method: 'POST',
+              headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ items }),
+            })
+            if (!res.ok) {
+              let msg = 'Could not add to cart'
+              try {
+                const j = await res.json()
+                if (j?.description) msg = j.description
+                else if (j?.message) msg = j.message
+              } catch (_) {}
+              throw new Error(msg)
+            }
+          } else {
+            const cartApi = window.Spectrum?.cart
+            if (!cartApi || typeof cartApi.addAndOpen !== 'function') {
+              throw new Error('Spectrum cart API unavailable')
+            }
+            const cartResponse = await cartApi.addAndOpen(items, {
+              sourceId: `spectrum-${SNIPPET_ID}`,
+            })
+            if (cartResponse && cartResponse.ok === false) {
+              throw new Error(cartResponse.error?.message || 'Could not add to cart')
+            }
           }
 
           succeeded = true
@@ -421,11 +445,6 @@
           // without any field-level matching.
           this._track(`${FEATURE_SLUG}:added_to_cart`, atcPayload)
           this._emit(`${FEATURE_SLUG}:added_to_cart`, atcPayload)
-
-          // `_afterAddAction` was resolved at init from `_data.afterAddAction`
-          // — `_enterSuccessState` reads it in the `finally` block below to
-          // decide whether to stay on page, navigate to /cart, or
-          // navigate to /checkout once the brief confirmation expires.
         } catch (err) {
           // No `:add_to_cart_failed` event — by convention, an
           // `:add_to_cart` intent without a matching `:added_to_cart`
@@ -472,17 +491,12 @@
         cta.setAttribute('aria-disabled', 'true')
         cta.setAttribute('data-state', 'added')
         labelEl.textContent = 'Added to cart ✓'
-        const action = this._afterAddAction || 'stay'
+        // Brief success feedback then revert. Both `open-cart-drawer` and
+        // `show-added-state` use this same revert path — the difference
+        // between modes is whether the drawer also opens during _submit,
+        // not what the CTA does afterwards.
         if (this._successTimer) clearTimeout(this._successTimer)
         this._successTimer = setTimeout(() => {
-          if (action === 'redirect-to-cart') {
-            window.location.href = '/cart'
-            return
-          }
-          if (action === 'redirect-to-checkout') {
-            window.location.href = '/checkout'
-            return
-          }
           cta.removeAttribute('data-state')
           // _updateCta restores the "Add To Cart (N)" label from
           // _ctaBaseLabel + current selection count, and flips disabled

@@ -827,8 +827,8 @@
 {%- assign show_discount_badge = show_compare_price -%}
 
 {%- assign after_add_action = content.after_add_action -%}
-{%- if after_add_action != 'stay' and after_add_action != 'redirect-to-cart' and after_add_action != 'redirect-to-checkout' -%}
-  {%- assign after_add_action = 'stay' -%}
+{%- if after_add_action != 'open-cart-drawer' and after_add_action != 'show-added-state' -%}
+  {%- assign after_add_action = 'open-cart-drawer' -%}
 {%- endif -%}
 
 {%- assign image_aspect_ratio = content.image_aspect_ratio -%}

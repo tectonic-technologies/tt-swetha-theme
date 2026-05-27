@@ -230,7 +230,7 @@
       super()
       this._data = null
       this._productsById = new Map()
-      this._afterAddAction = 'stay'
+      this._afterAddAction = 'open-cart-drawer'
       this._ctaTimers = new Map()
       this._modal = null
       this._scrollLock = null
@@ -271,7 +271,7 @@
         this._data = null
         return
       }
-      this._afterAddAction = this._data.afterAddAction || 'stay'
+      this._afterAddAction = this._data.afterAddAction || 'open-cart-drawer'
       for (const p of this._data.products || []) {
         this._productsById.set(String(p.id), p)
       }
@@ -340,18 +340,41 @@
 
       let succeeded = false
       try {
-        const cartApi = window.Spectrum?.cart
-        if (!cartApi || typeof cartApi.addAndOpen !== 'function') {
-          throw new Error('Spectrum cart API unavailable')
-        }
-        // addAndOpen handles section refresh + drawer-open detection + cart
-        // event dispatch. We pass a single-variant items list; the API
-        // batches gracefully whether it's 1 or N items.
-        const cartResponse = await cartApi.addAndOpen([{ id: variantId, quantity: 1 }], {
-          sourceId: `spectrum-${SNIPPET_ID}`,
-        })
-        if (cartResponse && cartResponse.ok === false) {
-          throw new Error(cartResponse.error?.message || 'Could not add to cart')
+        // Two add paths gated by `after_add_action`:
+        //   open-cart-drawer  →  Spectrum.cart.addAndOpen — adds + opens
+        //                        the theme's cart drawer + fires cart events.
+        //   show-added-state  →  direct POST /cart/add.js — quietly adds
+        //                        without touching the drawer; the button's
+        //                        "Added ✓" feedback IS the confirmation.
+        if (this._afterAddAction === 'show-added-state') {
+          const body = new FormData()
+          body.append('id', variantId)
+          body.append('quantity', '1')
+          const res = await fetch('/cart/add.js', {
+            method: 'POST',
+            headers: { Accept: 'application/json' },
+            body,
+          })
+          if (!res.ok) {
+            let msg = 'Could not add to cart'
+            try {
+              const j = await res.json()
+              if (j?.description) msg = j.description
+              else if (j?.message) msg = j.message
+            } catch (_) {}
+            throw new Error(msg)
+          }
+        } else {
+          const cartApi = window.Spectrum?.cart
+          if (!cartApi || typeof cartApi.addAndOpen !== 'function') {
+            throw new Error('Spectrum cart API unavailable')
+          }
+          const cartResponse = await cartApi.addAndOpen([{ id: variantId, quantity: 1 }], {
+            sourceId: `spectrum-${SNIPPET_ID}`,
+          })
+          if (cartResponse && cartResponse.ok === false) {
+            throw new Error(cartResponse.error?.message || 'Could not add to cart')
+          }
         }
 
         succeeded = true
@@ -391,18 +414,13 @@
       button.disabled = true
       labelEl.textContent = 'Added ✓'
 
-      const action = this._afterAddAction || 'stay'
+      // Brief success feedback then revert. Both `open-cart-drawer` and
+      // `show-added-state` use this same revert path — the difference
+      // between modes is whether the drawer also opens during _addToCart,
+      // not what the button does afterwards.
       const prev = this._ctaTimers.get(button)
       if (prev) clearTimeout(prev)
       const timer = setTimeout(() => {
-        if (action === 'redirect-to-cart') {
-          window.location.href = '/cart'
-          return
-        }
-        if (action === 'redirect-to-checkout') {
-          window.location.href = '/checkout'
-          return
-        }
         button.removeAttribute('data-state')
         labelEl.textContent = baseLabel
         if (button.getAttribute('aria-disabled') !== 'true') {
