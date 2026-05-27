@@ -181,9 +181,11 @@
         if (!this._data) return
 
         // Resolved once at init from the server-validated payload (Liquid
-        // allowlist-guards the value before serializing); used by
-        // `_enterSuccessState` to decide what to do after the success-state
-        // timeout. Defaults to 'stay' if the payload omits the key.
+        // allowlist-guards the value before serializing). Branches the
+        // cart-add path: 'open-cart-drawer' calls addAndOpen (drawer
+        // opens), 'show-added-state' calls add + manual icon-bubble
+        // refresh (no drawer). Defaults to 'open-cart-drawer' if the
+        // payload omits the key.
         this._afterAddAction = this._data.afterAddAction || 'open-cart-drawer'
 
         for (const p of this._data.products) {
@@ -411,9 +413,14 @@
           }
           let cartResponse
           if (this._afterAddAction === 'show-added-state') {
-            cartResponse = await cartApi.add(items, {
-              sections: ['cart-icon-bubble', 'cart-drawer', 'cart-notification'],
-            })
+            // Request only `cart-icon-bubble`. Including `cart-drawer`
+            // or `cart-notification` would have us innerHTML-swap their
+            // roots — which on Dawn-family themes blows away the
+            // `<cart-drawer>` / `<cart-notification>` custom-element
+            // state (no `renderContents()` invocation here). Themes
+            // that need their drawer refreshed open it on the
+            // cart-update DOM event we still dispatch.
+            cartResponse = await cartApi.add(items, { sections: ['cart-icon-bubble'] })
             if (cartResponse && cartResponse.ok !== false) {
               this._refreshCartIcon(cartResponse, items)
             }

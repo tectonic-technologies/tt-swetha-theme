@@ -1169,14 +1169,17 @@
           <div class="sai-pb3tmxq9__price-row">
             <span class="sai-pb3tmxq9__price">{{ product.price | money }}</span>
             {%- comment -%}
-              Always SSR the compare + off-badge nodes (toggling `hidden`)
-              so the variant-picker modal's `_commitModal` can flip them on
-              when the shopper switches from a non-discount variant to a
-              discount one. Without these as DOM placeholders, the JS
-              querySelectors return null and the new discount silently fails
-              to surface.
+              When show_compare_price is on, SSR both nodes as DOM
+              placeholders (toggling `hidden`) so the variant-picker's
+              `_commitModal` can flip them on when the shopper switches
+              from a non-discount variant to a discount one. When the
+              merchant turned the toggle off, omit the nodes entirely
+              — the JS querySelector then returns null and the swap
+              code is a noop, which is the correct behaviour.
             {%- endcomment -%}
-            <span class="sai-pb3tmxq9__compare"{% unless p_has_compare %} hidden{% endunless %}>{%- if p_has_compare -%}{{ product.compare_at_price | money }}{%- endif -%}</span>
+            {%- if show_compare_price -%}
+              <span class="sai-pb3tmxq9__compare"{% unless p_has_compare %} hidden{% endunless %}>{%- if p_has_compare -%}{{ product.compare_at_price | money }}{%- endif -%}</span>
+            {%- endif -%}
             {%- if show_discount_badge -%}
               <span class="sai-pb3tmxq9__off-badge"{% unless p_has_compare %} hidden{% endunless %}>{%- if p_has_compare -%}{{ p_off_pct }}% OFF{%- endif -%}</span>
             {%- endif -%}
@@ -1232,7 +1235,9 @@
             {%- endif -%}
             <div class="sai-pb3tmxq9__price-row">
               <span class="sai-pb3tmxq9__price">{{ r.price | money }}</span>
-              <span class="sai-pb3tmxq9__compare"{% unless r_has_compare %} hidden{% endunless %}>{%- if r_has_compare -%}{{ r.compare_at_price | money }}{%- endif -%}</span>
+              {%- if show_compare_price -%}
+                <span class="sai-pb3tmxq9__compare"{% unless r_has_compare %} hidden{% endunless %}>{%- if r_has_compare -%}{{ r.compare_at_price | money }}{%- endif -%}</span>
+              {%- endif -%}
               {%- if show_discount_badge -%}
                 <span class="sai-pb3tmxq9__off-badge"{% unless r_has_compare %} hidden{% endunless %}>{%- if r_has_compare -%}{{ r_off_pct }}% OFF{%- endif -%}</span>
               {%- endif -%}
@@ -1298,7 +1303,9 @@
           {%- endif -%}
           <div class="sai-pb3tmxq9__price-row">
             <span class="sai-pb3tmxq9__price">{{ product.price | money }}</span>
-            <span class="sai-pb3tmxq9__compare"{% unless p_has_compare %} hidden{% endunless %}>{%- if p_has_compare -%}{{ product.compare_at_price | money }}{%- endif -%}</span>
+            {%- if show_compare_price -%}
+              <span class="sai-pb3tmxq9__compare"{% unless p_has_compare %} hidden{% endunless %}>{%- if p_has_compare -%}{{ product.compare_at_price | money }}{%- endif -%}</span>
+            {%- endif -%}
             {%- if show_discount_badge -%}
               <span class="sai-pb3tmxq9__off-badge"{% unless p_has_compare %} hidden{% endunless %}>{%- if p_has_compare -%}{{ p_off_pct }}% OFF{%- endif -%}</span>
             {%- endif -%}
@@ -1364,7 +1371,9 @@
             {%- endif -%}
             <div class="sai-pb3tmxq9__price-row">
               <span class="sai-pb3tmxq9__price">{{ r.price | money }}</span>
-              <span class="sai-pb3tmxq9__compare"{% unless r_has_compare %} hidden{% endunless %}>{%- if r_has_compare -%}{{ r.compare_at_price | money }}{%- endif -%}</span>
+              {%- if show_compare_price -%}
+                <span class="sai-pb3tmxq9__compare"{% unless r_has_compare %} hidden{% endunless %}>{%- if r_has_compare -%}{{ r.compare_at_price | money }}{%- endif -%}</span>
+              {%- endif -%}
               {%- if show_discount_badge -%}
                 <span class="sai-pb3tmxq9__off-badge"{% unless r_has_compare %} hidden{% endunless %}>{%- if r_has_compare -%}{{ r_off_pct }}% OFF{%- endif -%}</span>
               {%- endif -%}

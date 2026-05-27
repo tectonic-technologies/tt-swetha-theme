@@ -352,9 +352,14 @@
         const items = [{ id: variantId, quantity: 1 }]
         let cartResponse
         if (this._afterAddAction === 'show-added-state') {
-          cartResponse = await cartApi.add(items, {
-            sections: ['cart-icon-bubble', 'cart-drawer', 'cart-notification'],
-          })
+          // Request only `cart-icon-bubble`. Including `cart-drawer` or
+          // `cart-notification` would have us innerHTML-swap their roots
+          // — which on Dawn-family themes blows away the
+          // `<cart-drawer>` / `<cart-notification>` custom-element state
+          // (no `renderContents()` invocation here). Themes that need
+          // their drawer refreshed open it on the cart-update DOM event
+          // we still dispatch.
+          cartResponse = await cartApi.add(items, { sections: ['cart-icon-bubble'] })
           if (cartResponse && cartResponse.ok !== false) {
             this._refreshCartIcon(cartResponse, items)
           }
