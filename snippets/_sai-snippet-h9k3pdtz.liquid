@@ -149,14 +149,14 @@
 .sai-h9k3pdtz__inline-asset { max-height: 1em; width: auto; vertical-align: middle; }
 .sai-h9k3pdtz__inline-asset--right { float: right; }
 
-/* Badge */
+/* Badge — in-flow, first item in the content column */
 .sai-h9k3pdtz__badge {
-  position: absolute;
-  z-index: 2;
-  top: clamp(16px, 3vw, 32px);
+  align-self: flex-start;
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  width: fit-content;
+  max-width: 100%;
   padding: 8px 14px;
   font-size: 0.72rem;
   font-weight: 600;
@@ -168,13 +168,13 @@
   border-radius: 999px;
   backdrop-filter: blur(6px);
 }
-.sai-h9k3pdtz__badge-icon { width: 14px; height: 14px; }
-.sai-h9k3pdtz__badge--top-left { left: clamp(20px, 5vw, 64px); }
-.sai-h9k3pdtz__badge--top-right { right: clamp(20px, 5vw, 64px); }
-.sai-h9k3pdtz__badge--top-center { left: 50%; transform: translateX(-50%); }
+.sai-h9k3pdtz__badge-icon { width: 14px; height: 14px; flex: none; }
+.sai-h9k3pdtz__badge--top-left { align-self: flex-start; }
+.sai-h9k3pdtz__badge--top-center { align-self: center; }
+.sai-h9k3pdtz__badge--top-right { align-self: flex-end; }
 .sai-h9k3pdtz__badge--tag { border-radius: 4px; }
-.sai-h9k3pdtz__badge--ribbon { border-radius: 0 4px 4px 0; left: 0; padding-left: clamp(20px, 5vw, 40px); }
-.sai-h9k3pdtz__badge--corner { top: 0; left: 0; border-radius: 0 0 12px 0; }
+.sai-h9k3pdtz__badge--ribbon { border-radius: 4px; }
+.sai-h9k3pdtz__badge--corner { border-radius: 4px; }
 
 /* CTAs */
 .sai-h9k3pdtz__cta {
@@ -274,7 +274,10 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
 }
 @media screen and (max-width: 749px) {
   .sai-h9k3pdtz--mobile-stack .sai-h9k3pdtz__inner { flex-direction: column; align-items: stretch; }
-  .sai-h9k3pdtz--mobile-stack .sai-h9k3pdtz__stats { flex-direction: row; flex-wrap: wrap; }
+  /* In the column stack, reset the 320px basis (it would become a height) and
+     keep cards sized to their content instead of stretching tall. */
+  .sai-h9k3pdtz--mobile-stack .sai-h9k3pdtz__stats { flex: 0 0 auto; flex-direction: row; flex-wrap: wrap; align-items: flex-start; }
+  .sai-h9k3pdtz--mobile-stack .sai-h9k3pdtz__stat { flex: 1 1 140px; }
   .sai-h9k3pdtz--mobile-hide-stats .sai-h9k3pdtz__stats { display: none; }
   .sai-h9k3pdtz--hide-mobile { display: none; }
 }
@@ -518,18 +521,18 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
       aria-label="{{ title | strip_newlines | escape }}"></a>
   {%- endif -%}
 
-  {%- comment -%}── Badge ──{%- endcomment -%}
-  {%- if show_badge and badge_text != blank -%}
-    <div class="sai-h9k3pdtz__badge sai-h9k3pdtz__badge--{{ badge_style }} sai-h9k3pdtz__badge--{{ badge_position }}">
-      {%- if badge_src != blank -%}
-        <img class="sai-h9k3pdtz__badge-icon" src="{{ badge_src }}" alt="" loading="lazy" width="14" height="14">
-      {%- endif -%}
-      <span>{{ badge_text | escape }}</span>
-    </div>
-  {%- endif -%}
-
   <div class="sai-h9k3pdtz__inner">
     <div class="sai-h9k3pdtz__content">
+      {%- comment -%}── Badge (in-flow, first item so it spaces from the title) ──{%- endcomment -%}
+      {%- if show_badge and badge_text != blank -%}
+        <div class="sai-h9k3pdtz__badge sai-h9k3pdtz__badge--{{ badge_style }} sai-h9k3pdtz__badge--{{ badge_position }}">
+          {%- if badge_src != blank -%}
+            <img class="sai-h9k3pdtz__badge-icon" src="{{ badge_src }}" alt="" loading="lazy" width="14" height="14">
+          {%- endif -%}
+          <span>{{ badge_text | escape }}</span>
+        </div>
+      {%- endif -%}
+
       {%- if show_subtitle and subtitle != blank -%}
         <p class="sai-h9k3pdtz__subtitle">{{ subtitle | escape }}</p>
       {%- endif -%}
