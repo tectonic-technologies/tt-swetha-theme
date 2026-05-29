@@ -429,6 +429,18 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
   endif
   assign content_reverse = content.content_reverse
   assign columns_reverse = content.columns_reverse
+  comment
+    When the columns are swapped (content moves to the opposite side), mirror
+    the content text alignment so it hugs the side it now sits on. Center is
+    unaffected.
+  endcomment
+  if columns_reverse
+    if align_h == 'left'
+      assign align_h = 'right'
+    elsif align_h == 'right'
+      assign align_h = 'left'
+    endif
+  endif
   assign show_countdown = content.show_countdown
   assign inline_asset = content.inline_asset
   assign banner_clickable = content.banner_clickable
