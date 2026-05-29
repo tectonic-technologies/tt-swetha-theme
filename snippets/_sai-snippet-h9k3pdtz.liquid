@@ -136,8 +136,9 @@
 .sai-h9k3pdtz__description { order: 4; margin: 0; max-width: 46ch; font-size: 1.05rem; line-height: 1.6; color: var(--sai-h9-muted); }
 .sai-h9k3pdtz__highlight { color: var(--sai-h9-fg); font-style: italic; }
 .sai-h9k3pdtz__rating { order: 5; display: flex; align-items: center; gap: 10px; font-size: 0.95rem; color: var(--sai-h9-muted); }
-.sai-h9k3pdtz__ctas { order: 6; position: relative; z-index: 2; display: flex; flex-wrap: wrap; gap: 12px; }
-.sai-h9k3pdtz__pills { order: 7; display: flex; flex-wrap: wrap; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.sai-h9k3pdtz__countdown { order: 6; }
+.sai-h9k3pdtz__ctas { order: 7; position: relative; z-index: 2; display: flex; flex-wrap: wrap; gap: 12px; }
+.sai-h9k3pdtz__pills { order: 8; display: flex; flex-wrap: wrap; gap: 10px; margin: 0; padding: 0; list-style: none; }
 .sai-h9k3pdtz--align-center .sai-h9k3pdtz__ctas,
 .sai-h9k3pdtz--align-center .sai-h9k3pdtz__pills,
 .sai-h9k3pdtz--align-center .sai-h9k3pdtz__rating { justify-content: center; }
@@ -146,7 +147,7 @@
 .sai-h9k3pdtz--align-right .sai-h9k3pdtz__rating { justify-content: flex-end; }
 
 /* content_reverse swaps the description and the trust-pills row */
-.sai-h9k3pdtz--reverse .sai-h9k3pdtz__description { order: 7; }
+.sai-h9k3pdtz--reverse .sai-h9k3pdtz__description { order: 8; }
 .sai-h9k3pdtz--reverse .sai-h9k3pdtz__pills { order: 4; }
 
 .sai-h9k3pdtz__inline-asset { max-height: 1em; width: auto; vertical-align: middle; }
@@ -261,13 +262,21 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
 .sai-h9k3pdtz__stat-label { font-size: 0.95rem; font-weight: 600; color: var(--sai-h9-fg); }
 .sai-h9k3pdtz__stat-desc { font-size: 0.8rem; color: var(--sai-h9-muted); }
 
-/* Countdown */
-.sai-h9k3pdtz__countdown { display: inline-flex; gap: 10px; margin-top: 4px; }
-.sai-h9k3pdtz__cd-unit { display: flex; flex-direction: column; align-items: center; min-width: 52px; padding: 10px; background: var(--sai-h9-pill-bg); border: 1px solid var(--sai-h9-pill-border); border-radius: 10px; }
-.sai-h9k3pdtz__cd-num { font-size: 1.4rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-.sai-h9k3pdtz__cd-lbl { font-size: 0.65rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--sai-h9-muted); }
-.sai-h9k3pdtz__countdown--inline .sai-h9k3pdtz__cd-unit { flex-direction: row; gap: 4px; min-width: 0; background: transparent; border: 0; padding: 2px 4px; }
-.sai-h9k3pdtz__countdown--minimal .sai-h9k3pdtz__cd-unit { flex-direction: row; gap: 2px; min-width: 0; background: transparent; border: 0; padding: 0; }
+/* Countdown — number over label, thin vertical dividers between units */
+.sai-h9k3pdtz__countdown { display: inline-flex; align-items: stretch; }
+.sai-h9k3pdtz__cd-unit { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 0 clamp(14px, 2.5vw, 24px); }
+.sai-h9k3pdtz__cd-unit + .sai-h9k3pdtz__cd-unit { border-left: 1px solid var(--sai-h9-pill-border); }
+.sai-h9k3pdtz__cd-num { font-size: clamp(1.6rem, 3.2vw, 2.4rem); font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+.sai-h9k3pdtz__cd-lbl { font-size: 0.62rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--sai-h9-muted); }
+/* Boxes: each unit gets its own panel instead of dividers */
+.sai-h9k3pdtz__countdown--boxes .sai-h9k3pdtz__cd-unit { padding: 10px 14px; min-width: 56px; background: var(--sai-h9-pill-bg); border: 1px solid var(--sai-h9-pill-border); border-radius: 10px; }
+.sai-h9k3pdtz__countdown--boxes { gap: 10px; }
+.sai-h9k3pdtz__countdown--boxes .sai-h9k3pdtz__cd-unit + .sai-h9k3pdtz__cd-unit { border-left: 1px solid var(--sai-h9-pill-border); }
+/* Minimal: tight, inline number + label, no dividers */
+.sai-h9k3pdtz__countdown--minimal { gap: 12px; }
+.sai-h9k3pdtz__countdown--minimal .sai-h9k3pdtz__cd-unit { flex-direction: row; gap: 4px; padding: 0; }
+.sai-h9k3pdtz__countdown--minimal .sai-h9k3pdtz__cd-unit + .sai-h9k3pdtz__cd-unit { border-left: 0; }
+.sai-h9k3pdtz__countdown--minimal .sai-h9k3pdtz__cd-num { font-size: 1.1rem; }
 .sai-h9k3pdtz__countdown--minimal .sai-h9k3pdtz__cd-lbl { font-size: 0.85rem; text-transform: none; letter-spacing: 0; }
 
 /* Entrance animation — fade is opacity-only (no positional/sweep motion) */
@@ -617,7 +626,7 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
       {%- endif -%}
 
       {%- if show_countdown and content.countdown_target != blank -%}
-        <div class="sai-h9k3pdtz__countdown sai-h9k3pdtz__countdown--{{ content.countdown_style | default: 'boxes' }}"
+        <div class="sai-h9k3pdtz__countdown sai-h9k3pdtz__countdown--{{ content.countdown_style | default: 'divider' }}"
              data-sai-countdown
              data-target="{{ content.countdown_target | escape }}"
              data-end-behavior="{{ content.countdown_end_behavior | default: 'hide' }}"
