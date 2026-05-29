@@ -194,9 +194,15 @@
   cursor: pointer;
   border: 1px solid transparent;
   border-radius: 999px;
+  transition: box-shadow 0.2s ease, transform 0.12s ease, opacity 0.2s ease, background-color 0.2s ease;
 }
-.sai-h9k3pdtz__cta:hover { opacity: 0.9; }
-.sai-h9k3pdtz__cta:active { opacity: 0.8; }
+/* Hover lifts via shadow (no position shift); click gives a centered press. */
+.sai-h9k3pdtz__cta:hover { opacity: 0.96; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22); }
+.sai-h9k3pdtz__cta:active { transform: scale(0.96); }
+@media (prefers-reduced-motion: reduce) {
+  .sai-h9k3pdtz__cta { transition: none; }
+  .sai-h9k3pdtz__cta:active { transform: none; }
+}
 .sai-h9k3pdtz__cta:focus-visible { outline: 2px solid var(--sai-h9-fg); outline-offset: 2px; }
 .sai-h9k3pdtz__cta--filled { background: var(--sai-h9-fg); color: #111111; }
 .sai-h9k3pdtz__cta--outlined { background: transparent; color: var(--sai-h9-fg); border-color: var(--sai-h9-pill-border); }
