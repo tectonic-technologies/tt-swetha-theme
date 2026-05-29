@@ -4,16 +4,16 @@
 
   @param {string} mutation_handle - Mutation handle for DOM scoping (infrastructure)
   @param {string} experience_handle - Experience handle for attribution (infrastructure)
-  @param {object} variant - Resolved snippet-instance variant (Studio fallback source)
+  @param {object} variant - Resolved snippet-instance variant; values live on `variant.content`
   @param {object} mo - spectrum_snippet_instance metaobject drop; carries the `images` reference pool
 
-  Content source: the shop-level `shop.metafields.spectrum.hero_banner` (json)
-  is read first. When that metafield is blank, the snippet falls back to
-  `variant.content` (Studio). Image fields accept either a direct `{ url }`
-  (metafield shape) or a `{ kind, refId }` marker resolved against `mo.images`
-  (Studio shape).
+  Content comes from `variant.content` (Studio) like every other library snippet.
+  Per-element visual styling (typography, colors, spacing, borders) is authored in
+  the Studio Styling panel via the `style.nodes` declared in meta.json and baked
+  into per-instance CSS by the wrapper. Image fields are `{ kind, refId }` markers
+  resolved against the `mo.images` pool (a direct `{ url }` is also accepted).
 
-  content fields (see meta.json for the full prop contract):
+  variant.content fields (see meta.json for the full prop contract):
     layout      : section_width, content_max_width, min_height{mobile,tablet,desktop}, content_align_h,
                   content_align_v, corner_radius, padding_top, padding_bottom, content_reverse, columns_reverse
     background  : background_type, background_image{kind,refId}, background_image_alt, background_video_url,
@@ -288,10 +288,7 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
 {% endstylesheet %}
 
 {%- liquid
-  assign content = shop.metafields.spectrum.hero_banner.value
-  if content == blank
-    assign content = variant.content
-  endif
+  assign content = variant.content
 
   assign section_width = content.section_width | default: 'full'
   assign align_h = content.content_align_h | default: 'left'
@@ -359,6 +356,31 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
   endif
   assign overlay_direction = content.overlay_gradient_direction | default: 'left-right'
 
+  if content.show_background == nil
+    assign show_background = true
+  else
+    assign show_background = content.show_background
+  endif
+  if content.show_title == nil
+    assign show_title = true
+  else
+    assign show_title = content.show_title
+  endif
+  if content.show_subtitle == nil
+    assign show_subtitle = true
+  else
+    assign show_subtitle = content.show_subtitle
+  endif
+  if content.show_description == nil
+    assign show_description = true
+  else
+    assign show_description = content.show_description
+  endif
+  if content.show_primary_cta == nil
+    assign show_primary_cta = true
+  else
+    assign show_primary_cta = content.show_primary_cta
+  endif
   if content.show_badge == nil
     assign show_badge = true
   else
@@ -456,6 +478,7 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
      data-title-animation="{{ title_animation }}">
 
   {%- comment -%}── Background ──{%- endcomment -%}
+  {%- if show_background -%}
   <div class="sai-h9k3pdtz__bg" aria-hidden="true"
     {%- if background_type == 'color' %} style="background-color: {{ content.background_color | default: '#0d0d0d' }}"{% endif -%}
     {%- if background_type == 'gradient' %} style="background: linear-gradient({{ content.gradient_angle | default: 135 }}deg, {{ content.gradient_start | default: '#1f1f1f' }}, {{ content.gradient_end | default: '#000000' }})"{% endif -%}
@@ -482,6 +505,7 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
       </video>
     {%- endif -%}
   </div>
+  {%- endif -%}
 
   {%- if overlay_enabled -%}
     <div class="sai-h9k3pdtz__overlay" aria-hidden="true" style="background: {{ overlay_bg }}"></div>
@@ -505,11 +529,11 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
 
   <div class="sai-h9k3pdtz__inner">
     <div class="sai-h9k3pdtz__content">
-      {%- if subtitle != blank -%}
+      {%- if show_subtitle and subtitle != blank -%}
         <p class="sai-h9k3pdtz__subtitle">{{ subtitle | escape }}</p>
       {%- endif -%}
 
-      {%- if title != blank or title_accent != blank -%}
+      {%- if show_title and title != blank or title_accent != blank -%}
         <h2 class="sai-h9k3pdtz__title">
           {%- if inline_asset and inline_src != blank -%}
             <img class="sai-h9k3pdtz__inline-asset sai-h9k3pdtz__inline-asset--{{ inline_align }}" src="{{ inline_src }}" alt="" loading="lazy">
@@ -521,7 +545,7 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
         </h2>
       {%- endif -%}
 
-      {%- if description != blank -%}
+      {%- if show_description and description != blank -%}
         {%- assign desc_out = description | escape -%}
         {%- assign _hl_e = description_highlight | escape -%}
         {%- if description_highlight != blank and desc_out contains _hl_e -%}
@@ -547,13 +571,17 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
         </div>
       {%- endif -%}
 
-      {%- if primary_text != blank or secondary_text != blank -%}
+      {%- assign _show_primary = false -%}
+      {%- if show_primary_cta and primary_text != blank -%}{%- assign _show_primary = true -%}{%- endif -%}
+      {%- assign _show_secondary = false -%}
+      {%- if show_secondary_cta and secondary_text != blank -%}{%- assign _show_secondary = true -%}{%- endif -%}
+      {%- if _show_primary or _show_secondary -%}
         <div class="sai-h9k3pdtz__ctas">
-          {%- if primary_text != blank -%}
+          {%- if _show_primary -%}
             <a class="sai-h9k3pdtz__cta sai-h9k3pdtz__cta--primary sai-h9k3pdtz__cta--{{ primary_style }} sai-h9k3pdtz__cta--{{ primary_radius }} sai-h9k3pdtz__cta--{{ primary_size }}"
                href="{{ primary_url | default: '#' }}" data-sai-cta="primary">{{ primary_text | escape }}</a>
           {%- endif -%}
-          {%- if show_secondary_cta and secondary_text != blank -%}
+          {%- if _show_secondary -%}
             <a class="sai-h9k3pdtz__cta sai-h9k3pdtz__cta--secondary sai-h9k3pdtz__cta--{{ secondary_style }} sai-h9k3pdtz__cta--{{ secondary_radius }}"
                href="{{ secondary_url | default: '#' }}" data-sai-cta="secondary">{{ secondary_text | escape }}</a>
           {%- endif -%}
