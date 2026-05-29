@@ -84,13 +84,13 @@
   assign carousel_autoplay_interval_ms = content.carousel_autoplay_interval_ms | default: 5000
 
   if content.carousel_show_arrows == nil
-    assign carousel_show_arrows = true
+    assign carousel_show_arrows = false
   else
     assign carousel_show_arrows = content.carousel_show_arrows
   endif
 
   if content.carousel_show_dots == nil
-    assign carousel_show_dots = false
+    assign carousel_show_dots = true
   else
     assign carousel_show_dots = content.carousel_show_dots
   endif
@@ -172,14 +172,14 @@
   endif
 
   if content.show_savings_callout == nil
-    assign show_savings_callout = true
+    assign show_savings_callout = false
   else
     assign show_savings_callout = content.show_savings_callout
   endif
   assign savings_display_mode = content.savings_display_mode | default: 'absolute'
 
   if content.show_remaining_amount == nil
-    assign show_remaining_amount = true
+    assign show_remaining_amount = false
   else
     assign show_remaining_amount = content.show_remaining_amount
   endif
@@ -208,6 +208,41 @@
   endif
   assign coupon_icon_url = content.coupon_icon_url | default: ''
   assign card_icon_position = content.card_icon_position | default: 'left'
+  # Reject quotes, parens, semicolons, backslashes, whitespace, or angle
+  # brackets in the URL. The value is interpolated into an inline
+  # `style="--var: url('…')"` attribute below; `| escape` only HTML-
+  # escapes, but the browser HTML-decodes attribute values before the CSS
+  # parser runs — so a quote in the URL can break out of the url() and
+  # inject arbitrary CSS. Drop the value rather than emit a broken /
+  # injectable rule.
+  assign card_background_url_raw = content.card_background_url | default: ''
+  # Fail-loud fallback: if any forbidden char survives, _bg_safe will
+  # differ from the raw value and we drop the URL entirely (no CSS rule
+  # emitted) — the merchant sees no image rather than fake success. No
+  # runtime warning needed; the placeholder URL in meta.json is
+  # char-safe so the happy path is preserved.
+  assign card_background_url = ''
+  if card_background_url_raw != blank
+    assign _bg_safe = card_background_url_raw
+    assign _bg_safe = _bg_safe | replace: '"', '' | replace: "'", ''
+    assign _bg_safe = _bg_safe | replace: '(', '' | replace: ')', ''
+    assign _bg_safe = _bg_safe | replace: ';', '' | replace: '\', ''
+    assign _bg_safe = _bg_safe | replace: '<', '' | replace: '>', ''
+    assign _bg_safe = _bg_safe | strip
+    if _bg_safe == card_background_url_raw
+      assign card_background_url = card_background_url_raw
+    endif
+  endif
+
+  # Map merchant-friendly sizing key to a CSS background-size value.
+  # Closed enum: anything outside the allowed set falls back to cover.
+  assign card_background_size_raw = content.card_background_size | default: 'cover'
+  assign card_background_size = 'cover'
+  if card_background_size_raw == 'contain'
+    assign card_background_size = 'contain'
+  elsif card_background_size_raw == 'stretch'
+    assign card_background_size = '100% 100%'
+  endif
 
   if content.show_min_order_threshold == nil
     assign show_min_order_threshold = false
@@ -237,11 +272,21 @@
  * ============================================================================= */
 
 .sai-c1mzmpkz {
-  --sai-c1mzmpkz-card-bg: #ffffff;
-  --sai-c1mzmpkz-card-bg-muted: #ffffff;
-  --sai-c1mzmpkz-card-border: rgba(0, 0, 0, 0.12);
+  --sai-c1mzmpkz-card-bg: #fcf9f1;
+  --sai-c1mzmpkz-card-bg-muted: #fbf5e2;
+  --sai-c1mzmpkz-card-border: #f7eac8;
+  --sai-c1mzmpkz-card-divider: #f0e2bf;
   --sai-c1mzmpkz-card-radius: 0.75rem;
   --sai-c1mzmpkz-card-pad: 0.875rem;
+  /* Ticket cutouts — two pairs of semicircle "punches" on the left +
+   * right edges. The bottom pair sits at the perforation level (just
+   * above the code row). The top pair is decorative, mirroring the
+   * reference offer.svg silhouette. Measured from the card edges so the
+   * stub area stays stable regardless of how much offer copy sits
+   * above. */
+  --sai-c1mzmpkz-card-notch: 9px;
+  --sai-c1mzmpkz-card-tear-bottom: 3rem;
+  --sai-c1mzmpkz-card-tear-top: 2.25rem;
   --sai-c1mzmpkz-card-min-w: 16rem;
   --sai-c1mzmpkz-card-gap: 0.75rem;
   --sai-c1mzmpkz-code-bg: #f3f4f6;
@@ -262,6 +307,11 @@
   --sai-c1mzmpkz-cards-mobile: 1;
   --sai-c1mzmpkz-cards-desktop: 1;
   --sai-c1mzmpkz-cards-visible: 1;
+  /* Carousel default: 1 card on mobile, 2 on desktop. The desktop value
+   * applies above the 768px breakpoint via the @media rule on the
+   * --carousel modifier below; merchants can still override either via
+   * theme CSS (or a future prop). */
+  --sai-c1mzmpkz-cards-visible-desktop: 2;
 
   display: block;
   box-sizing: border-box;
@@ -377,6 +427,27 @@
 
 .sai-c1mzmpkz--carousel.sai-c1mzmpkz--peek .sai-c1mzmpkz__card {
   flex-basis: calc((100% - (var(--sai-c1mzmpkz-cards-visible) - 1) * var(--sai-c1mzmpkz-card-gap)) / (var(--sai-c1mzmpkz-cards-visible) + 0.25));
+}
+
+/* Desktop default: two cards side-by-side on viewports ≥768px. Uses a
+ * separate variable (--sai-c1mzmpkz-cards-visible-desktop, defaulted to
+ * 2 on the host) so it doesn't fight the mobile inline-style at
+ * --sai-c1mzmpkz-cards-visible. Merchants override the desktop count by
+ * setting --sai-c1mzmpkz-cards-visible-desktop in theme CSS; the
+ * carousel_cards_visible prop only feeds the mobile var. */
+@media (min-width: 768px) {
+  .sai-c1mzmpkz--carousel .sai-c1mzmpkz__card {
+    flex-basis: calc(
+      (100% - (var(--sai-c1mzmpkz-cards-visible-desktop) - 1) * var(--sai-c1mzmpkz-card-gap)) /
+        var(--sai-c1mzmpkz-cards-visible-desktop)
+    );
+  }
+  .sai-c1mzmpkz--carousel.sai-c1mzmpkz--peek .sai-c1mzmpkz__card {
+    flex-basis: calc(
+      (100% - (var(--sai-c1mzmpkz-cards-visible-desktop) - 1) * var(--sai-c1mzmpkz-card-gap)) /
+        (var(--sai-c1mzmpkz-cards-visible-desktop) + 0.25)
+    );
+  }
 }
 
 .sai-c1mzmpkz__carousel-arrow {
@@ -527,15 +598,106 @@
 
 /* ── Card ────────────────────────────────────────────────────────── */
 
+/* Coupon ticket: cream fill, faint percent-tag watermark in the top-right
+ * corner, dashed divider above the code chip, two semicircle "punch" cutouts
+ * on the left + right edges (CSS mask). The mask is the only thing that
+ * gives the silhouette real notches — radial-gradient backgrounds alone
+ * just paint over them, they don't clip the box. */
 .sai-c1mzmpkz__card {
   position: relative;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
   padding: var(--sai-c1mzmpkz-card-pad);
-  background: var(--sai-c1mzmpkz-card-bg);
-  border: 1px solid var(--sai-c1mzmpkz-card-border);
+  background-color: var(--sai-c1mzmpkz-card-bg);
   border-radius: var(--sai-c1mzmpkz-card-radius);
+  /* Inset shadow (not `border`) so the stroke participates in the mask the
+   * same way the fill does — a real border paints outside the mask region
+   * and would survive the notches as floating arcs. */
+  box-shadow: inset 0 0 0 1px var(--sai-c1mzmpkz-card-border);
+  /* Two radial-gradient stamps cut transparent holes on the left + right
+   * edges. mask-composite intersects them so both punches apply. The
+   * +0.5px on the second colour stop prevents an anti-aliased fringe. */
+  -webkit-mask-image:
+    radial-gradient(
+      circle at left var(--sai-c1mzmpkz-card-tear-top),
+      transparent var(--sai-c1mzmpkz-card-notch),
+      #000 calc(var(--sai-c1mzmpkz-card-notch) + 0.5px)
+    ),
+    radial-gradient(
+      circle at right var(--sai-c1mzmpkz-card-tear-top),
+      transparent var(--sai-c1mzmpkz-card-notch),
+      #000 calc(var(--sai-c1mzmpkz-card-notch) + 0.5px)
+    ),
+    radial-gradient(
+      circle at left calc(100% - var(--sai-c1mzmpkz-card-tear-bottom)),
+      transparent var(--sai-c1mzmpkz-card-notch),
+      #000 calc(var(--sai-c1mzmpkz-card-notch) + 0.5px)
+    ),
+    radial-gradient(
+      circle at right calc(100% - var(--sai-c1mzmpkz-card-tear-bottom)),
+      transparent var(--sai-c1mzmpkz-card-notch),
+      #000 calc(var(--sai-c1mzmpkz-card-notch) + 0.5px)
+    );
+  mask-image:
+    radial-gradient(
+      circle at left var(--sai-c1mzmpkz-card-tear-top),
+      transparent var(--sai-c1mzmpkz-card-notch),
+      #000 calc(var(--sai-c1mzmpkz-card-notch) + 0.5px)
+    ),
+    radial-gradient(
+      circle at right var(--sai-c1mzmpkz-card-tear-top),
+      transparent var(--sai-c1mzmpkz-card-notch),
+      #000 calc(var(--sai-c1mzmpkz-card-notch) + 0.5px)
+    ),
+    radial-gradient(
+      circle at left calc(100% - var(--sai-c1mzmpkz-card-tear-bottom)),
+      transparent var(--sai-c1mzmpkz-card-notch),
+      #000 calc(var(--sai-c1mzmpkz-card-notch) + 0.5px)
+    ),
+    radial-gradient(
+      circle at right calc(100% - var(--sai-c1mzmpkz-card-tear-bottom)),
+      transparent var(--sai-c1mzmpkz-card-notch),
+      #000 calc(var(--sai-c1mzmpkz-card-notch) + 0.5px)
+    );
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}
+
+/* Code row is pushed to a stable position from the card bottom so the
+ * tear-line above it lands at a known Y. margin-top: auto eats any
+ * leftover space between the description and the stub area, keeping
+ * the perforation visually anchored regardless of how much offer copy
+ * sits above. */
+
+/* Image-background mode: when the merchant supplies a card_background_url
+ * the image already carries the ticket silhouette, perforation, stroke,
+ * and any decorative watermark — turn off every CSS counterpart so they
+ * don't double up. The image stretches to fill so its baked perforation
+ * aligns with whatever card height the layout settles on. */
+.sai-c1mzmpkz--bg-image .sai-c1mzmpkz__card {
+  background-color: transparent;
+  background-image: var(--sai-c1mzmpkz-card-bg-image);
+  background-repeat: no-repeat;
+  background-position: center;
+  /* Merchant controls fit via the Card background — sizing prop.
+   * Default `cover` crops the image to fill card edges; `contain`
+   * leaves space at edges; `100% 100%` stretches and may distort. */
+  background-size: var(--sai-c1mzmpkz-card-bg-size, cover);
+  box-shadow: none;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+.sai-c1mzmpkz--bg-image .sai-c1mzmpkz__code-row {
+  border-top: 0;
+}
+
+/* BG-image cards have no ticket cutouts / perforation to frame the
+ * stub area, so the carousel-stretch + margin-top:auto whitespace
+ * reads as broken. Scope auto-height to bg-image mode only — ticket
+ * cards keep their uniform-height behaviour. */
+.sai-c1mzmpkz--bg-image .sai-c1mzmpkz__list {
+  align-items: flex-start;
 }
 
 .sai-c1mzmpkz__card--potential.sai-c1mzmpkz__card--treatment-greyed {
@@ -547,13 +709,12 @@
   position: relative;
 }
 
-/* Subtle = muted card background + dashed border so potential cards
- * read as "not quite there" without a pill badge. Default visual when
- * potential_visual_treatment is left at its default. */
+/* Subtle treatment intentionally inherits the default card visual —
+ * applicable and potential cards share the same cream ticket so the
+ * grid reads as uniform. Differentiation lives in the per-card copy
+ * (e.g. remaining-amount text) rather than a separate background. */
 .sai-c1mzmpkz__card--potential.sai-c1mzmpkz__card--treatment-subtle {
-  background: var(--sai-c1mzmpkz-card-bg-muted, rgba(0, 0, 0, 0.02));
-  border-style: dashed;
-  border-color: rgba(0, 0, 0, 0.18);
+  /* no overrides — match the default card */
 }
 
 /* Lightweight section divider rendered between applicable and potential
@@ -737,15 +898,32 @@
 
 
 
+/* Code row is the ticket "stub" — pushed to the bottom of the card by
+ * margin-top: auto so the perforation above it always sits in the same
+ * place. Dashed border-top doubles as the tear-off line; it lives on
+ * the row (not on the card) so it always lands directly above the
+ * code, regardless of card height. The cutouts on the card edges
+ * approximate this Y — close enough on typical card heights to read
+ * as a continuous perforation. */
 .sai-c1mzmpkz__code-row {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  margin-top: 0.25rem;
-  padding: 0.375rem 0.5rem;
-  background: var(--sai-c1mzmpkz-code-bg);
-  border: 1px dashed var(--sai-c1mzmpkz-code-border);
-  border-radius: 0.5rem;
+  margin-top: auto;
+  padding-top: 0.6rem;
+  padding-bottom: 0.25rem;
+  background: transparent;
+  border: 0;
+  border-top: 1px dashed var(--sai-c1mzmpkz-card-divider, var(--sai-c1mzmpkz-code-border));
+}
+
+/* Automatic-discount row has no code chip — just the pill. Drop the
+ * label gap so the pill aligns left at the same X as the manual CODE label. */
+.sai-c1mzmpkz__code-row--automatic {
+  gap: 0;
+}
+.sai-c1mzmpkz__code-row--automatic .sai-c1mzmpkz__card-cta {
+  margin-top: 0;
 }
 
 .sai-c1mzmpkz__code-label {
@@ -1145,10 +1323,10 @@
   <div class="sai-c1mzmpkz sai-c1mzmpkz--empty" data-mutation-handle="{{ mutation_handle }}" data-sai-empty hidden></div>
 {%- else -%}
 <div
-  class="sai-c1mzmpkz sai-c1mzmpkz--{{ list_layout }}{% if carousel_show_peek and list_layout == 'carousel' %} sai-c1mzmpkz--peek{% endif %}"
+  class="sai-c1mzmpkz sai-c1mzmpkz--{{ list_layout }}{% if carousel_show_peek and list_layout == 'carousel' %} sai-c1mzmpkz--peek{% endif %}{% if card_background_url != blank %} sai-c1mzmpkz--bg-image{% endif %}"
   data-sai-snippet-root="c1mzmpkz"
   data-mutation-handle="{{ mutation_handle }}"
-  style="--sai-c1mzmpkz-cards-mobile: {{ grid_columns_mobile }}; --sai-c1mzmpkz-cards-desktop: {{ grid_columns_desktop }}; --sai-c1mzmpkz-cards-visible: {{ carousel_cards_visible }}; --sai-c1mzmpkz-desc-lines: {{ description_max_lines }};"
+  style="--sai-c1mzmpkz-cards-mobile: {{ grid_columns_mobile }}; --sai-c1mzmpkz-cards-desktop: {{ grid_columns_desktop }}; --sai-c1mzmpkz-cards-visible: {{ carousel_cards_visible }}; --sai-c1mzmpkz-desc-lines: {{ description_max_lines }};{% if card_background_url != blank %} --sai-c1mzmpkz-card-bg-image: url('{{ card_background_url | escape | replace: "'", "%27" }}'); --sai-c1mzmpkz-card-bg-size: {{ card_background_size }};{% endif %}"
 >
   {%- if show_heading and heading != blank -%}
     <h2 class="sai-c1mzmpkz__heading" data-sai-heading>{{ heading | escape }}</h2>

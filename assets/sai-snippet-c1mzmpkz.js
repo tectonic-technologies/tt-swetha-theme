@@ -15,11 +15,13 @@
  * ============================================================================= */
 
 ;(() => {
-  // Default coupon-ticket SVG — shown on cards when `show_coupon_icon` is
-  // on but no `coupon_icon_url` is supplied. Matches the Vaaree-style
-  // pink/percent ticket from the reference design.
+  // Default coupon icon — shown on cards when `show_coupon_icon` is on
+  // but no `coupon_icon_url` is supplied. Solid dark-yellow disc with a
+  // bold cream % in the centre. Reads as "discount" at a glance and
+  // sits comfortably on the cream card without competing with the
+  // text. White accent dots + slash form the % glyph.
   const DEFAULT_COUPON_SVG =
-    '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><defs><linearGradient id="sai-c1mzmpkz-coupon-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#FDE7EF"/><stop offset="100%" stop-color="#F8C8DC"/></linearGradient></defs><path d="M6 16a6 6 0 0 1 6-6h40a6 6 0 0 1 6 6v6a4 4 0 0 0 0 8v6a6 6 0 0 1-6 6H12a6 6 0 0 1-6-6v-6a4 4 0 0 0 0-8v-6Z" fill="url(#sai-c1mzmpkz-coupon-bg)" stroke="#2A2A2A" stroke-width="2"/><line x1="30" y1="14" x2="30" y2="42" stroke="#2A2A2A" stroke-width="1.5" stroke-dasharray="3 3"/><circle cx="48" cy="28" r="8" fill="#E4377F"/><path d="M44 32l8-8M45 25.5h.01M50.5 30.5h.01" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round"/></svg>'
+    '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><circle cx="32" cy="32" r="28" fill="#d4a017"/><circle cx="32" cy="32" r="24" fill="none" stroke="#fcf9f1" stroke-width="1.3" stroke-dasharray="3.2 2.4" opacity="0.7"/><circle cx="24" cy="24" r="4" fill="#fcf9f1"/><circle cx="40" cy="40" r="4" fill="#fcf9f1"/><line x1="44" y1="20" x2="20" y2="44" stroke="#fcf9f1" stroke-width="3.5" stroke-linecap="round"/></svg>'
 
   const SNIPPET_ID = 'c1mzmpkz'
   // Host is a <div> with data-sai-snippet-root="c1mzmpkz" (not a custom
@@ -297,6 +299,12 @@
   function formatSavings(d, mode, currency) {
     const v = d.discountValue || {}
     if (v.type === 'FREE_SHIPPING') return 'Save on shipping'
+    // FIXED discounts already render their value in the type label
+    // ("$50 OFF") — a "Save $50" pill underneath duplicates the number.
+    // Suppress so the card reads cleaner; PERCENTAGE + BXGY still get
+    // the callout because their type label ("20% Off" / "Buy X Get Y")
+    // doesn't carry the absolute amount.
+    if (v.type === 'FIXED') return null
     const fmt = moneyFormatter(v.currencyCode || currency)
     const pct =
       typeof v.percentage === 'number'
@@ -540,9 +548,17 @@
       body.appendChild(row)
     }
 
-    // CTA — automatic pill OR near-miss-replace-cta
+    // Automatic discounts have no code-chip row, so the "Applied at checkout"
+    // pill is wrapped in a __code-row to take that slot below the perforation.
+    // Near-miss replace_cta is supplementary text — for manual discounts the
+    // code-chip row already owns the stub slot, so the text renders inline as
+    // a __card-cta span. Wrapping it in __code-row would put two margin-top:
+    // auto children in the card-body flex column and the existing code-chip
+    // row would float to mid-card.
     if (isAutomatic) {
-      body.appendChild(el('span', 'sai-c1mzmpkz__card-cta', { text: labels.automaticPillLabel }))
+      const ctaRow = el('div', 'sai-c1mzmpkz__code-row sai-c1mzmpkz__code-row--automatic')
+      ctaRow.appendChild(el('span', 'sai-c1mzmpkz__card-cta', { text: labels.automaticPillLabel }))
+      body.appendChild(ctaRow)
     } else if (remainingText && config.nearMissPosition === 'replace_cta') {
       body.appendChild(el('span', 'sai-c1mzmpkz__card-cta', { text: remainingText }))
     }
@@ -923,6 +939,12 @@
       desc.style.webkitLineClamp = 'unset'
       desc.style.overflow = 'visible'
 
+      // After `desc.textContent = fullText` above, desc already holds a
+      // single text node with the full string — that becomes the node the
+      // binary search trims via desc.firstChild.nodeValue. We only need to
+      // append the ellipsis + toggle AFTER it. Inserting another text node
+      // here doubles the description (regression seen on mobile after a
+      // variant change re-render: "X • Min $500 X • Min $500 show less").
       const ellipsisNode = document.createTextNode('… ')
       const toggle = el('button', 'sai-c1mzmpkz__description-toggle', {
         type: 'button',
@@ -941,9 +963,6 @@
         if (!s) s = fullText.slice(0, len)
         if (desc.firstChild) desc.firstChild.nodeValue = s
       }
-
-      // Initialise the first text node.
-      desc.insertBefore(document.createTextNode(fullText), ellipsisNode)
 
       // Binary-search the longest prefix that still fits in targetHeight.
       let lo = 0
