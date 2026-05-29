@@ -84,8 +84,12 @@
   position: absolute;
   inset: 0;
 }
-.sai-h9k3pdtz__bg { z-index: 0; }
-.sai-h9k3pdtz__overlay { z-index: 1; pointer-events: none; }
+.sai-h9k3pdtz__bg { z-index: -2; }
+.sai-h9k3pdtz__overlay { z-index: -1; pointer-events: none; }
+/* Stretched link covers the whole banner (bg image included). Interactive
+   children (CTAs) sit above it; non-interactive content is covered so a click
+   anywhere on the banner navigates. Root `isolation: isolate` keeps the
+   negative-z background layers contained within the hero. */
 .sai-h9k3pdtz__banner-link { z-index: 1; }
 .sai-h9k3pdtz__bg-media {
   width: 100%;
@@ -101,7 +105,6 @@
 
 .sai-h9k3pdtz__inner {
   position: relative;
-  z-index: 2;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -133,7 +136,7 @@
 .sai-h9k3pdtz__description { order: 4; margin: 0; max-width: 46ch; font-size: 1.05rem; line-height: 1.6; color: var(--sai-h9-muted); }
 .sai-h9k3pdtz__highlight { color: var(--sai-h9-fg); font-style: italic; }
 .sai-h9k3pdtz__rating { order: 5; display: flex; align-items: center; gap: 10px; font-size: 0.95rem; color: var(--sai-h9-muted); }
-.sai-h9k3pdtz__ctas { order: 6; display: flex; flex-wrap: wrap; gap: 12px; }
+.sai-h9k3pdtz__ctas { order: 6; position: relative; z-index: 2; display: flex; flex-wrap: wrap; gap: 12px; }
 .sai-h9k3pdtz__pills { order: 7; display: flex; flex-wrap: wrap; gap: 10px; margin: 0; padding: 0; list-style: none; }
 .sai-h9k3pdtz--align-center .sai-h9k3pdtz__ctas,
 .sai-h9k3pdtz--align-center .sai-h9k3pdtz__pills,
@@ -191,9 +194,9 @@
   cursor: pointer;
   border: 1px solid transparent;
   border-radius: 999px;
-  transition: opacity 0.15s ease, filter 0.15s ease;
 }
 .sai-h9k3pdtz__cta:hover { opacity: 0.9; }
+.sai-h9k3pdtz__cta:active { opacity: 0.8; }
 .sai-h9k3pdtz__cta:focus-visible { outline: 2px solid var(--sai-h9-fg); outline-offset: 2px; }
 .sai-h9k3pdtz__cta--filled { background: var(--sai-h9-fg); color: #111111; }
 .sai-h9k3pdtz__cta--outlined { background: transparent; color: var(--sai-h9-fg); border-color: var(--sai-h9-pill-border); }
@@ -276,10 +279,10 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
 }
 @media screen and (max-width: 749px) {
   .sai-h9k3pdtz--mobile-stack .sai-h9k3pdtz__inner { flex-direction: column; align-items: stretch; }
-  /* In the column stack, reset the 320px basis (it would become a height) and
-     keep cards sized to their content instead of stretching tall. */
-  .sai-h9k3pdtz--mobile-stack .sai-h9k3pdtz__stats { flex: 0 0 auto; flex-direction: row; flex-wrap: wrap; align-items: flex-start; }
-  .sai-h9k3pdtz--mobile-stack .sai-h9k3pdtz__stat { flex: 1 1 140px; }
+  /* In the column stack, reset the 320px basis (it would otherwise become a
+     height and stretch the cards). The chosen stats_layout (vertical /
+     horizontal / grid) still governs direction. */
+  .sai-h9k3pdtz--mobile-stack .sai-h9k3pdtz__stats { flex: 0 0 auto; }
   .sai-h9k3pdtz--mobile-hide-stats .sai-h9k3pdtz__stats { display: none; }
   .sai-h9k3pdtz--hide-mobile { display: none; }
 }
