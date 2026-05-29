@@ -4,10 +4,16 @@
 
   @param {string} mutation_handle - Mutation handle for DOM scoping (infrastructure)
   @param {string} experience_handle - Experience handle for attribution (infrastructure)
-  @param {object} variant - Resolved snippet-instance variant; values live on `variant.content`
+  @param {object} variant - Resolved snippet-instance variant (Studio fallback source)
   @param {object} mo - spectrum_snippet_instance metaobject drop; carries the `images` reference pool
 
-  variant.content fields (see meta.json for the full prop contract):
+  Content source: the shop-level `shop.metafields.spectrum.hero_banner` (json)
+  is read first. When that metafield is blank, the snippet falls back to
+  `variant.content` (Studio). Image fields accept either a direct `{ url }`
+  (metafield shape) or a `{ kind, refId }` marker resolved against `mo.images`
+  (Studio shape).
+
+  content fields (see meta.json for the full prop contract):
     layout      : section_width, content_max_width, min_height{mobile,tablet,desktop}, content_align_h,
                   content_align_v, corner_radius, padding_top, padding_bottom, content_reverse, columns_reverse
     background  : background_type, background_image{kind,refId}, background_image_alt, background_video_url,
@@ -54,8 +60,8 @@
   --sai-h9-muted: rgba(255, 255, 255, 0.78);
   --sai-h9-pill-bg: rgba(255, 255, 255, 0.1);
   --sai-h9-pill-border: rgba(255, 255, 255, 0.22);
-  --sai-h9-stat-bg: rgba(20, 20, 20, 0.42);
-  --sai-h9-stat-border: rgba(255, 255, 255, 0.16);
+  --sai-h9-stat-bg: rgba(12, 12, 12, 0.62);
+  --sai-h9-stat-border: rgba(255, 255, 255, 0.22);
   position: relative;
   display: flex;
   width: 100%;
@@ -184,9 +190,9 @@
   cursor: pointer;
   border: 1px solid transparent;
   border-radius: 999px;
-  transition: transform 0.15s ease, opacity 0.15s ease, background-color 0.15s ease;
+  transition: opacity 0.15s ease, filter 0.15s ease;
 }
-.sai-h9k3pdtz__cta:hover { transform: translateY(-1px); }
+.sai-h9k3pdtz__cta:hover { opacity: 0.9; }
 .sai-h9k3pdtz__cta:focus-visible { outline: 2px solid var(--sai-h9-fg); outline-offset: 2px; }
 .sai-h9k3pdtz__cta--filled { background: var(--sai-h9-fg); color: #111111; }
 .sai-h9k3pdtz__cta--outlined { background: transparent; color: var(--sai-h9-fg); border-color: var(--sai-h9-pill-border); }
@@ -210,7 +216,10 @@
   border: 1px solid var(--sai-h9-pill-border);
   border-radius: 999px;
 }
-.sai-h9k3pdtz__pill-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--sai-h9-accent); }
+.sai-h9k3pdtz__pill-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--sai-h9-accent); flex: none; }
+.sai-h9k3pdtz__pill-icon { width: 16px; height: 16px; flex: none; color: var(--sai-h9-accent); display: inline-flex; }
+.sai-h9k3pdtz__pill-icon svg { width: 16px; height: 16px; stroke: currentColor; fill: none; }
+img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
 
 .sai-h9k3pdtz__stars { display: inline-flex; gap: 2px; color: var(--sai-h9-accent); }
 .sai-h9k3pdtz__star { width: 16px; height: 16px; }
@@ -248,13 +257,13 @@
 .sai-h9k3pdtz__countdown--minimal .sai-h9k3pdtz__cd-unit { flex-direction: row; gap: 2px; min-width: 0; background: transparent; border: 0; padding: 0; }
 .sai-h9k3pdtz__countdown--minimal .sai-h9k3pdtz__cd-lbl { font-size: 0.85rem; text-transform: none; letter-spacing: 0; }
 
-/* Entrance animation */
+/* Entrance animation — fade is opacity-only (no positional/sweep motion) */
 .sai-h9k3pdtz__content,
 .sai-h9k3pdtz__stats { transition: opacity var(--sai-h9-anim-duration, 600ms) ease var(--sai-h9-anim-delay, 0ms), transform var(--sai-h9-anim-duration, 600ms) ease var(--sai-h9-anim-delay, 0ms); }
-.sai-h9k3pdtz--anim-fade:not(.is-in) .sai-h9k3pdtz__content,
-.sai-h9k3pdtz--anim-fade:not(.is-in) .sai-h9k3pdtz__stats { opacity: 0; transform: translateY(16px); }
-.sai-h9k3pdtz--anim-zoom:not(.is-in) .sai-h9k3pdtz__content,
-.sai-h9k3pdtz--anim-zoom:not(.is-in) .sai-h9k3pdtz__stats { opacity: 0; transform: scale(0.96); }
+.sai-h9k3pdtz--js.sai-h9k3pdtz--anim-fade:not(.is-in) .sai-h9k3pdtz__content,
+.sai-h9k3pdtz--js.sai-h9k3pdtz--anim-fade:not(.is-in) .sai-h9k3pdtz__stats { opacity: 0; }
+.sai-h9k3pdtz--js.sai-h9k3pdtz--anim-zoom:not(.is-in) .sai-h9k3pdtz__content,
+.sai-h9k3pdtz--js.sai-h9k3pdtz--anim-zoom:not(.is-in) .sai-h9k3pdtz__stats { opacity: 0; transform: scale(0.96); }
 
 @media screen and (min-width: 750px) {
   .sai-h9k3pdtz { min-height: var(--sai-h9-min-h-t, 560px); }
@@ -279,7 +288,10 @@
 {% endstylesheet %}
 
 {%- liquid
-  assign content = variant.content
+  assign content = shop.metafields.spectrum.hero_banner.value
+  if content == blank
+    assign content = variant.content
+  endif
 
   assign section_width = content.section_width | default: 'full'
   assign align_h = content.content_align_h | default: 'left'
@@ -384,18 +396,26 @@
   assign banner_clickable = content.banner_clickable
 -%}
 
-{%- comment -%}── Resolve image markers against mo.images.value (string-coerced id) ──{%- endcomment -%}
+{%- comment -%}
+  Resolve images for both content sources:
+  - shop metafield: each image is a plain object carrying a direct `.url`.
+  - variant.content (Studio): each image is a `{ kind, refId }` marker resolved
+    against the `mo.images` pool by string-coerced id (Liquid `==` is type-strict).
+  Final per-image URL lands in *_src (badge/poster/inline) or bg_image_url; the
+  pool drop also lands in bg_image so the metaobject path keeps srcset + dims.
+{%- endcomment -%}
 {%- assign bg_image = nil -%}
-{%- assign badge_image = nil -%}
-{%- assign poster_image = nil -%}
-{%- assign inline_image = nil -%}
+{%- assign bg_image_url = content.background_image.url -%}
+{%- assign badge_src = content.badge_icon.url -%}
+{%- assign poster_src = content.background_poster.url -%}
+{%- assign inline_src = content.inline_asset_image.url -%}
 {%- if mo.images.value -%}
   {%- for _img in mo.images.value -%}
     {%- assign _iid = _img.id | append: '' -%}
-    {%- if content.background_image and content.background_image.refId == _iid -%}{%- assign bg_image = _img -%}{%- endif -%}
-    {%- if content.badge_icon and content.badge_icon.refId == _iid -%}{%- assign badge_image = _img -%}{%- endif -%}
-    {%- if content.background_poster and content.background_poster.refId == _iid -%}{%- assign poster_image = _img -%}{%- endif -%}
-    {%- if content.inline_asset_image and content.inline_asset_image.refId == _iid -%}{%- assign inline_image = _img -%}{%- endif -%}
+    {%- if content.background_image.refId == _iid -%}{%- assign bg_image = _img -%}{%- endif -%}
+    {%- if content.badge_icon.refId == _iid -%}{%- assign badge_src = _img | image_url: width: 48 -%}{%- endif -%}
+    {%- if content.background_poster.refId == _iid -%}{%- assign poster_src = _img | image_url: width: 1600 -%}{%- endif -%}
+    {%- if content.inline_asset_image.refId == _iid -%}{%- assign inline_src = _img | image_url: width: 200 -%}{%- endif -%}
   {%- endfor -%}
 {%- endif -%}
 
@@ -448,9 +468,16 @@
            {%- if bg_image.width and bg_image.height %} width="{{ bg_image.width }}" height="{{ bg_image.height }}"{% endif %}
            alt="{{ content.background_image_alt | default: '' | escape }}"
            loading="eager" fetchpriority="high">
+    {%- elsif background_type == 'image' and bg_image_url != blank -%}
+      <img class="sai-h9k3pdtz__bg-media"
+           src="{{ bg_image_url }}"
+           sizes="100vw"
+           {%- if content.background_image.width and content.background_image.height %} width="{{ content.background_image.width }}" height="{{ content.background_image.height }}"{% endif %}
+           alt="{{ content.background_image_alt | default: '' | escape }}"
+           loading="eager" fetchpriority="high">
     {%- elsif background_type == 'video' and content.background_video_url != blank -%}
       <video class="sai-h9k3pdtz__bg-media" autoplay muted loop playsinline
-        {%- if poster_image != blank %} poster="{{ poster_image | image_url: width: 1600 }}"{% endif %}>
+        {%- if poster_src != blank %} poster="{{ poster_src }}"{% endif %}>
         <source src="{{ content.background_video_url }}">
       </video>
     {%- endif -%}
@@ -469,8 +496,8 @@
   {%- comment -%}── Badge ──{%- endcomment -%}
   {%- if show_badge and badge_text != blank -%}
     <div class="sai-h9k3pdtz__badge sai-h9k3pdtz__badge--{{ badge_style }} sai-h9k3pdtz__badge--{{ badge_position }}">
-      {%- if badge_image != blank -%}
-        <img class="sai-h9k3pdtz__badge-icon" src="{{ badge_image | image_url: width: 48 }}" alt="" loading="lazy" width="14" height="14">
+      {%- if badge_src != blank -%}
+        <img class="sai-h9k3pdtz__badge-icon" src="{{ badge_src }}" alt="" loading="lazy" width="14" height="14">
       {%- endif -%}
       <span>{{ badge_text | escape }}</span>
     </div>
@@ -484,8 +511,8 @@
 
       {%- if title != blank or title_accent != blank -%}
         <h2 class="sai-h9k3pdtz__title">
-          {%- if inline_asset and inline_image != blank -%}
-            <img class="sai-h9k3pdtz__inline-asset sai-h9k3pdtz__inline-asset--{{ inline_align }}" src="{{ inline_image | image_url: width: 200 }}" alt="" loading="lazy">
+          {%- if inline_asset and inline_src != blank -%}
+            <img class="sai-h9k3pdtz__inline-asset sai-h9k3pdtz__inline-asset--{{ inline_align }}" src="{{ inline_src }}" alt="" loading="lazy">
           {%- endif -%}
           {{ title | escape | newline_to_br }}
           {%- if title_accent != blank -%}

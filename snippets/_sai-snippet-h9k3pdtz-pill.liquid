@@ -1,15 +1,43 @@
 {%- doc -%}
   Hero Banner — single trust pill (rendered in a loop by the main file).
 
-  @param {object} pill - one inline-list item: { icon?, text }
+  @param {object} pill - one inline-list item: { text, icon?, icon_url?, icon_name? }
 
-  Renders nothing when `text` is blank so an empty row never leaves a stray
-  chip. The icon is an inline-list image snapshot (originalUrl), not a pool ref.
+  Icon resolution order (first match wins): uploaded image (`icon.originalUrl`
+  from the Studio Files picker, or `icon.url` from the metafield shape) →
+  `icon_url` (direct URL string) → `icon_name` preset (inline SVG) → a small dot.
+  Renders nothing when `text` is blank so an empty row never leaves a stray chip.
+
+  Preset icon_name values: shield, badge, leaf, check, star, truck, lock, heart.
 {%- enddoc -%}
 {%- if pill.text != blank -%}
+  {%- liquid
+    assign icon_url = ''
+    if pill.icon.originalUrl
+      assign icon_url = pill.icon.originalUrl
+    elsif pill.icon.url
+      assign icon_url = pill.icon.url
+    elsif pill.icon_url != blank
+      assign icon_url = pill.icon_url
+    endif
+  -%}
   <li class="sai-h9k3pdtz__pill">
-    {%- if pill.icon and pill.icon.originalUrl -%}
-      <img class="sai-h9k3pdtz__pill-icon" src="{{ pill.icon.originalUrl }}" alt="" loading="lazy" width="16" height="16">
+    {%- if icon_url != '' -%}
+      <img class="sai-h9k3pdtz__pill-icon" src="{{ icon_url }}" alt="" loading="lazy" width="16" height="16">
+    {%- elsif pill.icon_name != blank -%}
+      <span class="sai-h9k3pdtz__pill-icon" aria-hidden="true">
+        {%- case pill.icon_name -%}
+          {%- when 'shield' -%}<svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+          {%- when 'badge' -%}<svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M8.21 13.89 7 23l5-3 5 3-1.21-9.12"/></svg>
+          {%- when 'leaf' -%}<svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6"/></svg>
+          {%- when 'check' -%}<svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+          {%- when 'star' -%}<svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg>
+          {%- when 'truck' -%}<svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 18V6H2v12h2"/><path d="M14 9h4l4 4v5h-3"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg>
+          {%- when 'lock' -%}<svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+          {%- when 'heart' -%}<svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3 5.49 5.49 0 0 0 12 5.36 5.49 5.49 0 0 0 7.5 3 5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
+          {%- else -%}<svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        {%- endcase -%}
+      </span>
     {%- else -%}
       <span class="sai-h9k3pdtz__pill-dot" aria-hidden="true"></span>
     {%- endif -%}
