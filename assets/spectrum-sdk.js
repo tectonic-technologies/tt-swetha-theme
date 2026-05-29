@@ -141,6 +141,11 @@
  *   Throws on resolver failure. Used by the mobile WebView shell to hand a
  *   URL to ShopifyCheckoutSheetKit. Web traffic never calls this.
  *
+ *   Spectrum.native.expressCheckout({ lines, discountCodes? })
+ *     → Promise<{ok, data?:{checkoutUrl, cartId}, error?}>
+ *   lines: [{variantId, quantity?}]. Creates a standalone cart via
+ *   Storefront API (app proxy). Does NOT touch the user's browsing cart.
+ *
  * ── Currency ──────────────────────────────────────────────────────────
  *   Spectrum.getActiveCurrency()                  → ISO 4217 code or undefined
  *   Returns window.Shopify.currency.active — the customer's
@@ -165,7 +170,7 @@
 
 // ─── Configuration ───────────────────────────────────────────────────
 
-const VERSION = '1.7.0';
+const VERSION = '1.8.0';
 
 const _config = {};
 
@@ -2481,6 +2486,30 @@ const native = {
     }
 
     throw new Error(`Unsupported cartType: ${cartType}`);
+  },
+
+  /**
+   * Create a standalone cart and return the checkout URL.
+   * Does not touch the user's browsing cart.
+   *
+   * @param {Object}  opts
+   * @param {Array<{variantId:number, quantity?:number}>} opts.lines  Items to add.
+   * @param {string[]} [opts.discountCodes] Optional discount codes.
+   * @returns {Promise<{ok:boolean, data?:{checkoutUrl:string, cartId:string}, error?:{message:string, code:string}}>}
+   */
+  async expressCheckout({ lines, discountCodes } = {}) {
+    if (!lines?.length) return _normalizeError('lines is required', 'MISSING_LINES');
+    const base = _proxyBase();
+    if (!base) return _normalizeError('Proxy not configured', 'NO_PROXY');
+    const result = await _postJSON(_buildUrl(`${base}/express-checkout`, '/create-cart'), {
+      lines: lines.map(l => ({ variant_id: Number(l.variantId), quantity: Number(l.quantity || 1) })),
+      discount_codes: discountCodes?.length ? discountCodes : undefined,
+    });
+    if (!result.ok) return result;
+    if (!result.data?.checkout_url) {
+      return _normalizeError('No checkout URL in response', 'MISSING_CHECKOUT_URL');
+    }
+    return _normalizeSuccess({ checkoutUrl: result.data.checkout_url, cartId: result.data.cart_id });
   },
 };
 
