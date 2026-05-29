@@ -1,0 +1,26 @@
+{%- doc -%}
+  Hero Banner — single stat card (rendered in a loop by the main file).
+
+  @param {object} stat - one inline-list item: { icon?, number, label, description? }
+  @param {string} number_format - "auto" | "integer" | "abbreviated" (count-up display formatting)
+
+  The visible number is server-rendered as the final value (no-JS fallback).
+  The runtime resets it to zero and tweens up to `data-sai-count-target` when
+  the card scrolls into view. Keep `data-sai-count-target` raw (e.g. "92%") —
+  the runtime parses the numeric portion and preserves any prefix/suffix.
+{%- enddoc -%}
+{%- assign _num = stat.number | default: '' -%}
+<div class="sai-h9k3pdtz__stat" role="listitem">
+  {%- if stat.icon and stat.icon.originalUrl -%}
+    <img class="sai-h9k3pdtz__stat-icon" src="{{ stat.icon.originalUrl }}" alt="" loading="lazy" width="28" height="28">
+  {%- endif -%}
+  <span class="sai-h9k3pdtz__stat-number"
+        data-sai-count-target="{{ _num | escape }}"
+        data-sai-count-format="{{ number_format | default: 'auto' | escape }}">{{ _num | escape }}</span>
+  {%- if stat.label != blank -%}
+    <span class="sai-h9k3pdtz__stat-label">{{ stat.label | escape }}</span>
+  {%- endif -%}
+  {%- if stat.description != blank -%}
+    <span class="sai-h9k3pdtz__stat-desc">{{ stat.description | escape }}</span>
+  {%- endif -%}
+</div>

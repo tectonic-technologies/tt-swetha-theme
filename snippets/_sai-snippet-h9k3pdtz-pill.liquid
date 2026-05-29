@@ -1,0 +1,18 @@
+{%- doc -%}
+  Hero Banner — single trust pill (rendered in a loop by the main file).
+
+  @param {object} pill - one inline-list item: { icon?, text }
+
+  Renders nothing when `text` is blank so an empty row never leaves a stray
+  chip. The icon is an inline-list image snapshot (originalUrl), not a pool ref.
+{%- enddoc -%}
+{%- if pill.text != blank -%}
+  <li class="sai-h9k3pdtz__pill">
+    {%- if pill.icon and pill.icon.originalUrl -%}
+      <img class="sai-h9k3pdtz__pill-icon" src="{{ pill.icon.originalUrl }}" alt="" loading="lazy" width="16" height="16">
+    {%- else -%}
+      <span class="sai-h9k3pdtz__pill-dot" aria-hidden="true"></span>
+    {%- endif -%}
+    <span class="sai-h9k3pdtz__pill-text">{{ pill.text | escape }}</span>
+  </li>
+{%- endif -%}

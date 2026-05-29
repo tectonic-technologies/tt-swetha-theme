@@ -1,0 +1,567 @@
+{%- doc -%}
+  Hero Banner — full-bleed hero with configurable background, overlay, badge,
+  headline + accent line, description, CTAs, trust pills, and animated stat cards.
+
+  @param {string} mutation_handle - Mutation handle for DOM scoping (infrastructure)
+  @param {string} experience_handle - Experience handle for attribution (infrastructure)
+  @param {object} variant - Resolved snippet-instance variant; values live on `variant.content`
+  @param {object} mo - spectrum_snippet_instance metaobject drop; carries the `images` reference pool
+
+  variant.content fields (see meta.json for the full prop contract):
+    layout      : section_width, content_max_width, min_height{mobile,tablet,desktop}, content_align_h,
+                  content_align_v, corner_radius, padding_top, padding_bottom, content_reverse, columns_reverse
+    background  : background_type, background_image{kind,refId}, background_image_alt, background_video_url,
+                  background_poster{...}, background_color, gradient_start, gradient_end, gradient_angle, aspect_ratio
+    overlay     : overlay_enabled, overlay_color, overlay_opacity, overlay_gradient_enabled, overlay_gradient_direction
+    text        : title, title_accent, title_animation, subtitle, description, description_highlight,
+                  inline_asset, inline_asset_image{...}, inline_asset_align
+    rating      : show_rating, rating_value, rating_count
+    cta         : primary_cta_{text,url,style,radius,size}, show_secondary_cta, secondary_cta_{text,url,style,radius}
+    pills       : show_trust_pills, trust_pills[]{icon,text}
+    stats       : show_stats, stats_layout, stats[]{icon,number,label,description}, counter_animation,
+                  counter_duration, number_format
+    countdown   : show_countdown, countdown_target, countdown_style, countdown_end_behavior, countdown_end_message
+    animation   : entrance_animation, animation_duration, animation_delay
+    mobile      : mobile_layout, hide_on_mobile, hide_on_desktop
+    interaction : banner_clickable, click_url, open_new_tab
+
+  Image-typed props arrive as `{ kind:'images', refId }` markers and resolve
+  against `mo.images.value` by string-coerced id (Liquid `==` is type-strict).
+  inline-list images (stats/pills icons) are snapshots read as `item.icon.originalUrl`.
+
+  @example
+  {% render '_sai-snippet-h9k3pdtz', variant: variant, mo: mo, mutation_handle: 'mut-abcd1234', experience_handle: 'summer' %}
+{%- enddoc -%}
+
+{%- comment -%}
+  Institutional knowledge:
+  - Text renders light over an overlaid background regardless of theme palette.
+    The default foreground/accent are fixed light values (--sai-h9-fg / --sai-h9-accent)
+    so contrast is guaranteed over arbitrary merchant imagery; merchants override
+    them through the per-element Styling panel, not theme variables.
+  - Liquid-interpolated values are emitted as inline custom properties on the root
+    (and the overlay/background layers); all static rules live in the stylesheet
+    block and consume those properties via media queries.
+  - The whole-banner link is a stretched <a> sibling (z-index below the content),
+    never an ancestor of the CTAs — nesting interactive controls inside an anchor
+    is invalid HTML.
+{%- endcomment -%}
+
+{% stylesheet %}
+.sai-h9k3pdtz {
+  --sai-h9-fg: #ffffff;
+  --sai-h9-accent: #caa75a;
+  --sai-h9-muted: rgba(255, 255, 255, 0.78);
+  --sai-h9-pill-bg: rgba(255, 255, 255, 0.1);
+  --sai-h9-pill-border: rgba(255, 255, 255, 0.22);
+  --sai-h9-stat-bg: rgba(20, 20, 20, 0.42);
+  --sai-h9-stat-border: rgba(255, 255, 255, 0.16);
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-height: var(--sai-h9-min-h-m, 480px);
+  padding-top: var(--sai-h9-pad-top, 48px);
+  padding-bottom: var(--sai-h9-pad-bottom, 48px);
+  border-radius: var(--sai-h9-radius, 0px);
+  overflow: hidden;
+  color: var(--sai-h9-fg);
+  isolation: isolate;
+}
+.sai-h9k3pdtz--width-boxed {
+  max-width: var(--page-width, 1400px);
+  margin-inline: auto;
+}
+
+.sai-h9k3pdtz__bg,
+.sai-h9k3pdtz__overlay,
+.sai-h9k3pdtz__banner-link {
+  position: absolute;
+  inset: 0;
+}
+.sai-h9k3pdtz__bg { z-index: 0; }
+.sai-h9k3pdtz__overlay { z-index: 1; pointer-events: none; }
+.sai-h9k3pdtz__banner-link { z-index: 1; }
+.sai-h9k3pdtz__bg-media {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.sai-h9k3pdtz--parallax .sai-h9k3pdtz__bg {
+  top: -8%;
+  bottom: -8%;
+  will-change: transform;
+}
+
+.sai-h9k3pdtz__inner {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: clamp(24px, 5vw, 64px);
+  width: 100%;
+  max-width: var(--page-width, 1400px);
+  margin-inline: auto;
+  padding-inline: clamp(20px, 5vw, 64px);
+}
+.sai-h9k3pdtz--width-contained .sai-h9k3pdtz__inner { max-width: 1200px; }
+.sai-h9k3pdtz--cols-reverse .sai-h9k3pdtz__inner { flex-direction: row-reverse; }
+.sai-h9k3pdtz--valign-top .sai-h9k3pdtz__inner { align-items: flex-start; }
+.sai-h9k3pdtz--valign-bottom .sai-h9k3pdtz__inner { align-items: flex-end; }
+
+.sai-h9k3pdtz__content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  flex: 1 1 460px;
+  max-width: var(--sai-h9-content-max, 600px);
+}
+.sai-h9k3pdtz--align-center .sai-h9k3pdtz__content { text-align: center; align-items: center; margin-inline: auto; }
+.sai-h9k3pdtz--align-right .sai-h9k3pdtz__content { text-align: right; align-items: flex-end; }
+
+.sai-h9k3pdtz__subtitle { order: 1; margin: 0; font-size: 0.95rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--sai-h9-muted); }
+.sai-h9k3pdtz__title { order: 2; margin: 0; font-family: var(--font-heading-family, inherit); font-weight: 700; font-size: clamp(2rem, 5vw, 3.5rem); line-height: 1.05; letter-spacing: -0.01em; }
+.sai-h9k3pdtz__title-accent { display: block; color: var(--sai-h9-accent); }
+.sai-h9k3pdtz__description { order: 4; margin: 0; max-width: 46ch; font-size: 1.05rem; line-height: 1.6; color: var(--sai-h9-muted); }
+.sai-h9k3pdtz__highlight { color: var(--sai-h9-fg); font-style: italic; }
+.sai-h9k3pdtz__rating { order: 5; display: flex; align-items: center; gap: 10px; font-size: 0.95rem; color: var(--sai-h9-muted); }
+.sai-h9k3pdtz__ctas { order: 6; display: flex; flex-wrap: wrap; gap: 12px; }
+.sai-h9k3pdtz__pills { order: 7; display: flex; flex-wrap: wrap; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.sai-h9k3pdtz--align-center .sai-h9k3pdtz__ctas,
+.sai-h9k3pdtz--align-center .sai-h9k3pdtz__pills,
+.sai-h9k3pdtz--align-center .sai-h9k3pdtz__rating { justify-content: center; }
+.sai-h9k3pdtz--align-right .sai-h9k3pdtz__ctas,
+.sai-h9k3pdtz--align-right .sai-h9k3pdtz__pills,
+.sai-h9k3pdtz--align-right .sai-h9k3pdtz__rating { justify-content: flex-end; }
+
+/* content_reverse swaps the description and the trust-pills row */
+.sai-h9k3pdtz--reverse .sai-h9k3pdtz__description { order: 7; }
+.sai-h9k3pdtz--reverse .sai-h9k3pdtz__pills { order: 4; }
+
+.sai-h9k3pdtz__inline-asset { max-height: 1em; width: auto; vertical-align: middle; }
+.sai-h9k3pdtz__inline-asset--right { float: right; }
+
+/* Badge */
+.sai-h9k3pdtz__badge {
+  position: absolute;
+  z-index: 2;
+  top: clamp(16px, 3vw, 32px);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--sai-h9-fg);
+  background: var(--sai-h9-pill-bg);
+  border: 1px solid var(--sai-h9-pill-border);
+  border-radius: 999px;
+  backdrop-filter: blur(6px);
+}
+.sai-h9k3pdtz__badge-icon { width: 14px; height: 14px; }
+.sai-h9k3pdtz__badge--top-left { left: clamp(20px, 5vw, 64px); }
+.sai-h9k3pdtz__badge--top-right { right: clamp(20px, 5vw, 64px); }
+.sai-h9k3pdtz__badge--top-center { left: 50%; transform: translateX(-50%); }
+.sai-h9k3pdtz__badge--tag { border-radius: 4px; }
+.sai-h9k3pdtz__badge--ribbon { border-radius: 0 4px 4px 0; left: 0; padding-left: clamp(20px, 5vw, 40px); }
+.sai-h9k3pdtz__badge--corner { top: 0; left: 0; border-radius: 0 0 12px 0; }
+
+/* CTAs */
+.sai-h9k3pdtz__cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 26px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  transition: transform 0.15s ease, opacity 0.15s ease, background-color 0.15s ease;
+}
+.sai-h9k3pdtz__cta:hover { transform: translateY(-1px); }
+.sai-h9k3pdtz__cta:focus-visible { outline: 2px solid var(--sai-h9-fg); outline-offset: 2px; }
+.sai-h9k3pdtz__cta--filled { background: var(--sai-h9-fg); color: #111111; }
+.sai-h9k3pdtz__cta--outlined { background: transparent; color: var(--sai-h9-fg); border-color: var(--sai-h9-pill-border); }
+.sai-h9k3pdtz__cta--ghost { background: var(--sai-h9-pill-bg); color: var(--sai-h9-fg); }
+.sai-h9k3pdtz__cta--text { background: transparent; color: var(--sai-h9-fg); padding-inline: 4px; border: 0; text-decoration: underline; }
+.sai-h9k3pdtz__cta--square { border-radius: 4px; }
+.sai-h9k3pdtz__cta--rounded { border-radius: 10px; }
+.sai-h9k3pdtz__cta--pill { border-radius: 999px; }
+.sai-h9k3pdtz__cta--small { padding: 10px 18px; font-size: 0.8rem; }
+.sai-h9k3pdtz__cta--large { padding: 18px 34px; font-size: 1rem; }
+
+/* Trust pills */
+.sai-h9k3pdtz__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  font-size: 0.85rem;
+  color: var(--sai-h9-muted);
+  background: var(--sai-h9-pill-bg);
+  border: 1px solid var(--sai-h9-pill-border);
+  border-radius: 999px;
+}
+.sai-h9k3pdtz__pill-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--sai-h9-accent); }
+
+.sai-h9k3pdtz__stars { display: inline-flex; gap: 2px; color: var(--sai-h9-accent); }
+.sai-h9k3pdtz__star { width: 16px; height: 16px; }
+
+/* Stats */
+.sai-h9k3pdtz__stats {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  flex: 0 1 320px;
+}
+.sai-h9k3pdtz__stats--horizontal { flex-direction: row; flex-wrap: wrap; }
+.sai-h9k3pdtz__stats--grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.sai-h9k3pdtz__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 16px 20px;
+  background: var(--sai-h9-stat-bg);
+  border: 1px solid var(--sai-h9-stat-border);
+  border-radius: 14px;
+  backdrop-filter: blur(8px);
+}
+.sai-h9k3pdtz__stat-icon { margin-bottom: 4px; }
+.sai-h9k3pdtz__stat-number { font-size: clamp(1.8rem, 3vw, 2.4rem); font-weight: 700; line-height: 1; color: var(--sai-h9-accent); font-variant-numeric: tabular-nums; }
+.sai-h9k3pdtz__stat-label { font-size: 0.95rem; font-weight: 600; color: var(--sai-h9-fg); }
+.sai-h9k3pdtz__stat-desc { font-size: 0.8rem; color: var(--sai-h9-muted); }
+
+/* Countdown */
+.sai-h9k3pdtz__countdown { display: inline-flex; gap: 10px; margin-top: 4px; }
+.sai-h9k3pdtz__cd-unit { display: flex; flex-direction: column; align-items: center; min-width: 52px; padding: 10px; background: var(--sai-h9-pill-bg); border: 1px solid var(--sai-h9-pill-border); border-radius: 10px; }
+.sai-h9k3pdtz__cd-num { font-size: 1.4rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.sai-h9k3pdtz__cd-lbl { font-size: 0.65rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--sai-h9-muted); }
+.sai-h9k3pdtz__countdown--inline .sai-h9k3pdtz__cd-unit { flex-direction: row; gap: 4px; min-width: 0; background: transparent; border: 0; padding: 2px 4px; }
+.sai-h9k3pdtz__countdown--minimal .sai-h9k3pdtz__cd-unit { flex-direction: row; gap: 2px; min-width: 0; background: transparent; border: 0; padding: 0; }
+.sai-h9k3pdtz__countdown--minimal .sai-h9k3pdtz__cd-lbl { font-size: 0.85rem; text-transform: none; letter-spacing: 0; }
+
+/* Entrance animation */
+.sai-h9k3pdtz__content,
+.sai-h9k3pdtz__stats { transition: opacity var(--sai-h9-anim-duration, 600ms) ease var(--sai-h9-anim-delay, 0ms), transform var(--sai-h9-anim-duration, 600ms) ease var(--sai-h9-anim-delay, 0ms); }
+.sai-h9k3pdtz--anim-fade:not(.is-in) .sai-h9k3pdtz__content,
+.sai-h9k3pdtz--anim-fade:not(.is-in) .sai-h9k3pdtz__stats { opacity: 0; transform: translateY(16px); }
+.sai-h9k3pdtz--anim-zoom:not(.is-in) .sai-h9k3pdtz__content,
+.sai-h9k3pdtz--anim-zoom:not(.is-in) .sai-h9k3pdtz__stats { opacity: 0; transform: scale(0.96); }
+
+@media screen and (min-width: 750px) {
+  .sai-h9k3pdtz { min-height: var(--sai-h9-min-h-t, 560px); }
+}
+@media screen and (min-width: 990px) {
+  .sai-h9k3pdtz { min-height: var(--sai-h9-min-h-d, 640px); }
+}
+@media screen and (max-width: 749px) {
+  .sai-h9k3pdtz--mobile-stack .sai-h9k3pdtz__inner { flex-direction: column; align-items: stretch; }
+  .sai-h9k3pdtz--mobile-stack .sai-h9k3pdtz__stats { flex-direction: row; flex-wrap: wrap; }
+  .sai-h9k3pdtz--mobile-hide-stats .sai-h9k3pdtz__stats { display: none; }
+  .sai-h9k3pdtz--hide-mobile { display: none; }
+}
+@media screen and (min-width: 750px) {
+  .sai-h9k3pdtz--hide-desktop { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sai-h9k3pdtz__content,
+  .sai-h9k3pdtz__stats { transition: none; opacity: 1; transform: none; }
+  .sai-h9k3pdtz__cta { transition: none; }
+}
+{% endstylesheet %}
+
+{%- liquid
+  assign content = variant.content
+
+  assign section_width = content.section_width | default: 'full'
+  assign align_h = content.content_align_h | default: 'left'
+  assign align_v = content.content_align_v | default: 'middle'
+  assign background_type = content.background_type | default: 'image'
+  assign title = content.title | default: ''
+  assign title_accent = content.title_accent | default: ''
+  assign title_animation = content.title_animation | default: 'fade'
+  assign subtitle = content.subtitle | default: ''
+  assign description = content.description | default: ''
+  assign description_highlight = content.description_highlight | default: ''
+  assign badge_text = content.badge_text | default: ''
+  assign badge_style = content.badge_style | default: 'pill'
+  assign badge_position = content.badge_position | default: 'top-left'
+  assign rating_value = content.rating_value | default: 0
+  assign rating_count = content.rating_count | default: ''
+  assign primary_text = content.primary_cta_text | default: ''
+  assign primary_url = content.primary_cta_url | default: ''
+  assign primary_style = content.primary_cta_style | default: 'filled'
+  assign primary_radius = content.primary_cta_radius | default: 'pill'
+  assign primary_size = content.primary_cta_size | default: 'medium'
+  assign secondary_text = content.secondary_cta_text | default: ''
+  assign secondary_url = content.secondary_cta_url | default: ''
+  assign secondary_style = content.secondary_cta_style | default: 'outlined'
+  assign secondary_radius = content.secondary_cta_radius | default: 'pill'
+  assign stats_layout = content.stats_layout | default: 'vertical'
+  assign number_format = content.number_format | default: 'auto'
+  assign counter_duration = content.counter_duration | default: 2000
+  assign entrance = content.entrance_animation | default: 'fade'
+  assign anim_duration = content.animation_duration | default: 600
+  assign anim_delay = content.animation_delay | default: 0
+  assign mobile_layout = content.mobile_layout | default: 'stack'
+  assign inline_align = content.inline_asset_align | default: 'left'
+
+  assign content_max = content.content_max_width | default: 600
+  assign corner_radius = content.corner_radius | default: 0
+  assign pad_top = content.padding_top | default: 48
+  assign pad_bottom = content.padding_bottom | default: 48
+
+  assign mh = content.min_height
+  assign mh_m = 480
+  assign mh_t = 560
+  assign mh_d = 640
+  if mh.mobile
+    assign mh_m = mh.mobile
+  endif
+  if mh.tablet
+    assign mh_t = mh.tablet
+  endif
+  if mh.desktop
+    assign mh_d = mh.desktop
+  endif
+
+  if content.overlay_enabled == nil
+    assign overlay_enabled = true
+  else
+    assign overlay_enabled = content.overlay_enabled
+  endif
+  assign overlay_color = content.overlay_color | default: '#000000'
+  assign overlay_opacity = content.overlay_opacity | default: 45
+  if content.overlay_gradient_enabled == nil
+    assign overlay_gradient_enabled = true
+  else
+    assign overlay_gradient_enabled = content.overlay_gradient_enabled
+  endif
+  assign overlay_direction = content.overlay_gradient_direction | default: 'left-right'
+
+  if content.show_badge == nil
+    assign show_badge = true
+  else
+    assign show_badge = content.show_badge
+  endif
+  if content.show_rating == nil
+    assign show_rating = true
+  else
+    assign show_rating = content.show_rating
+  endif
+  if content.show_secondary_cta == nil
+    assign show_secondary_cta = true
+  else
+    assign show_secondary_cta = content.show_secondary_cta
+  endif
+  if content.show_trust_pills == nil
+    assign show_trust_pills = true
+  else
+    assign show_trust_pills = content.show_trust_pills
+  endif
+  if content.show_stats == nil
+    assign show_stats = true
+  else
+    assign show_stats = content.show_stats
+  endif
+  if content.counter_animation == nil
+    assign counter_animation = true
+  else
+    assign counter_animation = content.counter_animation
+  endif
+  assign content_reverse = content.content_reverse
+  assign columns_reverse = content.columns_reverse
+  assign show_countdown = content.show_countdown
+  assign inline_asset = content.inline_asset
+  assign banner_clickable = content.banner_clickable
+-%}
+
+{%- comment -%}── Resolve image markers against mo.images.value (string-coerced id) ──{%- endcomment -%}
+{%- assign bg_image = nil -%}
+{%- assign badge_image = nil -%}
+{%- assign poster_image = nil -%}
+{%- assign inline_image = nil -%}
+{%- if mo.images.value -%}
+  {%- for _img in mo.images.value -%}
+    {%- assign _iid = _img.id | append: '' -%}
+    {%- if content.background_image and content.background_image.refId == _iid -%}{%- assign bg_image = _img -%}{%- endif -%}
+    {%- if content.badge_icon and content.badge_icon.refId == _iid -%}{%- assign badge_image = _img -%}{%- endif -%}
+    {%- if content.background_poster and content.background_poster.refId == _iid -%}{%- assign poster_image = _img -%}{%- endif -%}
+    {%- if content.inline_asset_image and content.inline_asset_image.refId == _iid -%}{%- assign inline_image = _img -%}{%- endif -%}
+  {%- endfor -%}
+{%- endif -%}
+
+{%- comment -%}── Overlay background value (Liquid-interpolated, fail-safe) ──{%- endcomment -%}
+{%- assign _ov = 'color-mix(in srgb, ' | append: overlay_color | append: ' ' | append: overlay_opacity | append: '%, transparent)' -%}
+{%- if overlay_gradient_enabled -%}
+  {%- case overlay_direction -%}
+    {%- when 'top-bottom' -%}{%- assign overlay_bg = 'linear-gradient(180deg, ' | append: _ov | append: ', transparent)' -%}
+    {%- when 'bottom-top' -%}{%- assign overlay_bg = 'linear-gradient(0deg, ' | append: _ov | append: ', transparent)' -%}
+    {%- when 'radial' -%}{%- assign overlay_bg = 'radial-gradient(circle at 30% 50%, transparent, ' | append: _ov | append: ')' -%}
+    {%- else -%}{%- assign overlay_bg = 'linear-gradient(90deg, ' | append: _ov | append: ', transparent)' -%}
+  {%- endcase -%}
+{%- else -%}
+  {%- assign overlay_bg = _ov -%}
+{%- endif -%}
+
+{%- comment -%}── Build root modifier classes ──{%- endcomment -%}
+{%- assign root_class = 'sai-h9k3pdtz' -%}
+{%- assign root_class = root_class | append: ' sai-h9k3pdtz--width-' | append: section_width -%}
+{%- assign root_class = root_class | append: ' sai-h9k3pdtz--align-' | append: align_h -%}
+{%- assign root_class = root_class | append: ' sai-h9k3pdtz--valign-' | append: align_v -%}
+{%- if entrance == 'fade' or entrance == 'zoom' -%}{%- assign root_class = root_class | append: ' sai-h9k3pdtz--anim-' | append: entrance -%}{%- endif -%}
+{%- if entrance == 'parallax' -%}{%- assign root_class = root_class | append: ' sai-h9k3pdtz--parallax' -%}{%- endif -%}
+{%- if content_reverse -%}{%- assign root_class = root_class | append: ' sai-h9k3pdtz--reverse' -%}{%- endif -%}
+{%- if columns_reverse -%}{%- assign root_class = root_class | append: ' sai-h9k3pdtz--cols-reverse' -%}{%- endif -%}
+{%- if mobile_layout == 'stack' -%}{%- assign root_class = root_class | append: ' sai-h9k3pdtz--mobile-stack' -%}{%- endif -%}
+{%- if mobile_layout == 'hide_stats' -%}{%- assign root_class = root_class | append: ' sai-h9k3pdtz--mobile-hide-stats' -%}{%- endif -%}
+{%- if content.hide_on_mobile -%}{%- assign root_class = root_class | append: ' sai-h9k3pdtz--hide-mobile' -%}{%- endif -%}
+{%- if content.hide_on_desktop -%}{%- assign root_class = root_class | append: ' sai-h9k3pdtz--hide-desktop' -%}{%- endif -%}
+
+{%- capture root_style -%}--sai-h9-min-h-m: {{ mh_m }}px; --sai-h9-min-h-t: {{ mh_t }}px; --sai-h9-min-h-d: {{ mh_d }}px; --sai-h9-radius: {{ corner_radius }}px; --sai-h9-pad-top: {{ pad_top }}px; --sai-h9-pad-bottom: {{ pad_bottom }}px; --sai-h9-content-max: {{ content_max }}px; --sai-h9-anim-duration: {{ anim_duration }}ms; --sai-h9-anim-delay: {{ anim_delay }}ms;{%- endcapture -%}
+
+<div class="{{ root_class }}"
+     style="{{ root_style }}"
+     data-counter-animate="{% if counter_animation %}true{% else %}false{% endif %}"
+     data-counter-duration="{{ counter_duration }}"
+     data-entrance="{{ entrance }}"
+     data-title-animation="{{ title_animation }}">
+
+  {%- comment -%}── Background ──{%- endcomment -%}
+  <div class="sai-h9k3pdtz__bg" aria-hidden="true"
+    {%- if background_type == 'color' %} style="background-color: {{ content.background_color | default: '#0d0d0d' }}"{% endif -%}
+    {%- if background_type == 'gradient' %} style="background: linear-gradient({{ content.gradient_angle | default: 135 }}deg, {{ content.gradient_start | default: '#1f1f1f' }}, {{ content.gradient_end | default: '#000000' }})"{% endif -%}
+  >
+    {%- if background_type == 'image' and bg_image != blank -%}
+      <img class="sai-h9k3pdtz__bg-media"
+           src="{{ bg_image | image_url: width: 2400 }}"
+           srcset="{{ bg_image | image_url: width: 800 }} 800w, {{ bg_image | image_url: width: 1600 }} 1600w, {{ bg_image | image_url: width: 2400 }} 2400w"
+           sizes="100vw"
+           {%- if bg_image.width and bg_image.height %} width="{{ bg_image.width }}" height="{{ bg_image.height }}"{% endif %}
+           alt="{{ content.background_image_alt | default: '' | escape }}"
+           loading="eager" fetchpriority="high">
+    {%- elsif background_type == 'video' and content.background_video_url != blank -%}
+      <video class="sai-h9k3pdtz__bg-media" autoplay muted loop playsinline
+        {%- if poster_image != blank %} poster="{{ poster_image | image_url: width: 1600 }}"{% endif %}>
+        <source src="{{ content.background_video_url }}">
+      </video>
+    {%- endif -%}
+  </div>
+
+  {%- if overlay_enabled -%}
+    <div class="sai-h9k3pdtz__overlay" aria-hidden="true" style="background: {{ overlay_bg }}"></div>
+  {%- endif -%}
+
+  {%- if banner_clickable and content.click_url != blank -%}
+    <a class="sai-h9k3pdtz__banner-link" href="{{ content.click_url }}"
+      {%- if content.open_new_tab %} target="_blank" rel="noopener noreferrer"{% endif %}
+      aria-label="{{ title | strip_newlines | escape }}"></a>
+  {%- endif -%}
+
+  {%- comment -%}── Badge ──{%- endcomment -%}
+  {%- if show_badge and badge_text != blank -%}
+    <div class="sai-h9k3pdtz__badge sai-h9k3pdtz__badge--{{ badge_style }} sai-h9k3pdtz__badge--{{ badge_position }}">
+      {%- if badge_image != blank -%}
+        <img class="sai-h9k3pdtz__badge-icon" src="{{ badge_image | image_url: width: 48 }}" alt="" loading="lazy" width="14" height="14">
+      {%- endif -%}
+      <span>{{ badge_text | escape }}</span>
+    </div>
+  {%- endif -%}
+
+  <div class="sai-h9k3pdtz__inner">
+    <div class="sai-h9k3pdtz__content">
+      {%- if subtitle != blank -%}
+        <p class="sai-h9k3pdtz__subtitle">{{ subtitle | escape }}</p>
+      {%- endif -%}
+
+      {%- if title != blank or title_accent != blank -%}
+        <h2 class="sai-h9k3pdtz__title">
+          {%- if inline_asset and inline_image != blank -%}
+            <img class="sai-h9k3pdtz__inline-asset sai-h9k3pdtz__inline-asset--{{ inline_align }}" src="{{ inline_image | image_url: width: 200 }}" alt="" loading="lazy">
+          {%- endif -%}
+          {{ title | escape | newline_to_br }}
+          {%- if title_accent != blank -%}
+            <span class="sai-h9k3pdtz__title-accent">{{ title_accent | escape }}</span>
+          {%- endif -%}
+        </h2>
+      {%- endif -%}
+
+      {%- if description != blank -%}
+        {%- assign desc_out = description | escape -%}
+        {%- assign _hl_e = description_highlight | escape -%}
+        {%- if description_highlight != blank and desc_out contains _hl_e -%}
+          {%- capture _hl -%}<span class="sai-h9k3pdtz__highlight">{{ _hl_e }}</span>{%- endcapture -%}
+          {%- assign desc_out = desc_out | replace: _hl_e, _hl -%}
+        {%- endif -%}
+        <p class="sai-h9k3pdtz__description">{{ desc_out }}</p>
+      {%- endif -%}
+
+      {%- if show_rating and rating_count != blank -%}
+        <div class="sai-h9k3pdtz__rating">
+          {%- assign _full = rating_value | round -%}
+          <span class="sai-h9k3pdtz__stars" role="img" aria-label="{{ rating_value }} out of 5 stars">
+            {%- for _i in (1..5) -%}
+              {%- if _i <= _full -%}
+                <svg class="sai-h9k3pdtz__star" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10 1.5l2.6 5.3 5.9.9-4.2 4.1 1 5.8L10 15l-5.3 2.6 1-5.8L1.5 7.7l5.9-.9z"/></svg>
+              {%- else -%}
+                <svg class="sai-h9k3pdtz__star" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M10 1.5l2.6 5.3 5.9.9-4.2 4.1 1 5.8L10 15l-5.3 2.6 1-5.8L1.5 7.7l5.9-.9z"/></svg>
+              {%- endif -%}
+            {%- endfor -%}
+          </span>
+          <span>{{ rating_count | escape }}</span>
+        </div>
+      {%- endif -%}
+
+      {%- if primary_text != blank or secondary_text != blank -%}
+        <div class="sai-h9k3pdtz__ctas">
+          {%- if primary_text != blank -%}
+            <a class="sai-h9k3pdtz__cta sai-h9k3pdtz__cta--primary sai-h9k3pdtz__cta--{{ primary_style }} sai-h9k3pdtz__cta--{{ primary_radius }} sai-h9k3pdtz__cta--{{ primary_size }}"
+               href="{{ primary_url | default: '#' }}" data-sai-cta="primary">{{ primary_text | escape }}</a>
+          {%- endif -%}
+          {%- if show_secondary_cta and secondary_text != blank -%}
+            <a class="sai-h9k3pdtz__cta sai-h9k3pdtz__cta--secondary sai-h9k3pdtz__cta--{{ secondary_style }} sai-h9k3pdtz__cta--{{ secondary_radius }}"
+               href="{{ secondary_url | default: '#' }}" data-sai-cta="secondary">{{ secondary_text | escape }}</a>
+          {%- endif -%}
+        </div>
+      {%- endif -%}
+
+      {%- if show_countdown and content.countdown_target != blank -%}
+        <div class="sai-h9k3pdtz__countdown sai-h9k3pdtz__countdown--{{ content.countdown_style | default: 'boxes' }}"
+             data-sai-countdown
+             data-target="{{ content.countdown_target | escape }}"
+             data-end-behavior="{{ content.countdown_end_behavior | default: 'hide' }}"
+             data-end-message="{{ content.countdown_end_message | default: '' | escape }}">
+          <span class="sai-h9k3pdtz__cd-unit"><span class="sai-h9k3pdtz__cd-num" data-cd="days">00</span><span class="sai-h9k3pdtz__cd-lbl">Days</span></span>
+          <span class="sai-h9k3pdtz__cd-unit"><span class="sai-h9k3pdtz__cd-num" data-cd="hours">00</span><span class="sai-h9k3pdtz__cd-lbl">Hrs</span></span>
+          <span class="sai-h9k3pdtz__cd-unit"><span class="sai-h9k3pdtz__cd-num" data-cd="minutes">00</span><span class="sai-h9k3pdtz__cd-lbl">Min</span></span>
+          <span class="sai-h9k3pdtz__cd-unit"><span class="sai-h9k3pdtz__cd-num" data-cd="seconds">00</span><span class="sai-h9k3pdtz__cd-lbl">Sec</span></span>
+        </div>
+      {%- endif -%}
+
+      {%- if show_trust_pills and content.trust_pills != blank -%}
+        <ul class="sai-h9k3pdtz__pills">
+          {%- for _pill in content.trust_pills -%}
+            {% render '_sai-snippet-h9k3pdtz-pill', pill: _pill %}
+          {%- endfor -%}
+        </ul>
+      {%- endif -%}
+    </div>
+
+    {%- if show_stats and content.stats != blank -%}
+      <div class="sai-h9k3pdtz__stats sai-h9k3pdtz__stats--{{ stats_layout }}" role="list">
+        {%- for _stat in content.stats -%}
+          {% render '_sai-snippet-h9k3pdtz-stat', stat: _stat, number_format: number_format %}
+        {%- endfor -%}
+      </div>
+    {%- endif -%}
+  </div>
+</div>
+<script src="{{ 'sai-snippet-h9k3pdtz.js' | asset_url }}" defer></script>
