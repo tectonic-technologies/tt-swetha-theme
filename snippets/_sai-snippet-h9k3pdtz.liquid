@@ -194,11 +194,11 @@
   cursor: pointer;
   border: 1px solid transparent;
   border-radius: 999px;
-  transition: transform 0.08s ease, opacity 0.15s ease;
+  transition: transform 0.14s ease, opacity 0.15s ease;
 }
-/* Press feedback: the button scales down on click so it feels physically
-   pushed. Centered scale — no position shift. */
-.sai-h9k3pdtz__cta:hover { opacity: 0.92; }
+/* Hover lifts the button; click presses it down (scale). Active overrides
+   hover so the press reads even while hovering. */
+.sai-h9k3pdtz__cta:hover { opacity: 0.96; transform: translateY(-2px); }
 .sai-h9k3pdtz__cta:active { transform: scale(0.93); }
 @media (prefers-reduced-motion: reduce) {
   .sai-h9k3pdtz__cta { transition: none; }
