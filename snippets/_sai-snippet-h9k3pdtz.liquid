@@ -465,6 +465,7 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
 {%- endcomment -%}
 {%- assign bg_image = nil -%}
 {%- assign bg_image_url = content.background_image.url -%}
+{%- assign mobile_bg_src = content.background_image_mobile.url -%}
 {%- assign badge_src = content.badge_icon.url -%}
 {%- assign poster_src = content.background_poster.url -%}
 {%- assign inline_src = content.inline_asset_image.url -%}
@@ -472,6 +473,7 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
   {%- for _img in mo.images.value -%}
     {%- assign _iid = _img.id | append: '' -%}
     {%- if content.background_image.refId == _iid -%}{%- assign bg_image = _img -%}{%- endif -%}
+    {%- if content.background_image_mobile.refId == _iid -%}{%- assign mobile_bg_src = _img | image_url: width: 1400 -%}{%- endif -%}
     {%- if content.badge_icon.refId == _iid -%}{%- assign badge_src = _img | image_url: width: 48 -%}{%- endif -%}
     {%- if content.background_poster.refId == _iid -%}{%- assign poster_src = _img | image_url: width: 1600 -%}{%- endif -%}
     {%- if content.inline_asset_image.refId == _iid -%}{%- assign inline_src = _img | image_url: width: 200 -%}{%- endif -%}
@@ -521,20 +523,32 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
     {%- if background_type == 'gradient' %} style="background: linear-gradient({{ content.gradient_angle | default: 135 }}deg, {{ content.gradient_start | default: '#1f1f1f' }}, {{ content.gradient_end | default: '#000000' }})"{% endif -%}
   >
     {%- if background_type == 'image' and bg_image != blank -%}
-      <img class="sai-h9k3pdtz__bg-media"
-           src="{{ bg_image | image_url: width: 2400 }}"
-           srcset="{{ bg_image | image_url: width: 800 }} 800w, {{ bg_image | image_url: width: 1600 }} 1600w, {{ bg_image | image_url: width: 2400 }} 2400w"
-           sizes="100vw"
-           {%- if bg_image.width and bg_image.height %} width="{{ bg_image.width }}" height="{{ bg_image.height }}"{% endif %}
-           alt="{{ content.background_image_alt | default: '' | escape }}"
-           loading="eager" fetchpriority="high">
+      <picture>
+        {%- if mobile_bg_src != blank %}<source media="(max-width: 749px)" srcset="{{ mobile_bg_src }}">{% endif -%}
+        <img class="sai-h9k3pdtz__bg-media"
+             src="{{ bg_image | image_url: width: 2400 }}"
+             srcset="{{ bg_image | image_url: width: 800 }} 800w, {{ bg_image | image_url: width: 1600 }} 1600w, {{ bg_image | image_url: width: 2400 }} 2400w"
+             sizes="100vw"
+             {%- if bg_image.width and bg_image.height %} width="{{ bg_image.width }}" height="{{ bg_image.height }}"{% endif %}
+             alt="{{ content.background_image_alt | default: '' | escape }}"
+             loading="eager" fetchpriority="high">
+      </picture>
     {%- elsif background_type == 'image' and bg_image_url != blank -%}
-      <img class="sai-h9k3pdtz__bg-media"
-           src="{{ bg_image_url }}"
-           sizes="100vw"
-           {%- if content.background_image.width and content.background_image.height %} width="{{ content.background_image.width }}" height="{{ content.background_image.height }}"{% endif %}
-           alt="{{ content.background_image_alt | default: '' | escape }}"
-           loading="eager" fetchpriority="high">
+      <picture>
+        {%- if mobile_bg_src != blank %}<source media="(max-width: 749px)" srcset="{{ mobile_bg_src }}">{% endif -%}
+        <img class="sai-h9k3pdtz__bg-media"
+             src="{{ bg_image_url }}"
+             sizes="100vw"
+             {%- if content.background_image.width and content.background_image.height %} width="{{ content.background_image.width }}" height="{{ content.background_image.height }}"{% endif %}
+             alt="{{ content.background_image_alt | default: '' | escape }}"
+             loading="eager" fetchpriority="high">
+      </picture>
+    {%- elsif background_type == 'image' and mobile_bg_src != blank -%}
+      <picture>
+        <source media="(max-width: 749px)" srcset="{{ mobile_bg_src }}">
+        <img class="sai-h9k3pdtz__bg-media" src="{{ mobile_bg_src }}" sizes="100vw"
+             alt="{{ content.background_image_alt | default: '' | escape }}" loading="eager" fetchpriority="high">
+      </picture>
     {%- elsif background_type == 'video' and content.background_video_url != blank -%}
       <video class="sai-h9k3pdtz__bg-media" autoplay muted loop playsinline
         {%- if poster_src != blank %} poster="{{ poster_src }}"{% endif %}>
