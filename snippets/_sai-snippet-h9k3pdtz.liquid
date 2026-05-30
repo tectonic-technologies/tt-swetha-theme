@@ -286,10 +286,18 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
   border-radius: 14px;
   -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
+  /* min-width:0 lets the card shrink inside a grid/flex track (default min
+     content-size is auto, which refuses to shrink below a long number).
+     container-type:inline-size makes the card a query container so the number
+     can size to the card width (cqi) instead of the viewport (vw) — a long
+     value like "37000+" then scales down to fit a narrow column rather than
+     overflowing it. */
+  min-width: 0;
+  container-type: inline-size;
 }
-.sai-h9k3pdtz__stat-head { display: flex; align-items: center; gap: 10px; }
+.sai-h9k3pdtz__stat-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .sai-h9k3pdtz__stat-icon { width: 32px; height: 32px; object-fit: contain; flex: none; }
-.sai-h9k3pdtz__stat-number { font-size: clamp(1.8rem, 3vw, 2.4rem); font-weight: 700; line-height: 1; color: var(--sai-h9-accent); font-variant-numeric: tabular-nums; }
+.sai-h9k3pdtz__stat-number { font-size: clamp(1.4rem, 16cqi, 2.4rem); font-weight: 700; line-height: 1; color: var(--sai-h9-accent); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .sai-h9k3pdtz__stat-label { font-size: 0.95rem; font-weight: 600; color: var(--sai-h9-fg); }
 .sai-h9k3pdtz__stat-desc { font-size: 0.8rem; color: var(--sai-h9-muted); }
 
