@@ -259,6 +259,19 @@
     root.classList.toggle('sai-h9k3pdtz--reverse', content.content_reverse === true)
     root.classList.toggle('sai-h9k3pdtz--cols-reverse', content.columns_reverse === true)
 
+    // Alignment (desktop + mobile override). The SSR markup sets these classes;
+    // re-apply them here so Studio live edits to either dropdown reflect without
+    // a reload. The mobile class only takes effect under the 750px media query.
+    for (const a of ['left', 'center', 'right']) {
+      root.classList.remove('sai-h9k3pdtz--align-' + a, 'sai-h9k3pdtz--align-m-' + a)
+    }
+    const alignH = content.content_align_h || 'left'
+    root.classList.add('sai-h9k3pdtz--align-' + alignH)
+    const alignM = content.content_align_h_mobile
+    if (alignM && alignM !== 'inherit') {
+      root.classList.add('sai-h9k3pdtz--align-m-' + alignM)
+    }
+
     setText(root, '.sai-h9k3pdtz__subtitle', content.subtitle)
     setText(root, '.sai-h9k3pdtz__title-accent', content.title_accent)
     setText(root, '.sai-h9k3pdtz__badge span', content.badge_text)

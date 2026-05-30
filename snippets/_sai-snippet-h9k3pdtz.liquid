@@ -134,10 +134,13 @@
   flex-direction: column;
   align-items: flex-start;
   gap: var(--sai-h9-content-gap, 20px);
-  /* Desktop row: grow to fill the leftover after the stats column, sizing from
-     content (no magic basis); `max-width` caps the text measure. Mobile-stack
+  /* Desktop row: flex-basis 0 (NOT auto) so the column sizes from available
+     space, not its own max-content. With `auto`, a long title makes the basis
+     as wide as the heading, which + the stats column overflows the row and
+     wraps the stats BELOW the content. Basis 0 keeps content + stats side by
+     side (content grows into the leftover, capped by max-width). Mobile-stack
      resets this to `flex: 0 0 auto` so the basis never becomes a column height. */
-  flex: 1 1 auto;
+  flex: 1 1 0;
   max-width: var(--sai-h9-content-max, 600px);
 }
 .sai-h9k3pdtz--align-center .sai-h9k3pdtz__content { text-align: center; align-items: center; margin-inline: auto; }
@@ -154,6 +157,14 @@
 .sai-h9k3pdtz__subtitle { order: 1; margin: 0; font-size: 0.95rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--sai-h9-muted); }
 .sai-h9k3pdtz__title { order: 2; margin: 0; font-family: var(--font-heading-family, inherit); font-weight: 700; font-size: clamp(2rem, 5vw, 3.5rem); line-height: 1.05; letter-spacing: -0.01em; }
 .sai-h9k3pdtz__title-accent { display: block; color: var(--sai-h9-accent); }
+/* Mobile title override (title_mobile prop). When set, two text spans render
+   and the breakpoint decides which shows; when unset, the title text is output
+   directly (neither span) so this rule is inert. */
+.sai-h9k3pdtz__title-text--mobile { display: none; }
+@media screen and (max-width: 749px) {
+  .sai-h9k3pdtz__title-text--desktop { display: none; }
+  .sai-h9k3pdtz__title-text--mobile { display: inline; }
+}
 .sai-h9k3pdtz__description { order: 4; margin: 0; max-width: 46ch; font-size: 1.05rem; line-height: 1.6; color: var(--sai-h9-muted); }
 .sai-h9k3pdtz__highlight { color: var(--sai-h9-fg); font-style: italic; }
 .sai-h9k3pdtz__rating { order: 5; display: flex; align-items: center; gap: 10px; font-size: 0.95rem; color: var(--sai-h9-muted); }
@@ -416,6 +427,7 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
   endif
   assign background_type = content.background_type | default: 'image'
   assign title = content.title | default: ''
+  assign title_mobile = content.title_mobile | default: ''
   assign title_accent = content.title_accent | default: ''
   assign title_animation = content.title_animation | default: 'fade'
   assign subtitle = content.subtitle | default: ''
@@ -725,12 +737,17 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
         <p class="sai-h9k3pdtz__subtitle">{{ subtitle | escape }}</p>
       {%- endif -%}
 
-      {%- if show_title and title != blank or title_accent != blank -%}
+      {%- if show_title and title != blank or title_mobile != blank or title_accent != blank -%}
         <h2 class="sai-h9k3pdtz__title">
           {%- if inline_asset and inline_src != blank -%}
             <img class="sai-h9k3pdtz__inline-asset sai-h9k3pdtz__inline-asset--{{ inline_align }}" src="{{ inline_src }}" alt="" loading="lazy">
           {%- endif -%}
-          {{ title | escape | newline_to_br }}
+          {%- if title_mobile != blank -%}
+            <span class="sai-h9k3pdtz__title-text sai-h9k3pdtz__title-text--desktop">{{ title | escape | newline_to_br }}</span>
+            <span class="sai-h9k3pdtz__title-text sai-h9k3pdtz__title-text--mobile">{{ title_mobile | escape | newline_to_br }}</span>
+          {%- else -%}
+            {{ title | escape | newline_to_br }}
+          {%- endif -%}
           {%- if title_accent != blank -%}
             <span class="sai-h9k3pdtz__title-accent">{{ title_accent | escape }}</span>
           {%- endif -%}
