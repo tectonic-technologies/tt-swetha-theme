@@ -92,6 +92,12 @@
    negative-z background layers contained within the hero. */
 .sai-h9k3pdtz__banner-link { z-index: 1; }
 .sai-h9k3pdtz__bg-media {
+  /* Absolute inset:0 so the media fills the whole banner even when the
+     merchant theme forces `img { height: auto !important }` — positioning
+     resolves the height instead of the (overridden) height property, which
+     otherwise collapses a wide image to a short strip on tall mobile heroes. */
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
