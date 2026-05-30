@@ -65,7 +65,7 @@
   position: relative;
   display: flex;
   width: 100%;
-  min-height: var(--sai-h9-min-h-m, 480px);
+  min-height: var(--sai-h9-min-h-m, 0px);
   padding-top: var(--sai-h9-pad-top, 48px);
   padding-bottom: var(--sai-h9-pad-bottom, 48px);
   border-radius: var(--sai-h9-radius, 0px);
@@ -255,13 +255,21 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
   flex: 0 1 320px;
 }
 .sai-h9k3pdtz__stats--horizontal { flex-direction: row; flex-wrap: wrap; gap: 16px; }
-.sai-h9k3pdtz__stats--grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-/* Staggered: vertical on mobile, an offset horizontal cluster on desktop. */
+/* Grid: column count is per-breakpoint (mobile / tablet / desktop vars). */
+.sai-h9k3pdtz__stats--grid { display: grid; grid-template-columns: repeat(var(--sai-h9-grid-m, 1), minmax(0, 1fr)); gap: 16px; }
+@media screen and (min-width: 750px) {
+  .sai-h9k3pdtz__stats--grid { grid-template-columns: repeat(var(--sai-h9-grid-t, 2), minmax(0, 1fr)); }
+}
+@media screen and (min-width: 990px) {
+  .sai-h9k3pdtz__stats--grid { grid-template-columns: repeat(var(--sai-h9-grid-d, 2), minmax(0, 1fr)); }
+}
+/* Staggered: vertical on mobile; on desktop an offset cluster — first card on
+   top, the rest dropped down. Uses margin (not transform) so the offset cards
+   stay inside the content-fit box instead of overflowing the background. */
 @media screen and (min-width: 750px) {
   .sai-h9k3pdtz__stats--staggered { flex: 1 1 auto; flex-direction: row; align-items: flex-start; gap: 20px; }
-  .sai-h9k3pdtz__stats--staggered .sai-h9k3pdtz__stat { flex: 1 1 0; }
-  .sai-h9k3pdtz__stats--staggered .sai-h9k3pdtz__stat:nth-child(2) { transform: translateY(44px); }
-  .sai-h9k3pdtz__stats--staggered .sai-h9k3pdtz__stat:nth-child(3) { transform: translateY(22px); }
+  .sai-h9k3pdtz__stats--staggered .sai-h9k3pdtz__stat { flex: 1 1 0; margin-top: var(--sai-h9-stagger, 44px); }
+  .sai-h9k3pdtz__stats--staggered .sai-h9k3pdtz__stat:first-child { margin-top: 0; }
 }
 /* Label-on-top: render the label above the number/icon row. */
 .sai-h9k3pdtz__stats--label-top .sai-h9k3pdtz__stat-label { order: -1; }
@@ -310,10 +318,10 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
 .sai-h9k3pdtz--js.sai-h9k3pdtz--anim-zoom:not(.is-in) .sai-h9k3pdtz__stats { opacity: 0; transform: scale(0.96); }
 
 @media screen and (min-width: 750px) {
-  .sai-h9k3pdtz { min-height: var(--sai-h9-min-h-t, 560px); }
+  .sai-h9k3pdtz { min-height: var(--sai-h9-min-h-t, 0px); }
 }
 @media screen and (min-width: 990px) {
-  .sai-h9k3pdtz { min-height: var(--sai-h9-min-h-d, 640px); }
+  .sai-h9k3pdtz { min-height: var(--sai-h9-min-h-d, 0px); }
 }
 @media screen and (max-width: 749px) {
   /* Column stack: group content + stats from the top with the normal gap,
@@ -378,10 +386,15 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
   assign pad_top = content.padding_top | default: 48
   assign pad_bottom = content.padding_bottom | default: 48
 
+  comment
+    Minimum height defaults to 0 (fit-content) so the banner — and its
+    background image, which fills the box — takes only the space its content
+    needs. Merchants raise it per breakpoint for a taller hero.
+  endcomment
   assign mh = content.min_height
-  assign mh_m = 480
-  assign mh_t = 560
-  assign mh_d = 640
+  assign mh_m = 0
+  assign mh_t = 0
+  assign mh_d = 0
   if mh.mobile
     assign mh_m = mh.mobile
   endif
@@ -390,6 +403,20 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
   endif
   if mh.desktop
     assign mh_d = mh.desktop
+  endif
+
+  assign grid_cols = content.stats_grid_columns
+  assign grid_m = 1
+  assign grid_t = 2
+  assign grid_d = 2
+  if grid_cols.mobile
+    assign grid_m = grid_cols.mobile
+  endif
+  if grid_cols.tablet
+    assign grid_t = grid_cols.tablet
+  endif
+  if grid_cols.desktop
+    assign grid_d = grid_cols.desktop
   endif
 
   if content.overlay_enabled == nil
@@ -520,7 +547,7 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
 {%- if content.hide_on_mobile -%}{%- assign root_class = root_class | append: ' sai-h9k3pdtz--hide-mobile' -%}{%- endif -%}
 {%- if content.hide_on_desktop -%}{%- assign root_class = root_class | append: ' sai-h9k3pdtz--hide-desktop' -%}{%- endif -%}
 
-{%- capture root_style -%}--sai-h9-min-h-m: {{ mh_m }}px; --sai-h9-min-h-t: {{ mh_t }}px; --sai-h9-min-h-d: {{ mh_d }}px; --sai-h9-radius: {{ corner_radius }}px; --sai-h9-pad-top: {{ pad_top }}px; --sai-h9-pad-bottom: {{ pad_bottom }}px; --sai-h9-content-max: {{ content_max }}px; --sai-h9-anim-duration: {{ anim_duration }}ms; --sai-h9-anim-delay: {{ anim_delay }}ms;{%- endcapture -%}
+{%- capture root_style -%}--sai-h9-min-h-m: {{ mh_m }}px; --sai-h9-min-h-t: {{ mh_t }}px; --sai-h9-min-h-d: {{ mh_d }}px; --sai-h9-radius: {{ corner_radius }}px; --sai-h9-pad-top: {{ pad_top }}px; --sai-h9-pad-bottom: {{ pad_bottom }}px; --sai-h9-content-max: {{ content_max }}px; --sai-h9-anim-duration: {{ anim_duration }}ms; --sai-h9-anim-delay: {{ anim_delay }}ms; --sai-h9-grid-m: {{ grid_m }}; --sai-h9-grid-t: {{ grid_t }}; --sai-h9-grid-d: {{ grid_d }};{%- endcapture -%}
 
 <div class="{{ root_class }}"
      style="{{ root_style }}"
