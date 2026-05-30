@@ -194,10 +194,6 @@
   backdrop-filter: blur(6px);
 }
 .sai-h9k3pdtz__badge-icon { width: 14px; height: 14px; flex: none; }
-/* Chrome toggles (badge_border / badge_background props). Keep padding so the
-   text position is stable; drop only the visual fill/outline/blur. */
-.sai-h9k3pdtz__badge--no-border { border-color: transparent; }
-.sai-h9k3pdtz__badge--no-bg { background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; }
 .sai-h9k3pdtz__badge--tag { border-radius: 4px; }
 .sai-h9k3pdtz__badge--ribbon { border-radius: 4px; }
 .sai-h9k3pdtz__badge--corner { border-radius: 4px; }
@@ -393,26 +389,6 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
   assign description_highlight = content.description_highlight | default: ''
   assign badge_text = content.badge_text | default: ''
   assign badge_style = content.badge_style | default: 'pill'
-  comment
-    Badge chrome toggles. Boolean props default ON, so resolve with == nil
-    (never | default:, which would also replace an explicit false — see
-    .claude/rules/generated-liquid.md #6).
-  endcomment
-  assign badge_border = content.badge_border
-  if badge_border == nil
-    assign badge_border = true
-  endif
-  assign badge_background = content.badge_background
-  if badge_background == nil
-    assign badge_background = true
-  endif
-  assign badge_mods = ''
-  unless badge_border
-    assign badge_mods = badge_mods | append: ' sai-h9k3pdtz__badge--no-border'
-  endunless
-  unless badge_background
-    assign badge_mods = badge_mods | append: ' sai-h9k3pdtz__badge--no-bg'
-  endunless
   assign rating_value = content.rating_value | default: 0
   assign rating_count = content.rating_count | default: ''
   assign primary_text = content.primary_cta_text | default: ''
@@ -685,7 +661,7 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
     <div class="sai-h9k3pdtz__content">
       {%- comment -%}── Badge (in-flow, first item so it spaces from the title) ──{%- endcomment -%}
       {%- if show_badge and badge_text != blank -%}
-        <div class="sai-h9k3pdtz__badge sai-h9k3pdtz__badge--{{ badge_style }}{{ badge_mods }}">
+        <div class="sai-h9k3pdtz__badge sai-h9k3pdtz__badge--{{ badge_style }}">
           {%- if badge_src != blank -%}
             <img class="sai-h9k3pdtz__badge-icon" src="{{ badge_src }}" alt="" loading="lazy" width="14" height="14">
           {%- endif -%}
