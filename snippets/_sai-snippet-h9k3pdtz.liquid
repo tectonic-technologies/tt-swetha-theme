@@ -134,7 +134,10 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 20px;
-  flex: 1 1 460px;
+  /* Desktop row: grow to fill the leftover after the stats column, sizing from
+     content (no magic basis); `max-width` caps the text measure. Mobile-stack
+     resets this to `flex: 0 0 auto` so the basis never becomes a column height. */
+  flex: 1 1 auto;
   max-width: var(--sai-h9-content-max, 600px);
 }
 .sai-h9k3pdtz--align-center .sai-h9k3pdtz__content { text-align: center; align-items: center; margin-inline: auto; }
