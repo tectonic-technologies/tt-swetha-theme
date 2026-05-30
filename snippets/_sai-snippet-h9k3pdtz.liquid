@@ -315,6 +315,16 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
   .sai-h9k3pdtz__stats--staggered { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
   .sai-h9k3pdtz__stats--staggered .sai-h9k3pdtz__stat-spacer { display: block; }
 }
+/* Mobile stats-layout override (stats_layout_mobile prop). Below 750px the
+   `--m-*` class forces a layout independent of the desktop choice. Placed after
+   every layout rule so the same-specificity mobile rule wins by source order;
+   only active under the breakpoint. The staggered spacer is already hidden
+   below 750px (base rule), so no per-override hiding is needed. */
+@media screen and (max-width: 749px) {
+  .sai-h9k3pdtz__stats--m-vertical { display: flex; flex-direction: column; }
+  .sai-h9k3pdtz__stats--m-horizontal { display: flex; flex-direction: row; flex-wrap: wrap; }
+  .sai-h9k3pdtz__stats--m-grid { display: grid; grid-template-columns: repeat(var(--sai-h9-grid-m, 1), minmax(0, 1fr)); }
+}
 /* Label-on-top: render the label above the number/icon row. */
 .sai-h9k3pdtz__stats--label-top .sai-h9k3pdtz__stat-label { order: -1; }
 .sai-h9k3pdtz__stat {
@@ -451,6 +461,7 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
   assign secondary_style = content.secondary_cta_style | default: 'outlined'
   assign secondary_radius = content.secondary_cta_radius | default: 'pill'
   assign stats_layout = content.stats_layout | default: 'vertical'
+  assign stats_layout_mobile = content.stats_layout_mobile | default: 'inherit'
   assign stats_label_position = content.stats_label_position | default: 'bottom'
   assign number_format = content.number_format | default: 'auto'
   assign counter_duration = content.counter_duration | default: 2000
@@ -824,7 +835,7 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
     </div>
 
     {%- if show_stats and content.stats != blank -%}
-      <div class="sai-h9k3pdtz__stats sai-h9k3pdtz__stats--{{ stats_layout }} sai-h9k3pdtz__stats--label-{{ stats_label_position }}" role="list">
+      <div class="sai-h9k3pdtz__stats sai-h9k3pdtz__stats--{{ stats_layout }}{% if stats_layout_mobile != 'inherit' %} sai-h9k3pdtz__stats--m-{{ stats_layout_mobile }}{% endif %} sai-h9k3pdtz__stats--label-{{ stats_label_position }}" role="list">
         {%- comment -%}
           Staggered = a 2-column grid with the top-left cell intentionally
           empty: this leading spacer occupies (row 1, col 1) so the first real
