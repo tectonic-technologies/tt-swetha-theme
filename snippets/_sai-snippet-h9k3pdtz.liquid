@@ -244,6 +244,8 @@
   background: var(--sai-h9-pill-bg);
   border: 1px solid var(--sai-h9-pill-border);
   border-radius: 999px;
+  /* Portal-configurable cap (Trust pill max width); 0 → none (fit content). */
+  max-width: var(--sai-h9-pill-max, none);
 }
 .sai-h9k3pdtz__pill-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--sai-h9-accent); flex: none; }
 .sai-h9k3pdtz__pill-icon { width: 16px; height: 16px; flex: none; color: var(--sai-h9-accent); display: inline-flex; }
@@ -258,7 +260,9 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
   display: flex;
   flex-direction: column;
   gap: 16px;
-  flex: 0 1 320px;
+  /* Right-column width (desktop row). Portal-configurable via Stats column
+     width; 0 falls back to the 320px default. Mobile-stack resets the basis. */
+  flex: 0 1 var(--sai-h9-stats-max, 320px);
 }
 .sai-h9k3pdtz__stats--horizontal { flex-direction: row; flex-wrap: wrap; gap: 16px; }
 /* Grid: column count is per-breakpoint (mobile / tablet / desktop vars). */
@@ -410,6 +414,26 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
   assign corner_radius = content.corner_radius | default: 0
   assign pad_top = content.padding_top | default: 48
   assign pad_bottom = content.padding_bottom | default: 48
+
+  comment
+    Right-column (stats) width and trust-pill cap are portal-configurable. 0 is
+    the "no explicit size" sentinel: stats falls back to the 320px default
+    flex-basis, pills fall back to content width (max-width:none). Emitting a
+    CSS keyword/length here lets the static rules consume one var with a sane
+    fallback instead of branching in CSS.
+  endcomment
+  assign stats_max = content.stats_max_width | default: 0
+  if stats_max > 0
+    assign stats_basis = stats_max | append: 'px'
+  else
+    assign stats_basis = '320px'
+  endif
+  assign pill_max = content.pill_max_width | default: 0
+  if pill_max > 0
+    assign pill_cap = pill_max | append: 'px'
+  else
+    assign pill_cap = 'none'
+  endif
 
   comment
     Minimum height defaults to 0 (fit-content) so the banner — and its
@@ -572,7 +596,7 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
 {%- if content.hide_on_mobile -%}{%- assign root_class = root_class | append: ' sai-h9k3pdtz--hide-mobile' -%}{%- endif -%}
 {%- if content.hide_on_desktop -%}{%- assign root_class = root_class | append: ' sai-h9k3pdtz--hide-desktop' -%}{%- endif -%}
 
-{%- capture root_style -%}--sai-h9-min-h-m: {{ mh_m }}px; --sai-h9-min-h-t: {{ mh_t }}px; --sai-h9-min-h-d: {{ mh_d }}px; --sai-h9-radius: {{ corner_radius }}px; --sai-h9-pad-top: {{ pad_top }}px; --sai-h9-pad-bottom: {{ pad_bottom }}px; --sai-h9-content-max: {{ content_max }}px; --sai-h9-anim-duration: {{ anim_duration }}ms; --sai-h9-anim-delay: {{ anim_delay }}ms; --sai-h9-grid-m: {{ grid_m }}; --sai-h9-grid-t: {{ grid_t }}; --sai-h9-grid-d: {{ grid_d }};{%- endcapture -%}
+{%- capture root_style -%}--sai-h9-min-h-m: {{ mh_m }}px; --sai-h9-min-h-t: {{ mh_t }}px; --sai-h9-min-h-d: {{ mh_d }}px; --sai-h9-radius: {{ corner_radius }}px; --sai-h9-pad-top: {{ pad_top }}px; --sai-h9-pad-bottom: {{ pad_bottom }}px; --sai-h9-content-max: {{ content_max }}px; --sai-h9-stats-max: {{ stats_basis }}; --sai-h9-pill-max: {{ pill_cap }}; --sai-h9-anim-duration: {{ anim_duration }}ms; --sai-h9-anim-delay: {{ anim_delay }}ms; --sai-h9-grid-m: {{ grid_m }}; --sai-h9-grid-t: {{ grid_t }}; --sai-h9-grid-d: {{ grid_d }};{%- endcapture -%}
 
 <div class="{{ root_class }}"
      style="{{ root_style }}"
