@@ -316,7 +316,10 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
   .sai-h9k3pdtz { min-height: var(--sai-h9-min-h-d, 640px); }
 }
 @media screen and (max-width: 749px) {
-  .sai-h9k3pdtz--mobile-stack .sai-h9k3pdtz__inner { flex-direction: column; align-items: stretch; }
+  /* Column stack: group content + stats from the top with the normal gap,
+     instead of inheriting the desktop `space-between` (which spreads them to
+     opposite ends and leaves a large empty gap when content is short). */
+  .sai-h9k3pdtz--mobile-stack .sai-h9k3pdtz__inner { flex-direction: column; align-items: stretch; justify-content: flex-start; }
   /* In the column stack, reset the 320px basis (it would otherwise become a
      height and stretch the cards). The chosen stats_layout (vertical /
      horizontal / grid) still governs direction. */
