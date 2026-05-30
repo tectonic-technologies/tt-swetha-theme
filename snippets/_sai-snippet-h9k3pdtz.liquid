@@ -287,15 +287,24 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
   -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
   /* min-width:0 lets the card shrink inside a grid/flex track (default min
-     content-size is auto, which refuses to shrink below a long number).
-     container-type:inline-size makes the card a query container so the number
-     can size to the card width (cqi) instead of the viewport (vw) — a long
-     value like "37000+" then scales down to fit a narrow column rather than
-     overflowing it. */
+     content-size is auto, which refuses to shrink below a long number). The
+     query container for card-relative number sizing lives on __stat-head, NOT
+     here: a grid ITEM that is also an inline-size container stretches its row
+     to a square-ish block size (Chromium grid+containment interaction),
+     ballooning every card. The head is an in-flow child, not a grid item, so
+     it can be a container without that side effect. */
   min-width: 0;
+}
+.sai-h9k3pdtz__stat-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  /* Query container so the number sizes to the card width (cqi) instead of the
+     viewport (vw) — "37000+" scales down to fit a narrow column rather than
+     overflowing it. Head width tracks the card's content-box width. */
   container-type: inline-size;
 }
-.sai-h9k3pdtz__stat-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .sai-h9k3pdtz__stat-icon { width: 32px; height: 32px; object-fit: contain; flex: none; }
 .sai-h9k3pdtz__stat-number { font-size: clamp(1.4rem, 16cqi, 2.4rem); font-weight: 700; line-height: 1; color: var(--sai-h9-accent); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .sai-h9k3pdtz__stat-label { font-size: 0.95rem; font-weight: 600; color: var(--sai-h9-fg); }
@@ -339,9 +348,11 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
      instead of inheriting the desktop `space-between` (which spreads them to
      opposite ends and leaves a large empty gap when content is short). */
   .sai-h9k3pdtz--mobile-stack .sai-h9k3pdtz__inner { flex-direction: column; align-items: stretch; justify-content: flex-start; }
-  /* In the column stack, reset the 320px basis (it would otherwise become a
-     height and stretch the cards). The chosen stats_layout (vertical /
-     horizontal / grid) still governs direction. */
+  /* In the column stack, reset the row-axis flex bases — both columns carry a
+     flex-basis sized for the side-by-side (row) layout (content 460px, stats
+     320px). Once the inner flips to `column`, that basis becomes a *height* and
+     stretches each block far taller than its content. Collapse to content. */
+  .sai-h9k3pdtz--mobile-stack .sai-h9k3pdtz__content,
   .sai-h9k3pdtz--mobile-stack .sai-h9k3pdtz__stats { flex: 0 0 auto; }
   .sai-h9k3pdtz--mobile-hide-stats .sai-h9k3pdtz__stats { display: none; }
   .sai-h9k3pdtz--hide-mobile { display: none; }
