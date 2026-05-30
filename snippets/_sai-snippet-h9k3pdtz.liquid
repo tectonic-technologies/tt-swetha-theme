@@ -291,8 +291,9 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
   background: var(--sai-h9-stat-bg);
   border: 1px solid var(--sai-h9-stat-border);
   border-radius: 14px;
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
+  box-shadow: var(--sai-h9-stat-shadow, none);
+  -webkit-backdrop-filter: blur(var(--sai-h9-stat-blur, 8px));
+  backdrop-filter: blur(var(--sai-h9-stat-blur, 8px));
   /* min-width:0 lets the card shrink inside a grid/flex track (default min
      content-size is auto, which refuses to shrink below a long number). The
      query container for card-relative number sizing lives on __stat-head, NOT
@@ -433,6 +434,23 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
     assign pill_cap = pill_max | append: 'px'
   else
     assign pill_cap = 'none'
+  endif
+
+  comment
+    Stat-card backdrop blur + box-shadow. These two effects are outside the
+    Styling-panel schema (effects = a fixed black box-shadow preset; no
+    filter/blur category, no shadow colour), so they live as props. Shadow is
+    only emitted when a colour is set; size drives blur radius with half that
+    as the vertical offset.
+  endcomment
+  assign stat_blur = content.stat_blur | default: 8
+  assign stat_shadow_size = content.stat_shadow_size | default: 24
+  assign stat_shadow_color = content.stat_shadow_color
+  if stat_shadow_color == blank
+    assign stat_shadow = 'none'
+  else
+    assign stat_shadow_y = stat_shadow_size | divided_by: 2
+    assign stat_shadow = '0 ' | append: stat_shadow_y | append: 'px ' | append: stat_shadow_size | append: 'px ' | append: stat_shadow_color
   endif
 
   comment
@@ -596,7 +614,7 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
 {%- if content.hide_on_mobile -%}{%- assign root_class = root_class | append: ' sai-h9k3pdtz--hide-mobile' -%}{%- endif -%}
 {%- if content.hide_on_desktop -%}{%- assign root_class = root_class | append: ' sai-h9k3pdtz--hide-desktop' -%}{%- endif -%}
 
-{%- capture root_style -%}--sai-h9-min-h-m: {{ mh_m }}px; --sai-h9-min-h-t: {{ mh_t }}px; --sai-h9-min-h-d: {{ mh_d }}px; --sai-h9-radius: {{ corner_radius }}px; --sai-h9-pad-top: {{ pad_top }}px; --sai-h9-pad-bottom: {{ pad_bottom }}px; --sai-h9-content-max: {{ content_max }}px; --sai-h9-stats-max: {{ stats_basis }}; --sai-h9-pill-max: {{ pill_cap }}; --sai-h9-anim-duration: {{ anim_duration }}ms; --sai-h9-anim-delay: {{ anim_delay }}ms; --sai-h9-grid-m: {{ grid_m }}; --sai-h9-grid-t: {{ grid_t }}; --sai-h9-grid-d: {{ grid_d }};{%- endcapture -%}
+{%- capture root_style -%}--sai-h9-min-h-m: {{ mh_m }}px; --sai-h9-min-h-t: {{ mh_t }}px; --sai-h9-min-h-d: {{ mh_d }}px; --sai-h9-radius: {{ corner_radius }}px; --sai-h9-pad-top: {{ pad_top }}px; --sai-h9-pad-bottom: {{ pad_bottom }}px; --sai-h9-content-max: {{ content_max }}px; --sai-h9-stats-max: {{ stats_basis }}; --sai-h9-pill-max: {{ pill_cap }}; --sai-h9-stat-blur: {{ stat_blur }}px; --sai-h9-stat-shadow: {{ stat_shadow }}; --sai-h9-anim-duration: {{ anim_duration }}ms; --sai-h9-anim-delay: {{ anim_delay }}ms; --sai-h9-grid-m: {{ grid_m }}; --sai-h9-grid-t: {{ grid_t }}; --sai-h9-grid-d: {{ grid_d }};{%- endcapture -%}
 
 <div class="{{ root_class }}"
      style="{{ root_style }}"
