@@ -303,13 +303,17 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
 @media screen and (min-width: 990px) {
   .sai-h9k3pdtz__stats--grid { grid-template-columns: repeat(var(--sai-h9-grid-d, 2), minmax(0, 1fr)); }
 }
-/* Staggered: vertical on mobile; on desktop an offset cluster — first card on
-   top, the rest dropped down. Uses margin (not transform) so the offset cards
-   stay inside the content-fit box instead of overflowing the background. */
+/* Staggered: a 2-column grid with the top-left cell empty. A leading empty
+   `__stat-spacer` (rendered only for this layout) occupies (row 1, col 1), so
+   the first card lands at (row 1, col 2) and the rest auto-flow as usual —
+   card 2 at (row 2, col 1), card 3 at (row 2, col 2), and so on. The spacer is
+   a real grid cell, so the empty space is exactly one card wide and one row
+   tall. Vertical single-column on mobile (spacer hidden). */
+.sai-h9k3pdtz__stats--staggered { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sai-h9-stats-gap, 16px); }
+.sai-h9k3pdtz__stat-spacer { display: none; }
 @media screen and (min-width: 750px) {
-  .sai-h9k3pdtz__stats--staggered { flex: 1 1 auto; flex-direction: row; align-items: flex-start; gap: 20px; }
-  .sai-h9k3pdtz__stats--staggered .sai-h9k3pdtz__stat { flex: 1 1 0; margin-top: var(--sai-h9-stagger, 44px); }
-  .sai-h9k3pdtz__stats--staggered .sai-h9k3pdtz__stat:first-child { margin-top: 0; }
+  .sai-h9k3pdtz__stats--staggered { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+  .sai-h9k3pdtz__stats--staggered .sai-h9k3pdtz__stat-spacer { display: block; }
 }
 /* Label-on-top: render the label above the number/icon row. */
 .sai-h9k3pdtz__stats--label-top .sai-h9k3pdtz__stat-label { order: -1; }
@@ -821,6 +825,15 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
 
     {%- if show_stats and content.stats != blank -%}
       <div class="sai-h9k3pdtz__stats sai-h9k3pdtz__stats--{{ stats_layout }} sai-h9k3pdtz__stats--label-{{ stats_label_position }}" role="list">
+        {%- comment -%}
+          Staggered = a 2-column grid with the top-left cell intentionally
+          empty: this leading spacer occupies (row 1, col 1) so the first real
+          card lands at (row 1, col 2) and the rest flow into row 2. Hidden on
+          mobile (CSS), where the grid collapses to a single column.
+        {%- endcomment -%}
+        {%- if stats_layout == 'staggered' -%}
+          <div class="sai-h9k3pdtz__stat-spacer" aria-hidden="true"></div>
+        {%- endif -%}
         {%- for _stat in content.stats -%}
           {% render '_sai-snippet-h9k3pdtz-stat', stat: _stat, number_format: number_format %}
         {%- endfor -%}
