@@ -256,6 +256,15 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
 }
 .sai-h9k3pdtz__stats--horizontal { flex-direction: row; flex-wrap: wrap; gap: 16px; }
 .sai-h9k3pdtz__stats--grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+/* Staggered: vertical on mobile, an offset horizontal cluster on desktop. */
+@media screen and (min-width: 750px) {
+  .sai-h9k3pdtz__stats--staggered { flex: 1 1 auto; flex-direction: row; align-items: flex-start; gap: 20px; }
+  .sai-h9k3pdtz__stats--staggered .sai-h9k3pdtz__stat { flex: 1 1 0; }
+  .sai-h9k3pdtz__stats--staggered .sai-h9k3pdtz__stat:nth-child(2) { transform: translateY(44px); }
+  .sai-h9k3pdtz__stats--staggered .sai-h9k3pdtz__stat:nth-child(3) { transform: translateY(22px); }
+}
+/* Label-on-top: render the label above the number/icon row. */
+.sai-h9k3pdtz__stats--label-top .sai-h9k3pdtz__stat-label { order: -1; }
 .sai-h9k3pdtz__stat {
   display: flex;
   flex-direction: column;
@@ -352,6 +361,7 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
   assign secondary_style = content.secondary_cta_style | default: 'outlined'
   assign secondary_radius = content.secondary_cta_radius | default: 'pill'
   assign stats_layout = content.stats_layout | default: 'vertical'
+  assign stats_label_position = content.stats_label_position | default: 'bottom'
   assign number_format = content.number_format | default: 'auto'
   assign counter_duration = content.counter_duration | default: 2000
   assign entrance = content.entrance_animation | default: 'fade'
@@ -662,7 +672,7 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
     </div>
 
     {%- if show_stats and content.stats != blank -%}
-      <div class="sai-h9k3pdtz__stats sai-h9k3pdtz__stats--{{ stats_layout }}" role="list">
+      <div class="sai-h9k3pdtz__stats sai-h9k3pdtz__stats--{{ stats_layout }} sai-h9k3pdtz__stats--label-{{ stats_label_position }}" role="list">
         {%- for _stat in content.stats -%}
           {% render '_sai-snippet-h9k3pdtz-stat', stat: _stat, number_format: number_format %}
         {%- endfor -%}
