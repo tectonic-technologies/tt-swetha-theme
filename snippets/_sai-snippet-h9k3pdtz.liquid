@@ -470,6 +470,15 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
   assign title = content.title | default: ''
   assign title_mobile = content.title_mobile | default: ''
   assign title_accent = content.title_accent | default: ''
+  comment
+    Captured so the title-block render gate is `show_title and has_title_text`
+    with no reliance on Liquid's (right-to-left) operator precedence — show_title
+    unambiguously gates the whole <h2>, even when only title_mobile/accent is set.
+  endcomment
+  assign has_title_text = false
+  if title != blank or title_mobile != blank or title_accent != blank
+    assign has_title_text = true
+  endif
   assign subtitle = content.subtitle | default: ''
   assign description = content.description | default: ''
   assign description_highlight = content.description_highlight | default: ''
@@ -781,7 +790,7 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
         <p class="sai-h9k3pdtz__subtitle">{{ subtitle | escape }}</p>
       {%- endif -%}
 
-      {%- if show_title and title != blank or title_mobile != blank or title_accent != blank -%}
+      {%- if show_title and has_title_text -%}
         <h2 class="sai-h9k3pdtz__title">
           {%- if inline_asset and inline_src != blank -%}
             <img class="sai-h9k3pdtz__inline-asset sai-h9k3pdtz__inline-asset--{{ inline_align }}" src="{{ inline_src }}" alt="" loading="lazy">
