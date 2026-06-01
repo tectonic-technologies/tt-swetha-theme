@@ -217,11 +217,11 @@
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--sai-h9-fg);
-  background: var(--sai-h9-pill-bg);
+  /* No default background — the badge is transparent out of the box. Merchants
+     add a fill via the Styling panel (Badge → Background) if they want one. */
+  background: transparent;
   border: 1px solid var(--sai-h9-pill-border);
   border-radius: 999px;
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
 }
 .sai-h9k3pdtz__badge-icon { width: 14px; height: 14px; flex: none; }
 .sai-h9k3pdtz__badge--tag { border-radius: 4px; }
