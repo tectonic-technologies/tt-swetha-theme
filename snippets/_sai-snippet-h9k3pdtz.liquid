@@ -324,11 +324,10 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
   flex: 0 1 var(--sai-h9-stats-max, 320px);
 }
 .sai-h9k3pdtz__stats--horizontal { flex-direction: row; flex-wrap: wrap; gap: var(--sai-h9-stats-gap, 16px); }
-/* Grid: column count is per-breakpoint (mobile / tablet / desktop vars). */
+/* Grid column count: two regimes only — mobile var ≤1024px (tablet = mobile),
+   desktop var ≥1025px. There is no distinct tablet breakpoint, so the prop's
+   "tablet" sub-value maps to the mobile value (see grid_m assign). */
 .sai-h9k3pdtz__stats--grid { display: grid; grid-template-columns: repeat(var(--sai-h9-grid-m, 1), minmax(0, 1fr)); gap: var(--sai-h9-stats-gap, 16px); }
-@media screen and (min-width: 1025px) {
-  .sai-h9k3pdtz__stats--grid { grid-template-columns: repeat(var(--sai-h9-grid-t, 2), minmax(0, 1fr)); }
-}
 @media screen and (min-width: 1025px) {
   .sai-h9k3pdtz__stats--grid { grid-template-columns: repeat(var(--sai-h9-grid-d, 2), minmax(0, 1fr)); }
 }
@@ -420,9 +419,6 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
 .sai-h9k3pdtz--js.sai-h9k3pdtz--anim-zoom:not(.is-in) .sai-h9k3pdtz__content,
 .sai-h9k3pdtz--js.sai-h9k3pdtz--anim-zoom:not(.is-in) .sai-h9k3pdtz__stats { opacity: 0; transform: scale(0.96); }
 
-@media screen and (min-width: 1025px) {
-  .sai-h9k3pdtz { min-height: var(--sai-h9-min-h-t, 0px); }
-}
 @media screen and (min-width: 1025px) {
   .sai-h9k3pdtz { min-height: var(--sai-h9-min-h-d, 0px); }
 }
@@ -559,33 +555,20 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
     background image, which fills the box — takes only the space its content
     needs. Merchants raise it per breakpoint for a taller hero.
   endcomment
+  comment
+    Two breakpoint regimes only (mobile <=1024px / desktop >=1025px), so the
+    responsive-number "tablet" sub-value has no distinct breakpoint — it maps to
+    the mobile value (the merchant-facing info notes this). Read mobile + desktop
+    only; if mobile is unset, fall back to the tablet sub-value so a merchant who
+    fills only "tablet" still gets an effect in the mobile (<=1024px) range.
+  endcomment
   assign mh = content.min_height
-  assign mh_m = 0
-  assign mh_t = 0
-  assign mh_d = 0
-  if mh.mobile
-    assign mh_m = mh.mobile
-  endif
-  if mh.tablet
-    assign mh_t = mh.tablet
-  endif
-  if mh.desktop
-    assign mh_d = mh.desktop
-  endif
+  assign mh_m = mh.mobile | default: mh.tablet | default: 0
+  assign mh_d = mh.desktop | default: 0
 
   assign grid_cols = content.stats_grid_columns
-  assign grid_m = 1
-  assign grid_t = 2
-  assign grid_d = 2
-  if grid_cols.mobile
-    assign grid_m = grid_cols.mobile
-  endif
-  if grid_cols.tablet
-    assign grid_t = grid_cols.tablet
-  endif
-  if grid_cols.desktop
-    assign grid_d = grid_cols.desktop
-  endif
+  assign grid_m = grid_cols.mobile | default: grid_cols.tablet | default: 1
+  assign grid_d = grid_cols.desktop | default: 2
 
   if content.overlay_enabled == nil
     assign overlay_enabled = true
@@ -717,7 +700,7 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
 {%- if content.hide_on_desktop -%}{%- assign root_class = root_class | append: ' sai-h9k3pdtz--hide-desktop' -%}{%- endif -%}
 {%- if aspect_ratio != 'auto' -%}{%- assign root_class = root_class | append: ' sai-h9k3pdtz--has-aspect' -%}{%- endif -%}
 
-{%- capture root_style -%}--sai-h9-min-h-m: {{ mh_m }}px; --sai-h9-min-h-t: {{ mh_t }}px; --sai-h9-min-h-d: {{ mh_d }}px; --sai-h9-radius: {{ corner_radius }}px; --sai-h9-pad-top: {{ pad_top }}px; --sai-h9-pad-bottom: {{ pad_bottom }}px; --sai-h9-content-max: {{ content_max }}px; --sai-h9-stats-max: {{ stats_basis }}; --sai-h9-pill-max: {{ pill_cap }}; --sai-h9-stat-blur: {{ stat_blur }}px; --sai-h9-stat-shadow: {{ stat_shadow }}; --sai-h9-content-gap: {{ content_gap }}px; --sai-h9-stats-gap: {{ stats_gap }}px; --sai-h9-col-gap: {{ col_gap_css }}; --sai-h9-badge-accent-color: {{ badge_accent_color }}; --sai-h9-badge-accent-thickness: {{ badge_accent_thickness }}px; --sai-h9-anim-duration: {{ anim_duration }}ms; --sai-h9-anim-delay: {{ anim_delay }}ms; --sai-h9-grid-m: {{ grid_m }}; --sai-h9-grid-t: {{ grid_t }}; --sai-h9-grid-d: {{ grid_d }};{%- if aspect_ratio != 'auto' %} --sai-h9-aspect: {{ aspect_ratio }};{% endif %}{%- endcapture -%}
+{%- capture root_style -%}--sai-h9-min-h-m: {{ mh_m }}px; --sai-h9-min-h-d: {{ mh_d }}px; --sai-h9-radius: {{ corner_radius }}px; --sai-h9-pad-top: {{ pad_top }}px; --sai-h9-pad-bottom: {{ pad_bottom }}px; --sai-h9-content-max: {{ content_max }}px; --sai-h9-stats-max: {{ stats_basis }}; --sai-h9-pill-max: {{ pill_cap }}; --sai-h9-stat-blur: {{ stat_blur }}px; --sai-h9-stat-shadow: {{ stat_shadow }}; --sai-h9-content-gap: {{ content_gap }}px; --sai-h9-stats-gap: {{ stats_gap }}px; --sai-h9-col-gap: {{ col_gap_css }}; --sai-h9-badge-accent-color: {{ badge_accent_color }}; --sai-h9-badge-accent-thickness: {{ badge_accent_thickness }}px; --sai-h9-anim-duration: {{ anim_duration }}ms; --sai-h9-anim-delay: {{ anim_delay }}ms; --sai-h9-grid-m: {{ grid_m }}; --sai-h9-grid-d: {{ grid_d }};{%- if aspect_ratio != 'auto' %} --sai-h9-aspect: {{ aspect_ratio }};{% endif %}{%- endcapture -%}
 
 <div class="{{ root_class }}"
      style="{{ root_style }}"
@@ -804,7 +787,7 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
             <img class="sai-h9k3pdtz__inline-asset sai-h9k3pdtz__inline-asset--{{ inline_align }}" src="{{ inline_src }}" alt="" loading="lazy">
           {%- endif -%}
           {%- if title_mobile != blank -%}
-            <span class="sai-h9k3pdtz__title-text sai-h9k3pdtz__title-text--desktop">{{ title | escape | newline_to_br }}</span>
+            <span class="sai-h9k3pdtz__title-text sai-h9k3pdtz__title-text--desktop">{{ title | default: title_mobile | escape | newline_to_br }}</span>
             <span class="sai-h9k3pdtz__title-text sai-h9k3pdtz__title-text--mobile">{{ title_mobile | escape | newline_to_br }}</span>
           {%- else -%}
             {{ title | escape | newline_to_br }}
