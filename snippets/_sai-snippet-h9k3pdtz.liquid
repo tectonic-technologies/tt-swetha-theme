@@ -238,7 +238,10 @@
   content: "";
   flex: none;
   order: 1;
-  width: 28px;
+  /* Mobile underline spans the text width (the badge is fit-content, so 100%
+     of the badge = the text measure). Web overrides to a fixed-thickness
+     vertical bar below. */
+  width: 100%;
   height: var(--sai-h9-badge-accent-thickness, 4px);
   border-radius: 999px;
   background: var(--sai-h9-badge-accent-color, #ff3b20);
@@ -325,13 +328,13 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
 }
 /* Explicit per-card grid placement (Grid layout, desktop ≥750px). Each card may
    carry `--sai-h9-stat-row` / `--sai-h9-stat-col` (set inline from its row/col
-   fields). Applied only ≥750px so a card placed at column 2 doesn't force a
-   second column on mobile (where the grid stays single-column or follows its
+   fields); rows are auto-created from those positions (no separate row-count
+   prop needed). Applied only ≥750px so a card placed at column 2 doesn't force
+   a second column on mobile (where the grid stays single-column or follows its
    mobile-layout override). Cells with no card assigned stay empty — that's how
-   you get an offset/"staggered" look (e.g. cards at 1,2 / 2,1 / 2,2, hole at
-   1,1). `--sai-h9-grid-rows` reserves a fixed row count (0 = auto). */
+   you get an offset/"staggered" look (e.g. cards at 1,2 / 2,1 / 2,2, hole at 1,1). */
 @media screen and (min-width: 750px) {
-  .sai-h9k3pdtz__stats--grid { grid-template-rows: var(--sai-h9-grid-rows, none); align-items: start; }
+  .sai-h9k3pdtz__stats--grid { align-items: start; }
   .sai-h9k3pdtz__stats--grid .sai-h9k3pdtz__stat { grid-column: var(--sai-h9-stat-col, auto); grid-row: var(--sai-h9-stat-row, auto); }
 }
 /* Mobile stats-layout override (stats_layout_mobile prop). Below 750px the
@@ -574,16 +577,6 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
   if grid_cols.desktop
     assign grid_d = grid_cols.desktop
   endif
-  comment
-    Grid rows: 0 = auto (rows grow as cards are placed). >0 reserves a fixed
-    row count via grid-template-rows; `none` keeps the implicit-row default.
-  endcomment
-  assign grid_rows = content.stats_grid_rows | default: 0
-  if grid_rows > 0
-    assign grid_rows_css = 'repeat(' | append: grid_rows | append: ', auto)'
-  else
-    assign grid_rows_css = 'none'
-  endif
 
   if content.overlay_enabled == nil
     assign overlay_enabled = true
@@ -714,7 +707,7 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
 {%- if content.hide_on_mobile -%}{%- assign root_class = root_class | append: ' sai-h9k3pdtz--hide-mobile' -%}{%- endif -%}
 {%- if content.hide_on_desktop -%}{%- assign root_class = root_class | append: ' sai-h9k3pdtz--hide-desktop' -%}{%- endif -%}
 
-{%- capture root_style -%}--sai-h9-min-h-m: {{ mh_m }}px; --sai-h9-min-h-t: {{ mh_t }}px; --sai-h9-min-h-d: {{ mh_d }}px; --sai-h9-radius: {{ corner_radius }}px; --sai-h9-pad-top: {{ pad_top }}px; --sai-h9-pad-bottom: {{ pad_bottom }}px; --sai-h9-content-max: {{ content_max }}px; --sai-h9-stats-max: {{ stats_basis }}; --sai-h9-pill-max: {{ pill_cap }}; --sai-h9-stat-blur: {{ stat_blur }}px; --sai-h9-stat-shadow: {{ stat_shadow }}; --sai-h9-content-gap: {{ content_gap }}px; --sai-h9-stats-gap: {{ stats_gap }}px; --sai-h9-col-gap: {{ col_gap_css }}; --sai-h9-badge-accent-color: {{ badge_accent_color }}; --sai-h9-badge-accent-thickness: {{ badge_accent_thickness }}px; --sai-h9-anim-duration: {{ anim_duration }}ms; --sai-h9-anim-delay: {{ anim_delay }}ms; --sai-h9-grid-m: {{ grid_m }}; --sai-h9-grid-t: {{ grid_t }}; --sai-h9-grid-d: {{ grid_d }}; --sai-h9-grid-rows: {{ grid_rows_css }};{%- endcapture -%}
+{%- capture root_style -%}--sai-h9-min-h-m: {{ mh_m }}px; --sai-h9-min-h-t: {{ mh_t }}px; --sai-h9-min-h-d: {{ mh_d }}px; --sai-h9-radius: {{ corner_radius }}px; --sai-h9-pad-top: {{ pad_top }}px; --sai-h9-pad-bottom: {{ pad_bottom }}px; --sai-h9-content-max: {{ content_max }}px; --sai-h9-stats-max: {{ stats_basis }}; --sai-h9-pill-max: {{ pill_cap }}; --sai-h9-stat-blur: {{ stat_blur }}px; --sai-h9-stat-shadow: {{ stat_shadow }}; --sai-h9-content-gap: {{ content_gap }}px; --sai-h9-stats-gap: {{ stats_gap }}px; --sai-h9-col-gap: {{ col_gap_css }}; --sai-h9-badge-accent-color: {{ badge_accent_color }}; --sai-h9-badge-accent-thickness: {{ badge_accent_thickness }}px; --sai-h9-anim-duration: {{ anim_duration }}ms; --sai-h9-anim-delay: {{ anim_delay }}ms; --sai-h9-grid-m: {{ grid_m }}; --sai-h9-grid-t: {{ grid_t }}; --sai-h9-grid-d: {{ grid_d }};{%- endcapture -%}
 
 <div class="{{ root_class }}"
      style="{{ root_style }}"
