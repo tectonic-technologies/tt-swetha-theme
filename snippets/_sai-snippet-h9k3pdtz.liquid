@@ -149,7 +149,7 @@
 /* When columns are swapped AND side-by-side (tablet/desktop), mirror the
    content alignment so it hugs the side it now sits on. On the mobile stack
    the columns are not side-by-side, so the base alignment is kept. */
-@media screen and (min-width: 750px) {
+@media screen and (min-width: 1025px) {
   .sai-h9k3pdtz--cols-reverse.sai-h9k3pdtz--align-left .sai-h9k3pdtz__content { text-align: right; align-items: flex-end; }
   .sai-h9k3pdtz--cols-reverse.sai-h9k3pdtz--align-right .sai-h9k3pdtz__content { text-align: left; align-items: flex-start; }
 }
@@ -161,7 +161,7 @@
    and the breakpoint decides which shows; when unset, the title text is output
    directly (neither span) so this rule is inert. */
 .sai-h9k3pdtz__title-text--mobile { display: none; }
-@media screen and (max-width: 749px) {
+@media screen and (max-width: 1024px) {
   .sai-h9k3pdtz__title-text--desktop { display: none; }
   .sai-h9k3pdtz__title-text--mobile { display: inline; }
 }
@@ -180,9 +180,9 @@
 
 /* Mobile alignment override (content_align_h_mobile). Scoped under the mobile
    breakpoint and placed AFTER the base align rules so the same-specificity
-   mobile rule wins below 750px; above it, the base (desktop) alignment holds.
+   mobile rule wins below 1025px; above it, the base (desktop) alignment holds.
    This is how "center on mobile, left on desktop" is expressed. */
-@media screen and (max-width: 749px) {
+@media screen and (max-width: 1024px) {
   .sai-h9k3pdtz--align-m-left .sai-h9k3pdtz__content { text-align: left; align-items: flex-start; margin-inline: 0; }
   .sai-h9k3pdtz--align-m-center .sai-h9k3pdtz__content { text-align: center; align-items: center; margin-inline: auto; }
   .sai-h9k3pdtz--align-m-right .sai-h9k3pdtz__content { text-align: right; align-items: flex-end; margin-inline: 0; }
@@ -231,7 +231,7 @@
 /* Accent bar (badge_accent). A detached rounded bar drawn as ::before, kept
    off the text by the flex gap. Mobile (base): the badge stacks as a column so
    the bar (order:1) sits below the text as a short horizontal underline. Web
-   (≥750px): the badge is a row and the bar (order:-1) sits to the left as a
+   (≥1025px): the badge is a row and the bar (order:-1) sits to the left as a
    vertical bar ~one line tall. Thickness + colour are props. */
 .sai-h9k3pdtz__badge--accent { flex-direction: column; align-items: flex-start; gap: 10px; }
 .sai-h9k3pdtz__badge--accent::before {
@@ -246,7 +246,7 @@
   border-radius: 999px;
   background: var(--sai-h9-badge-accent-color, #ff3b20);
 }
-@media screen and (min-width: 750px) {
+@media screen and (min-width: 1025px) {
   .sai-h9k3pdtz__badge--accent { flex-direction: row; align-items: center; }
   .sai-h9k3pdtz__badge--accent::before { order: -1; width: var(--sai-h9-badge-accent-thickness, 4px); height: 1.4em; }
 }
@@ -320,29 +320,29 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
 .sai-h9k3pdtz__stats--horizontal { flex-direction: row; flex-wrap: wrap; gap: var(--sai-h9-stats-gap, 16px); }
 /* Grid: column count is per-breakpoint (mobile / tablet / desktop vars). */
 .sai-h9k3pdtz__stats--grid { display: grid; grid-template-columns: repeat(var(--sai-h9-grid-m, 1), minmax(0, 1fr)); gap: var(--sai-h9-stats-gap, 16px); }
-@media screen and (min-width: 750px) {
+@media screen and (min-width: 1025px) {
   .sai-h9k3pdtz__stats--grid { grid-template-columns: repeat(var(--sai-h9-grid-t, 2), minmax(0, 1fr)); }
 }
-@media screen and (min-width: 990px) {
+@media screen and (min-width: 1025px) {
   .sai-h9k3pdtz__stats--grid { grid-template-columns: repeat(var(--sai-h9-grid-d, 2), minmax(0, 1fr)); }
 }
-/* Explicit per-card grid placement (Grid layout, desktop ≥750px). Each card may
+/* Explicit per-card grid placement (Grid layout, desktop ≥1025px). Each card may
    carry `--sai-h9-stat-row` / `--sai-h9-stat-col` (set inline from its row/col
    fields); rows are auto-created from those positions (no separate row-count
-   prop needed). Applied only ≥750px so a card placed at column 2 doesn't force
+   prop needed). Applied only ≥1025px so a card placed at column 2 doesn't force
    a second column on mobile (where the grid stays single-column or follows its
    mobile-layout override). Cells with no card assigned stay empty — that's how
    you get an offset/"staggered" look (e.g. cards at 1,2 / 2,1 / 2,2, hole at 1,1). */
-@media screen and (min-width: 750px) {
+@media screen and (min-width: 1025px) {
   .sai-h9k3pdtz__stats--grid { align-items: start; }
   .sai-h9k3pdtz__stats--grid .sai-h9k3pdtz__stat { grid-column: var(--sai-h9-stat-col, auto); grid-row: var(--sai-h9-stat-row, auto); }
 }
-/* Mobile stats-layout override (stats_layout_mobile prop). Below 750px the
+/* Mobile stats-layout override (stats_layout_mobile prop). Below 1025px the
    `--m-*` class forces a layout independent of the desktop choice. Placed after
    every layout rule so the same-specificity mobile rule wins by source order;
    only active under the breakpoint. The staggered spacer is already hidden
-   below 750px (base rule), so no per-override hiding is needed. */
-@media screen and (max-width: 749px) {
+   below 1025px (base rule), so no per-override hiding is needed. */
+@media screen and (max-width: 1024px) {
   .sai-h9k3pdtz__stats--m-vertical { display: flex; flex-direction: column; }
   .sai-h9k3pdtz__stats--m-horizontal { display: flex; flex-direction: row; flex-wrap: wrap; }
   .sai-h9k3pdtz__stats--m-grid { display: grid; grid-template-columns: repeat(var(--sai-h9-grid-m, 1), minmax(0, 1fr)); }
@@ -411,13 +411,13 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
 .sai-h9k3pdtz--js.sai-h9k3pdtz--anim-zoom:not(.is-in) .sai-h9k3pdtz__content,
 .sai-h9k3pdtz--js.sai-h9k3pdtz--anim-zoom:not(.is-in) .sai-h9k3pdtz__stats { opacity: 0; transform: scale(0.96); }
 
-@media screen and (min-width: 750px) {
+@media screen and (min-width: 1025px) {
   .sai-h9k3pdtz { min-height: var(--sai-h9-min-h-t, 0px); }
 }
-@media screen and (min-width: 990px) {
+@media screen and (min-width: 1025px) {
   .sai-h9k3pdtz { min-height: var(--sai-h9-min-h-d, 0px); }
 }
-@media screen and (max-width: 749px) {
+@media screen and (max-width: 1024px) {
   /* Column stack: group content + stats from the top with the normal gap,
      instead of inheriting the desktop `space-between` (which spreads them to
      opposite ends and leaves a large empty gap when content is short). */
@@ -431,7 +431,7 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
   .sai-h9k3pdtz--mobile-hide-stats .sai-h9k3pdtz__stats { display: none; }
   .sai-h9k3pdtz--hide-mobile { display: none; }
 }
-@media screen and (min-width: 750px) {
+@media screen and (min-width: 1025px) {
   .sai-h9k3pdtz--hide-desktop { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -473,7 +473,7 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
   assign badge_style = content.badge_style | default: 'pill'
   comment
     Badge accent bar: a detached rounded bar drawn as the badge ::before. Opt-in
-    (default off). Left of the text on web (≥750px), below it on mobile.
+    (default off). Left of the text on web (≥1025px), below it on mobile.
   endcomment
   assign badge_accent = content.badge_accent
   if badge_accent == nil
@@ -724,7 +724,7 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
   >
     {%- if background_type == 'image' and bg_image != blank -%}
       <picture>
-        {%- if mobile_bg_src != blank %}<source media="(max-width: 749px)" srcset="{{ mobile_bg_src }}">{% endif -%}
+        {%- if mobile_bg_src != blank %}<source media="(max-width: 1024px)" srcset="{{ mobile_bg_src }}">{% endif -%}
         <img class="sai-h9k3pdtz__bg-media"
              src="{{ bg_image | image_url: width: 2400 }}"
              srcset="{{ bg_image | image_url: width: 800 }} 800w, {{ bg_image | image_url: width: 1600 }} 1600w, {{ bg_image | image_url: width: 2400 }} 2400w"
@@ -735,7 +735,7 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
       </picture>
     {%- elsif background_type == 'image' and bg_image_url != blank -%}
       <picture>
-        {%- if mobile_bg_src != blank %}<source media="(max-width: 749px)" srcset="{{ mobile_bg_src }}">{% endif -%}
+        {%- if mobile_bg_src != blank %}<source media="(max-width: 1024px)" srcset="{{ mobile_bg_src }}">{% endif -%}
         <img class="sai-h9k3pdtz__bg-media"
              src="{{ bg_image_url }}"
              sizes="100vw"
@@ -745,7 +745,7 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
       </picture>
     {%- elsif background_type == 'image' and mobile_bg_src != blank -%}
       <picture>
-        <source media="(max-width: 749px)" srcset="{{ mobile_bg_src }}">
+        <source media="(max-width: 1024px)" srcset="{{ mobile_bg_src }}">
         <img class="sai-h9k3pdtz__bg-media" src="{{ mobile_bg_src }}" sizes="100vw"
              alt="{{ content.background_image_alt | default: '' | escape }}" loading="eager" fetchpriority="high">
       </picture>
