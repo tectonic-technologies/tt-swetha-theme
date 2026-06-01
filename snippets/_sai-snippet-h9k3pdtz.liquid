@@ -167,6 +167,13 @@
   .sai-h9k3pdtz__title-text--desktop { display: none; }
   .sai-h9k3pdtz__title-text--mobile { display: inline; }
 }
+/* Mobile badge text override (badge_text_mobile prop) — same two-span swap as
+   the title; inert when only the single (unclassed) badge span is rendered. */
+.sai-h9k3pdtz__badge-text--mobile { display: none; }
+@media screen and (max-width: 1024px) {
+  .sai-h9k3pdtz__badge-text--desktop { display: none; }
+  .sai-h9k3pdtz__badge-text--mobile { display: inline; }
+}
 .sai-h9k3pdtz__description { order: 4; margin: 0; max-width: 46ch; font-size: 1.05rem; line-height: 1.6; color: var(--sai-h9-muted); }
 .sai-h9k3pdtz__highlight { color: var(--sai-h9-fg); font-style: italic; }
 .sai-h9k3pdtz__rating { order: 5; display: flex; align-items: center; gap: 10px; font-size: 0.95rem; color: var(--sai-h9-muted); }
@@ -339,7 +346,10 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
    mobile-layout override). Cells with no card assigned stay empty — that's how
    you get an offset/"staggered" look (e.g. cards at 1,2 / 2,1 / 2,2, hole at 1,1). */
 @media screen and (min-width: 1025px) {
-  .sai-h9k3pdtz__stats--grid { align-items: start; }
+  /* stretch (not start) so cards in the same row share the tallest card's
+     height — a card with a longer label/description no longer leaves its
+     row-mate shorter. */
+  .sai-h9k3pdtz__stats--grid { align-items: stretch; }
   .sai-h9k3pdtz__stats--grid .sai-h9k3pdtz__stat { grid-column: var(--sai-h9-stat-col, auto); grid-row: var(--sai-h9-stat-row, auto); }
 }
 /* Mobile stats-layout override (stats_layout_mobile prop). At/below 1024px the
@@ -485,6 +495,11 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
   assign description = content.description | default: ''
   assign description_highlight = content.description_highlight | default: ''
   assign badge_text = content.badge_text | default: ''
+  assign badge_text_mobile = content.badge_text_mobile | default: ''
+  assign has_badge_text = false
+  if badge_text != blank or badge_text_mobile != blank
+    assign has_badge_text = true
+  endif
   assign badge_style = content.badge_style | default: 'pill'
   comment
     Badge accent bar: a detached rounded bar drawn as the badge ::before. Opt-in
@@ -780,12 +795,17 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
   <div class="sai-h9k3pdtz__inner">
     <div class="sai-h9k3pdtz__content">
       {%- comment -%}── Badge (in-flow, first item so it spaces from the title) ──{%- endcomment -%}
-      {%- if show_badge and badge_text != blank -%}
+      {%- if show_badge and has_badge_text -%}
         <div class="sai-h9k3pdtz__badge sai-h9k3pdtz__badge--{{ badge_style }}{% if badge_accent %} sai-h9k3pdtz__badge--accent{% endif %}">
           {%- if badge_src != blank -%}
             <img class="sai-h9k3pdtz__badge-icon" src="{{ badge_src }}" alt="" loading="lazy" width="14" height="14">
           {%- endif -%}
-          <span>{{ badge_text | escape }}</span>
+          {%- if badge_text_mobile != blank -%}
+            <span class="sai-h9k3pdtz__badge-text sai-h9k3pdtz__badge-text--desktop">{{ badge_text | default: badge_text_mobile | escape }}</span>
+            <span class="sai-h9k3pdtz__badge-text sai-h9k3pdtz__badge-text--mobile">{{ badge_text_mobile | escape }}</span>
+          {%- else -%}
+            <span>{{ badge_text | escape }}</span>
+          {%- endif -%}
         </div>
       {%- endif -%}
 
