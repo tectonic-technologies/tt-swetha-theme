@@ -11,7 +11,18 @@
 {%- enddoc -%}
 {%- assign _num = stat.number | default: '' -%}
 {%- assign _icon = stat.icon.originalUrl | default: stat.icon.url -%}
-<div class="sai-h9k3pdtz__stat" role="listitem">
+{%- comment -%}
+  Optional explicit grid placement (Grid layout only). `row`/`col` are text
+  inputs; coerce to integers with `| plus: 0` so anything non-numeric becomes 0
+  and is skipped — this also strips any CSS-injection attempt, since only an
+  integer ever reaches the style attribute. Emitted as CSS custom properties,
+  NOT grid-row/column directly: the parent applies them under a desktop media
+  query so a card placed at col 2 doesn't force a second column on mobile.
+{%- endcomment -%}
+{%- assign _gr = stat.row | plus: 0 -%}
+{%- assign _gc = stat.col | plus: 0 -%}
+{%- capture _cell -%}{%- if _gr > 0 -%}--sai-h9-stat-row: {{ _gr }};{%- endif -%}{%- if _gc > 0 -%}--sai-h9-stat-col: {{ _gc }};{%- endif -%}{%- endcapture -%}
+<div class="sai-h9k3pdtz__stat" role="listitem"{% if _cell != blank %} style="{{ _cell }}"{% endif %}>
   <div class="sai-h9k3pdtz__stat-head">
     {%- if _icon != blank -%}
       <img class="sai-h9k3pdtz__stat-icon" src="{{ _icon }}" alt="" loading="lazy" width="32" height="32">
