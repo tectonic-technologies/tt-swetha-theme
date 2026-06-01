@@ -19,7 +19,7 @@
     background  : background_type, background_image{kind,refId}, background_image_alt, background_video_url,
                   background_poster{...}, background_color, gradient_start, gradient_end, gradient_angle, aspect_ratio
     overlay     : overlay_enabled, overlay_color, overlay_opacity, overlay_gradient_enabled, overlay_gradient_direction
-    text        : title, title_accent, title_animation, subtitle, description, description_highlight,
+    text        : title, title_accent, subtitle, description, description_highlight,
                   inline_asset, inline_asset_image{...}, inline_asset_align
     rating      : show_rating, rating_value, rating_count
     cta         : primary_cta_{text,url,style,radius,size}, show_secondary_cta, secondary_cta_{text,url,style,radius}
@@ -73,6 +73,8 @@
   color: var(--sai-h9-fg);
   isolation: isolate;
 }
+/* Fixed aspect ratio (min-height stays a floor). Set only when not "auto". */
+.sai-h9k3pdtz--has-aspect { aspect-ratio: var(--sai-h9-aspect); }
 .sai-h9k3pdtz--width-boxed {
   max-width: var(--page-width, 1400px);
   margin-inline: auto;
@@ -305,8 +307,12 @@
 .sai-h9k3pdtz__pill-icon svg { width: 16px; height: 16px; stroke: currentColor; fill: none; }
 img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
 
-.sai-h9k3pdtz__stars { display: inline-flex; gap: 2px; color: var(--sai-h9-accent); }
-.sai-h9k3pdtz__star { width: 16px; height: 16px; }
+/* Fractional star rating: outline base with a filled overlay clipped to the
+   score width. The two rows share identical layout so the clip aligns. */
+.sai-h9k3pdtz__stars { position: relative; display: inline-flex; color: var(--sai-h9-accent); }
+.sai-h9k3pdtz__stars-base { display: inline-flex; gap: 2px; }
+.sai-h9k3pdtz__stars-fill { position: absolute; inset: 0; display: inline-flex; gap: 2px; overflow: hidden; white-space: nowrap; pointer-events: none; }
+.sai-h9k3pdtz__star { width: 16px; height: 16px; flex: none; }
 
 /* Stats */
 .sai-h9k3pdtz__stats {
@@ -402,6 +408,9 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
 .sai-h9k3pdtz__countdown--minimal .sai-h9k3pdtz__cd-unit + .sai-h9k3pdtz__cd-unit { border-left: 0; }
 .sai-h9k3pdtz__countdown--minimal .sai-h9k3pdtz__cd-num { font-size: 1.1rem; }
 .sai-h9k3pdtz__countdown--minimal .sai-h9k3pdtz__cd-lbl { font-size: 0.85rem; text-transform: none; letter-spacing: 0; }
+/* Ended state (end_behavior=message): drop the unit-cell layout so the message
+   reads as a plain line, not styled like ticking digits. */
+.sai-h9k3pdtz__countdown--ended { display: block; font-size: 1rem; font-weight: 600; color: var(--sai-h9-fg); letter-spacing: 0; text-transform: none; }
 
 /* Entrance animation — fade is opacity-only (no positional/sweep motion) */
 .sai-h9k3pdtz__content,
@@ -465,7 +474,6 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
   assign title = content.title | default: ''
   assign title_mobile = content.title_mobile | default: ''
   assign title_accent = content.title_accent | default: ''
-  assign title_animation = content.title_animation | default: 'fade'
   assign subtitle = content.subtitle | default: ''
   assign description = content.description | default: ''
   assign description_highlight = content.description_highlight | default: ''
@@ -503,7 +511,8 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
   assign mobile_layout = content.mobile_layout | default: 'stack'
   assign inline_align = content.inline_asset_align | default: 'left'
 
-  assign content_max = content.content_max_width | default: 600
+  assign content_max = content.content_max_width | default: 1200
+  assign aspect_ratio = content.aspect_ratio | default: 'auto'
   assign corner_radius = content.corner_radius | default: 0
   assign pad_top = content.padding_top | default: 48
   assign pad_bottom = content.padding_bottom | default: 48
@@ -618,7 +627,7 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
     assign show_primary_cta = content.show_primary_cta
   endif
   if content.show_badge == nil
-    assign show_badge = true
+    assign show_badge = false
   else
     assign show_badge = content.show_badge
   endif
@@ -628,17 +637,17 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
     assign show_rating = content.show_rating
   endif
   if content.show_secondary_cta == nil
-    assign show_secondary_cta = true
+    assign show_secondary_cta = false
   else
     assign show_secondary_cta = content.show_secondary_cta
   endif
   if content.show_trust_pills == nil
-    assign show_trust_pills = true
+    assign show_trust_pills = false
   else
     assign show_trust_pills = content.show_trust_pills
   endif
   if content.show_stats == nil
-    assign show_stats = true
+    assign show_stats = false
   else
     assign show_stats = content.show_stats
   endif
@@ -706,15 +715,15 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
 {%- if mobile_layout == 'hide_stats' -%}{%- assign root_class = root_class | append: ' sai-h9k3pdtz--mobile-hide-stats' -%}{%- endif -%}
 {%- if content.hide_on_mobile -%}{%- assign root_class = root_class | append: ' sai-h9k3pdtz--hide-mobile' -%}{%- endif -%}
 {%- if content.hide_on_desktop -%}{%- assign root_class = root_class | append: ' sai-h9k3pdtz--hide-desktop' -%}{%- endif -%}
+{%- if aspect_ratio != 'auto' -%}{%- assign root_class = root_class | append: ' sai-h9k3pdtz--has-aspect' -%}{%- endif -%}
 
-{%- capture root_style -%}--sai-h9-min-h-m: {{ mh_m }}px; --sai-h9-min-h-t: {{ mh_t }}px; --sai-h9-min-h-d: {{ mh_d }}px; --sai-h9-radius: {{ corner_radius }}px; --sai-h9-pad-top: {{ pad_top }}px; --sai-h9-pad-bottom: {{ pad_bottom }}px; --sai-h9-content-max: {{ content_max }}px; --sai-h9-stats-max: {{ stats_basis }}; --sai-h9-pill-max: {{ pill_cap }}; --sai-h9-stat-blur: {{ stat_blur }}px; --sai-h9-stat-shadow: {{ stat_shadow }}; --sai-h9-content-gap: {{ content_gap }}px; --sai-h9-stats-gap: {{ stats_gap }}px; --sai-h9-col-gap: {{ col_gap_css }}; --sai-h9-badge-accent-color: {{ badge_accent_color }}; --sai-h9-badge-accent-thickness: {{ badge_accent_thickness }}px; --sai-h9-anim-duration: {{ anim_duration }}ms; --sai-h9-anim-delay: {{ anim_delay }}ms; --sai-h9-grid-m: {{ grid_m }}; --sai-h9-grid-t: {{ grid_t }}; --sai-h9-grid-d: {{ grid_d }};{%- endcapture -%}
+{%- capture root_style -%}--sai-h9-min-h-m: {{ mh_m }}px; --sai-h9-min-h-t: {{ mh_t }}px; --sai-h9-min-h-d: {{ mh_d }}px; --sai-h9-radius: {{ corner_radius }}px; --sai-h9-pad-top: {{ pad_top }}px; --sai-h9-pad-bottom: {{ pad_bottom }}px; --sai-h9-content-max: {{ content_max }}px; --sai-h9-stats-max: {{ stats_basis }}; --sai-h9-pill-max: {{ pill_cap }}; --sai-h9-stat-blur: {{ stat_blur }}px; --sai-h9-stat-shadow: {{ stat_shadow }}; --sai-h9-content-gap: {{ content_gap }}px; --sai-h9-stats-gap: {{ stats_gap }}px; --sai-h9-col-gap: {{ col_gap_css }}; --sai-h9-badge-accent-color: {{ badge_accent_color }}; --sai-h9-badge-accent-thickness: {{ badge_accent_thickness }}px; --sai-h9-anim-duration: {{ anim_duration }}ms; --sai-h9-anim-delay: {{ anim_delay }}ms; --sai-h9-grid-m: {{ grid_m }}; --sai-h9-grid-t: {{ grid_t }}; --sai-h9-grid-d: {{ grid_d }};{%- if aspect_ratio != 'auto' %} --sai-h9-aspect: {{ aspect_ratio }};{% endif %}{%- endcapture -%}
 
 <div class="{{ root_class }}"
      style="{{ root_style }}"
      data-counter-animate="{% if counter_animation %}true{% else %}false{% endif %}"
      data-counter-duration="{{ counter_duration }}"
-     data-entrance="{{ entrance }}"
-     data-title-animation="{{ title_animation }}">
+     data-entrance="{{ entrance }}">
 
   {%- comment -%}── Background ──{%- endcomment -%}
   {%- if show_background -%}
@@ -763,9 +772,14 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
   {%- endif -%}
 
   {%- if banner_clickable and content.click_url != blank -%}
+    {%- comment -%} Stretched link needs an accessible name even on image/accent-only heroes. {%- endcomment -%}
+    {%- assign banner_label = title | strip_newlines -%}
+    {%- if banner_label == blank -%}{%- assign banner_label = title_accent -%}{%- endif -%}
+    {%- if banner_label == blank -%}{%- assign banner_label = badge_text -%}{%- endif -%}
+    {%- if banner_label == blank -%}{%- assign banner_label = 'Learn more' -%}{%- endif -%}
     <a class="sai-h9k3pdtz__banner-link" href="{{ content.click_url }}"
       {%- if content.open_new_tab %} target="_blank" rel="noopener noreferrer"{% endif %}
-      aria-label="{{ title | strip_newlines | escape }}"></a>
+      aria-label="{{ banner_label | escape }}"></a>
   {%- endif -%}
 
   <div class="sai-h9k3pdtz__inner">
@@ -812,16 +826,22 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
       {%- endif -%}
 
       {%- if show_rating and rating_count != blank -%}
+        {%- comment -%}
+          Fractional fill: an outline base row with a filled overlay clipped to
+          (rating / 5) so 4.9 reads as ~4.9 stars, not a rounded 5. The aria-label
+          carries the precise value for assistive tech.
+        {%- endcomment -%}
+        {%- assign rating_pct = rating_value | times: 20.0 -%}
+        {%- if rating_pct > 100 -%}{%- assign rating_pct = 100 -%}{%- endif -%}
+        {%- if rating_pct < 0 -%}{%- assign rating_pct = 0 -%}{%- endif -%}
         <div class="sai-h9k3pdtz__rating">
-          {%- assign _full = rating_value | round -%}
           <span class="sai-h9k3pdtz__stars" role="img" aria-label="{{ rating_value }} out of 5 stars">
-            {%- for _i in (1..5) -%}
-              {%- if _i <= _full -%}
-                <svg class="sai-h9k3pdtz__star" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10 1.5l2.6 5.3 5.9.9-4.2 4.1 1 5.8L10 15l-5.3 2.6 1-5.8L1.5 7.7l5.9-.9z"/></svg>
-              {%- else -%}
-                <svg class="sai-h9k3pdtz__star" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M10 1.5l2.6 5.3 5.9.9-4.2 4.1 1 5.8L10 15l-5.3 2.6 1-5.8L1.5 7.7l5.9-.9z"/></svg>
-              {%- endif -%}
-            {%- endfor -%}
+            <span class="sai-h9k3pdtz__stars-base" aria-hidden="true">
+              {%- for _i in (1..5) -%}<svg class="sai-h9k3pdtz__star" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 1.5l2.6 5.3 5.9.9-4.2 4.1 1 5.8L10 15l-5.3 2.6 1-5.8L1.5 7.7l5.9-.9z"/></svg>{%- endfor -%}
+            </span>
+            <span class="sai-h9k3pdtz__stars-fill" aria-hidden="true" style="width: {{ rating_pct }}%">
+              {%- for _i in (1..5) -%}<svg class="sai-h9k3pdtz__star" viewBox="0 0 20 20" fill="currentColor"><path d="M10 1.5l2.6 5.3 5.9.9-4.2 4.1 1 5.8L10 15l-5.3 2.6 1-5.8L1.5 7.7l5.9-.9z"/></svg>{%- endfor -%}
+            </span>
           </span>
           <span>{{ rating_count | escape }}</span>
         </div>

@@ -81,13 +81,20 @@
   const easeOutCubic = (t) => 1 - (1 - t) ** 3
 
   function runCountUp(el, durationMs) {
-    const parsed = parseCountTarget(el.getAttribute('data-sai-count-target'))
+    const raw = el.getAttribute('data-sai-count-target')
+    const parsed = parseCountTarget(raw)
     const format = el.getAttribute('data-sai-count-format') || 'auto'
     if (parsed.value === null) return
+    // 'auto' lands on the merchant's exact string so the animated result is
+    // byte-identical to the server-rendered value (no end-of-count reformat
+    // snap). 'integer' / 'abbreviated' are explicit reformat requests, so they
+    // settle on the reformatted value.
     const finalText =
-      parsed.prefix +
-      formatCountValue(parsed.value, format, parsed.decimals, parsed.grouped) +
-      parsed.suffix
+      format === 'auto'
+        ? raw
+        : parsed.prefix +
+          formatCountValue(parsed.value, format, parsed.decimals, parsed.grouped) +
+          parsed.suffix
     if (prefersReducedMotion() || !durationMs || durationMs <= 0) {
       el.textContent = finalText
       return
@@ -142,13 +149,20 @@
       const parts = computeRemaining(targetMs, Date.now())
       renderCountdown(el, parts)
       if (parts.total <= 0) {
-        if (timer) clearInterval(timer)
+        clearInterval(timer)
         if (endBehavior === 'hide') el.style.display = 'none'
-        else if (endBehavior === 'message') el.textContent = endMessage
+        else if (endBehavior === 'message') {
+          // Drop the unit-cell layout so the message renders as a plain line
+          // instead of inheriting the number/divider styling of the cells.
+          el.classList.add('sai-h9k3pdtz__countdown--ended')
+          el.textContent = endMessage
+        }
       }
     }
-    tick()
+    // Bind the interval before the first synchronous tick so an already-expired
+    // target can clearInterval(timer) without reading it in its TDZ.
     const timer = setInterval(tick, 1000)
+    tick()
   }
 
   /* ────────── Per-instance visual init ────────── */
@@ -228,6 +242,12 @@
       bg.style.transform = `translateY(${shift.toFixed(1)}px)`
     }
     const onScroll = () => {
+      // Self-detach once the hero leaves the DOM (theme-editor section
+      // re-render / SPA nav) so orphaned roots don't accumulate scroll work.
+      if (!root.isConnected) {
+        window.removeEventListener('scroll', onScroll)
+        return
+      }
       if (ticking) return
       ticking = true
       requestAnimationFrame(update)
@@ -261,15 +281,15 @@
 
     // Alignment (desktop + mobile override). The SSR markup sets these classes;
     // re-apply them here so Studio live edits to either dropdown reflect without
-    // a reload. The mobile class only takes effect under the 750px media query.
+    // a reload. The mobile class only takes effect under the mobile media query.
     for (const a of ['left', 'center', 'right']) {
-      root.classList.remove('sai-h9k3pdtz--align-' + a, 'sai-h9k3pdtz--align-m-' + a)
+      root.classList.remove(`sai-h9k3pdtz--align-${a}`, `sai-h9k3pdtz--align-m-${a}`)
     }
     const alignH = content.content_align_h || 'left'
-    root.classList.add('sai-h9k3pdtz--align-' + alignH)
+    root.classList.add(`sai-h9k3pdtz--align-${alignH}`)
     const alignM = content.content_align_h_mobile
     if (alignM && alignM !== 'inherit') {
-      root.classList.add('sai-h9k3pdtz--align-m-' + alignM)
+      root.classList.add(`sai-h9k3pdtz--align-m-${alignM}`)
     }
 
     setText(root, '.sai-h9k3pdtz__subtitle', content.subtitle)
