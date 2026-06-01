@@ -227,6 +227,25 @@
 .sai-h9k3pdtz__badge--tag { border-radius: 4px; }
 .sai-h9k3pdtz__badge--ribbon { border-radius: 4px; }
 .sai-h9k3pdtz__badge--corner { border-radius: 4px; }
+/* Accent bar (badge_accent). A detached rounded bar drawn as ::before, kept
+   off the text by the flex gap. Mobile (base): the badge stacks as a column so
+   the bar (order:1) sits below the text as a short horizontal underline. Web
+   (≥750px): the badge is a row and the bar (order:-1) sits to the left as a
+   vertical bar ~one line tall. Thickness + colour are props. */
+.sai-h9k3pdtz__badge--accent { flex-direction: column; align-items: flex-start; gap: 10px; }
+.sai-h9k3pdtz__badge--accent::before {
+  content: "";
+  flex: none;
+  order: 1;
+  width: 28px;
+  height: var(--sai-h9-badge-accent-thickness, 4px);
+  border-radius: 999px;
+  background: var(--sai-h9-badge-accent-color, #ff3b20);
+}
+@media screen and (min-width: 750px) {
+  .sai-h9k3pdtz__badge--accent { flex-direction: row; align-items: center; }
+  .sai-h9k3pdtz__badge--accent::before { order: -1; width: var(--sai-h9-badge-accent-thickness, 4px); height: 1.4em; }
+}
 
 /* CTAs */
 .sai-h9k3pdtz__cta {
@@ -449,6 +468,16 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
   assign description_highlight = content.description_highlight | default: ''
   assign badge_text = content.badge_text | default: ''
   assign badge_style = content.badge_style | default: 'pill'
+  comment
+    Badge accent bar: a detached rounded bar drawn as the badge ::before. Opt-in
+    (default off). Left of the text on web (≥750px), below it on mobile.
+  endcomment
+  assign badge_accent = content.badge_accent
+  if badge_accent == nil
+    assign badge_accent = false
+  endif
+  assign badge_accent_color = content.badge_accent_color | default: '#FF3B20'
+  assign badge_accent_thickness = content.badge_accent_thickness | default: 4
   assign rating_value = content.rating_value | default: 0
   assign rating_count = content.rating_count | default: ''
   assign primary_text = content.primary_cta_text | default: ''
@@ -675,7 +704,7 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
 {%- if content.hide_on_mobile -%}{%- assign root_class = root_class | append: ' sai-h9k3pdtz--hide-mobile' -%}{%- endif -%}
 {%- if content.hide_on_desktop -%}{%- assign root_class = root_class | append: ' sai-h9k3pdtz--hide-desktop' -%}{%- endif -%}
 
-{%- capture root_style -%}--sai-h9-min-h-m: {{ mh_m }}px; --sai-h9-min-h-t: {{ mh_t }}px; --sai-h9-min-h-d: {{ mh_d }}px; --sai-h9-radius: {{ corner_radius }}px; --sai-h9-pad-top: {{ pad_top }}px; --sai-h9-pad-bottom: {{ pad_bottom }}px; --sai-h9-content-max: {{ content_max }}px; --sai-h9-stats-max: {{ stats_basis }}; --sai-h9-pill-max: {{ pill_cap }}; --sai-h9-stat-blur: {{ stat_blur }}px; --sai-h9-stat-shadow: {{ stat_shadow }}; --sai-h9-content-gap: {{ content_gap }}px; --sai-h9-stats-gap: {{ stats_gap }}px; --sai-h9-col-gap: {{ col_gap_css }}; --sai-h9-anim-duration: {{ anim_duration }}ms; --sai-h9-anim-delay: {{ anim_delay }}ms; --sai-h9-grid-m: {{ grid_m }}; --sai-h9-grid-t: {{ grid_t }}; --sai-h9-grid-d: {{ grid_d }};{%- endcapture -%}
+{%- capture root_style -%}--sai-h9-min-h-m: {{ mh_m }}px; --sai-h9-min-h-t: {{ mh_t }}px; --sai-h9-min-h-d: {{ mh_d }}px; --sai-h9-radius: {{ corner_radius }}px; --sai-h9-pad-top: {{ pad_top }}px; --sai-h9-pad-bottom: {{ pad_bottom }}px; --sai-h9-content-max: {{ content_max }}px; --sai-h9-stats-max: {{ stats_basis }}; --sai-h9-pill-max: {{ pill_cap }}; --sai-h9-stat-blur: {{ stat_blur }}px; --sai-h9-stat-shadow: {{ stat_shadow }}; --sai-h9-content-gap: {{ content_gap }}px; --sai-h9-stats-gap: {{ stats_gap }}px; --sai-h9-col-gap: {{ col_gap_css }}; --sai-h9-badge-accent-color: {{ badge_accent_color }}; --sai-h9-badge-accent-thickness: {{ badge_accent_thickness }}px; --sai-h9-anim-duration: {{ anim_duration }}ms; --sai-h9-anim-delay: {{ anim_delay }}ms; --sai-h9-grid-m: {{ grid_m }}; --sai-h9-grid-t: {{ grid_t }}; --sai-h9-grid-d: {{ grid_d }};{%- endcapture -%}
 
 <div class="{{ root_class }}"
      style="{{ root_style }}"
@@ -740,7 +769,7 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
     <div class="sai-h9k3pdtz__content">
       {%- comment -%}── Badge (in-flow, first item so it spaces from the title) ──{%- endcomment -%}
       {%- if show_badge and badge_text != blank -%}
-        <div class="sai-h9k3pdtz__badge sai-h9k3pdtz__badge--{{ badge_style }}">
+        <div class="sai-h9k3pdtz__badge sai-h9k3pdtz__badge--{{ badge_style }}{% if badge_accent %} sai-h9k3pdtz__badge--accent{% endif %}">
           {%- if badge_src != blank -%}
             <img class="sai-h9k3pdtz__badge-icon" src="{{ badge_src }}" alt="" loading="lazy" width="14" height="14">
           {%- endif -%}
