@@ -217,10 +217,11 @@
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--sai-h9-fg);
-  /* No default background — the badge is transparent out of the box. Merchants
-     add a fill via the Styling panel (Badge → Background) if they want one. */
+  /* Chrome-free by default — no background, no border. Merchants add a fill or
+     outline via the Styling panel (Badge → Background / Border) if they want
+     one; the radius stays so a panel-added fill renders as a pill. */
   background: transparent;
-  border: 1px solid var(--sai-h9-pill-border);
+  border: none;
   border-radius: 999px;
 }
 .sai-h9k3pdtz__badge-icon { width: 14px; height: 14px; flex: none; }
