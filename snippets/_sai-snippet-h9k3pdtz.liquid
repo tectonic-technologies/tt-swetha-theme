@@ -326,7 +326,7 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
 .sai-h9k3pdtz__stats--horizontal { flex-direction: row; flex-wrap: wrap; gap: var(--sai-h9-stats-gap, 16px); }
 /* Grid column count: two regimes only — mobile var ≤1024px (tablet = mobile),
    desktop var ≥1025px. There is no distinct tablet breakpoint, so the prop's
-   "tablet" sub-value maps to the mobile value (see grid_m assign). */
+   "tablet" sub-input is inert; only mobile + desktop are read. */
 .sai-h9k3pdtz__stats--grid { display: grid; grid-template-columns: repeat(var(--sai-h9-grid-m, 1), minmax(0, 1fr)); gap: var(--sai-h9-stats-gap, 16px); }
 @media screen and (min-width: 1025px) {
   .sai-h9k3pdtz__stats--grid { grid-template-columns: repeat(var(--sai-h9-grid-d, 2), minmax(0, 1fr)); }
@@ -342,11 +342,10 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
   .sai-h9k3pdtz__stats--grid { align-items: start; }
   .sai-h9k3pdtz__stats--grid .sai-h9k3pdtz__stat { grid-column: var(--sai-h9-stat-col, auto); grid-row: var(--sai-h9-stat-row, auto); }
 }
-/* Mobile stats-layout override (stats_layout_mobile prop). Below 1025px the
+/* Mobile stats-layout override (stats_layout_mobile prop). At/below 1024px the
    `--m-*` class forces a layout independent of the desktop choice. Placed after
    every layout rule so the same-specificity mobile rule wins by source order;
-   only active under the breakpoint. The staggered spacer is already hidden
-   below 1025px (base rule), so no per-override hiding is needed. */
+   only active under the breakpoint. */
 @media screen and (max-width: 1024px) {
   .sai-h9k3pdtz__stats--m-vertical { display: flex; flex-direction: column; }
   .sai-h9k3pdtz__stats--m-horizontal { display: flex; flex-direction: row; flex-wrap: wrap; }
@@ -425,8 +424,11 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
 @media screen and (max-width: 1024px) {
   /* Column stack: group content + stats from the top with the normal gap,
      instead of inheriting the desktop `space-between` (which spreads them to
-     opposite ends and leaves a large empty gap when content is short). */
-  .sai-h9k3pdtz--mobile-stack .sai-h9k3pdtz__inner { flex-direction: column; align-items: stretch; justify-content: flex-start; }
+     opposite ends and leaves a large empty gap when content is short). The gap
+     here is the content↔stats VERTICAL spacing — reset to the responsive
+     default so a large desktop "Gap between columns" (a horizontal control)
+     doesn't bloat the mobile vertical rhythm. */
+  .sai-h9k3pdtz--mobile-stack .sai-h9k3pdtz__inner { flex-direction: column; align-items: stretch; justify-content: flex-start; gap: clamp(24px, 5vw, 64px); }
   /* In the column stack, reset the row-axis flex bases — both columns carry a
      flex-basis sized for the side-by-side (row) layout (content 460px, stats
      320px). Once the inner flips to `column`, that basis becomes a *height* and
@@ -565,18 +567,19 @@ img.sai-h9k3pdtz__pill-icon { object-fit: contain; }
     needs. Merchants raise it per breakpoint for a taller hero.
   endcomment
   comment
-    Two breakpoint regimes only (mobile <=1024px / desktop >=1025px), so the
-    responsive-number "tablet" sub-value has no distinct breakpoint — it maps to
-    the mobile value (the merchant-facing info notes this). Read mobile + desktop
-    only; if mobile is unset, fall back to the tablet sub-value so a merchant who
-    fills only "tablet" still gets an effect in the mobile (<=1024px) range.
+    Two breakpoint regimes only (mobile <=1024px / desktop >=1025px). The
+    responsive-number type always renders a "tablet" sub-input, but there is no
+    tablet breakpoint here, so ONLY mobile + desktop are read — the tablet field
+    is inert (the merchant-facing info says to leave it blank). A `| default:`
+    fallback to .tablet can't help: the prop seeds {mobile:0,tablet:0,desktop:0}
+    and `default` doesn't replace a present 0, so .mobile always wins anyway.
   endcomment
   assign mh = content.min_height
-  assign mh_m = mh.mobile | default: mh.tablet | default: 0
+  assign mh_m = mh.mobile | default: 0
   assign mh_d = mh.desktop | default: 0
 
   assign grid_cols = content.stats_grid_columns
-  assign grid_m = grid_cols.mobile | default: grid_cols.tablet | default: 1
+  assign grid_m = grid_cols.mobile | default: 1
   assign grid_d = grid_cols.desktop | default: 2
 
   if content.overlay_enabled == nil
