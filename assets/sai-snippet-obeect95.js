@@ -172,17 +172,24 @@
     function scrollToCurrent(instant) {
       const card = cards[currentIdx]
       if (!card) return
+      // Scroll the TRACK only — never use scrollIntoView, which scrolls every
+      // scrollable ancestor (incl. the page vertically) and causes a visible
+      // jump. Compute the exact left offset that centers the card in the track.
+      const cardRect = card.getBoundingClientRect()
+      const trackRect = trackEl.getBoundingClientRect()
+      const delta = cardRect.left - trackRect.left - (trackRect.width - cardRect.width) / 2
+      const left = trackEl.scrollLeft + delta
       suppressScrollSync = true
-      card.scrollIntoView({
-        behavior: instant ? 'auto' : 'smooth',
-        block: 'nearest',
-        inline: 'center',
-      })
+      if (typeof trackEl.scrollTo === 'function') {
+        trackEl.scrollTo({ left, behavior: instant ? 'auto' : 'smooth' })
+      } else {
+        trackEl.scrollLeft = left
+      }
       window.setTimeout(
         () => {
           suppressScrollSync = false
         },
-        instant ? 100 : 600,
+        instant ? 120 : 650,
       )
     }
 
