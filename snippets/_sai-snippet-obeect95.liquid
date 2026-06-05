@@ -218,6 +218,7 @@
 .sai-obeect95__play .sai-obeect95__ic {
   height: 80%;
   width: auto;
+  aspect-ratio: 1;
   fill: rgba(255, 255, 255, 0.22);
   stroke: rgba(255, 255, 255, 0.92);
   stroke-width: 1.1;
@@ -406,7 +407,7 @@
    proportional and visible. Size by height + width:auto (the square SVG derives
    its width from its aspect ratio) — a percentage *width* on an SVG flex child
    collapses to 0 in some engines. */
-.sai-obeect95__arrow svg { height: 45%; width: auto; }
+.sai-obeect95__arrow svg { height: 45%; width: auto; aspect-ratio: 1; }
 .sai-obeect95__dots { display: inline-flex; align-items: center; gap: 8px; padding: 0; margin: 0; list-style: none; }
 .sai-obeect95__dots > li { margin: 0; padding: 0; list-style: none; display: inline-flex; }
 .sai-obeect95__dots--bars { gap: 6px; }
@@ -465,7 +466,7 @@
 }
 .sai-obeect95__pause:hover { background: rgba(0, 0, 0, 0.5); }
 .sai-obeect95__pause:focus-visible { outline: 2px solid var(--sai-ob-fg); outline-offset: 2px; }
-.sai-obeect95__pause .sai-obeect95__ic { height: 45%; width: auto; }
+.sai-obeect95__pause .sai-obeect95__ic { height: 45%; width: auto; aspect-ratio: 1; }
 .sai-obeect95__pause .sai-obeect95__ic--play { display: none; }
 .sai-obeect95--paused .sai-obeect95__pause .sai-obeect95__ic--pause { display: none; }
 .sai-obeect95--paused .sai-obeect95__pause .sai-obeect95__ic--play { display: block; }
