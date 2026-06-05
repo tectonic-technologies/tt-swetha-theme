@@ -14,6 +14,7 @@
   @param {string} section_position_v - section default vertical position (top|middle|bottom)
   @param {string} section_text_align - section default text alignment (left|center|right)
   @param {string} position_h_mobile - mobile horizontal override (inherit|left|center|right)
+  @param {string} position_v_mobile - mobile vertical override (inherit|top|middle|bottom)
   @param {string} text_align_mobile - mobile text-align override (inherit|left|center|right)
   @param {string} section_media_mode - section default media mode (background|foreground)
   @param {number} section_overlay_opacity - section overlay opacity (0-100)
@@ -137,6 +138,9 @@
   endif
   if text_align_mobile != 'inherit'
     assign card_class = card_class | append: ' sai-obeect95__card--ta-m-' | append: text_align_mobile
+  endif
+  if position_v_mobile != 'inherit'
+    assign card_class = card_class | append: ' sai-obeect95__card--pv-m-' | append: position_v_mobile
   endif
 
   assign is_video = false

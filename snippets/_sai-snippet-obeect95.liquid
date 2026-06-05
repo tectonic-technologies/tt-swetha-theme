@@ -52,6 +52,11 @@
   /* No vertical padding by default — the carousel runs flush (full-bleed hero).
      Merchants can add top/bottom padding via the Container style node (spacing). */
   padding-block: 0;
+  --sai-ob-content-inset: var(--sai-ob-content-inset-m, 24px);
+  --sai-ob-dots-inset: var(--sai-ob-dots-inset-m, 12px);
+}
+@media screen and (min-width: 1025px) {
+  .sai-obeect95 { --sai-ob-content-inset: var(--sai-ob-content-inset-d, 48px); --sai-ob-dots-inset: var(--sai-ob-dots-inset-d, 16px); }
 }
 /* Section width. Contained/Boxed keep the carousel inside the page content width
    (centered, with side gutters) so it lines up with the rest of the page; Full
@@ -390,6 +395,14 @@
 .sai-obeect95--dotsv-middle .sai-obeect95__controls { top: 50%; bottom: auto; transform: translateY(-50%); }
 .sai-obeect95--dotsv-bottom .sai-obeect95__controls { bottom: var(--sai-ob-dots-inset, 16px); top: auto; }
 @media screen and (max-width: 1024px) {
+  .sai-obeect95__card--pv-m-top .sai-obeect95__content-wrap { align-items: flex-start; }
+  .sai-obeect95__card--pv-m-middle .sai-obeect95__content-wrap { align-items: center; }
+  .sai-obeect95__card--pv-m-bottom .sai-obeect95__content-wrap { align-items: flex-end; }
+  .sai-obeect95--dotsv-m-top .sai-obeect95__controls { top: var(--sai-ob-dots-inset, 16px); bottom: auto; transform: none; }
+  .sai-obeect95--dotsv-m-middle .sai-obeect95__controls { top: 50%; bottom: auto; transform: translateY(-50%); }
+  .sai-obeect95--dotsv-m-bottom .sai-obeect95__controls { bottom: var(--sai-ob-dots-inset, 16px); top: auto; transform: none; }
+}
+@media screen and (max-width: 1024px) {
   .sai-obeect95--dots-m-left .sai-obeect95__controls { justify-content: flex-start; }
   .sai-obeect95--dots-m-center .sai-obeect95__controls { justify-content: center; }
   .sai-obeect95--dots-m-right .sai-obeect95__controls { justify-content: flex-end; }
@@ -515,12 +528,14 @@
 
   assign position_h = content.content_position_h | default: 'center'
   assign position_v = content.content_position_v | default: 'bottom'
+  assign position_v_mobile = content.content_position_v_mobile | default: 'inherit'
   assign text_align = content.content_align | default: 'center'
   assign position_h_mobile = content.content_position_h_mobile | default: 'inherit'
   assign text_align_mobile = content.content_align_mobile | default: 'inherit'
   assign content_max_width = content.content_max_width | default: 560
   assign content_gap = content.content_gap | default: 16
   assign content_inset = content.content_inset | default: 48
+  assign content_inset_mobile = content.content_inset_mobile | default: 24
   assign media_mode = content.media_mode | default: 'background'
   assign foreground_backdrop = content.foreground_backdrop | default: '#0d0d0d'
 
@@ -539,7 +554,9 @@
   assign dots_placement = content.dots_placement | default: 'center'
   assign dots_placement_mobile = content.dots_placement_mobile | default: 'inherit'
   assign dots_position_v = content.dots_position_v | default: 'bottom'
+  assign dots_position_v_mobile = content.dots_position_v_mobile | default: 'inherit'
   assign dots_inset = content.dots_inset | default: 16
+  assign dots_inset_mobile = content.dots_inset_mobile | default: 12
 
   assign card_aspect_ratio = content.card_aspect_ratio | default: '16/9'
   assign corner_radius = content.corner_radius | default: 0
@@ -736,6 +753,7 @@
 {%- assign root_class = root_class | append: ' sai-obeect95--head-' | append: section_align -%}
 {%- assign root_class = root_class | append: ' sai-obeect95--dots-' | append: dots_placement -%}
 {%- assign root_class = root_class | append: ' sai-obeect95--dotsv-' | append: dots_position_v -%}
+{%- if dots_position_v_mobile != 'inherit' -%}{%- assign root_class = root_class | append: ' sai-obeect95--dotsv-m-' | append: dots_position_v_mobile -%}{%- endif -%}
 {%- if dots_placement_mobile != 'inherit' -%}{%- assign root_class = root_class | append: ' sai-obeect95--dots-m-' | append: dots_placement_mobile -%}{%- endif -%}
 {%- if section_title_accent -%}{%- assign root_class = root_class | append: ' sai-obeect95--title-accent' -%}{%- endif -%}
 {%- unless hover_effect == 'none' -%}{%- assign root_class = root_class | append: ' sai-obeect95--hover-' | append: hover_effect -%}{%- endunless -%}
@@ -745,7 +763,7 @@
 {%- if content.hide_on_mobile -%}{%- assign root_class = root_class | append: ' sai-obeect95--hide-mobile' -%}{%- endif -%}
 {%- if content.hide_on_desktop -%}{%- assign root_class = root_class | append: ' sai-obeect95--hide-desktop' -%}{%- endif -%}
 
-{%- capture root_style -%}--sai-ob-radius: {{ corner_radius }}px; --sai-ob-content-gap: {{ content_gap }}px; --sai-ob-content-inset: {{ content_inset }}px; --sai-ob-dots-inset: {{ dots_inset }}px; --sai-ob-content-max: {% if content_max_width > 0 %}{{ content_max_width }}px{% else %}100%{% endif %}; --sai-ob-fg-backdrop: {{ foreground_backdrop }}; --sai-ob-badge-accent-color: {{ badge_accent_color }}; --sai-ob-badge-accent-thickness: {{ badge_accent_thickness }}px; --sai-ob-title-accent-color: {{ title_accent_color }}; --sai-ob-anim-duration: {{ anim_duration }}ms; --sai-ob-anim-delay: {{ anim_delay }}ms; --sai-ob-mh-m: {{ mh_m }}px; --sai-ob-mh-t: {{ mh_t }}px; --sai-ob-mh-d: {{ mh_d }}px;{%- if card_aspect_ratio != 'auto' %} --sai-ob-aspect: {{ card_aspect_ratio }};{% endif %}{%- endcapture -%}
+{%- capture root_style -%}--sai-ob-radius: {{ corner_radius }}px; --sai-ob-content-gap: {{ content_gap }}px; --sai-ob-content-inset-d: {{ content_inset }}px; --sai-ob-content-inset-m: {{ content_inset_mobile }}px; --sai-ob-dots-inset-d: {{ dots_inset }}px; --sai-ob-dots-inset-m: {{ dots_inset_mobile }}px; --sai-ob-content-max: {% if content_max_width > 0 %}{{ content_max_width }}px{% else %}100%{% endif %}; --sai-ob-fg-backdrop: {{ foreground_backdrop }}; --sai-ob-badge-accent-color: {{ badge_accent_color }}; --sai-ob-badge-accent-thickness: {{ badge_accent_thickness }}px; --sai-ob-title-accent-color: {{ title_accent_color }}; --sai-ob-anim-duration: {{ anim_duration }}ms; --sai-ob-anim-delay: {{ anim_delay }}ms; --sai-ob-mh-m: {{ mh_m }}px; --sai-ob-mh-t: {{ mh_t }}px; --sai-ob-mh-d: {{ mh_d }}px;{%- if card_aspect_ratio != 'auto' %} --sai-ob-aspect: {{ card_aspect_ratio }};{% endif %}{%- endcapture -%}
 
 {%- capture track_style -%}--sai-ob-vc-m: {{ vc_m }}; --sai-ob-vc-t: {{ vc_t }}; --sai-ob-vc-d: {{ vc_d }}; --sai-ob-gap: {{ card_gap }}px; --sai-ob-peek: {{ peek_css }};{%- endcapture -%}
 
@@ -781,6 +799,7 @@
             first: forloop.first,
             section_position_h: position_h,
             section_position_v: position_v,
+            position_v_mobile: position_v_mobile,
             section_text_align: text_align,
             position_h_mobile: position_h_mobile,
             text_align_mobile: text_align_mobile,
