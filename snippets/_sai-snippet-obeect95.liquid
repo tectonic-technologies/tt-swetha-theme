@@ -228,8 +228,11 @@
 .sai-obeect95__play:hover { transform: translate(-50%, -50%) scale(1.06); }
 .sai-obeect95__play:focus-visible { outline: 2px solid var(--sai-ob-fg); outline-offset: 4px; border-radius: 8px; }
 .sai-obeect95__play .sai-obeect95__ic {
-  width: 56px;
-  height: 56px;
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 78%;
+  height: 78%;
   max-width: none;
   fill: rgba(255, 255, 255, 0.22);
   stroke: rgba(255, 255, 255, 0.92);
@@ -418,7 +421,7 @@
    proportional and visible. Size by height + width:auto (the square SVG derives
    its width from its aspect ratio) — a percentage *width* on an SVG flex child
    collapses to 0 in some engines. */
-.sai-obeect95__arrow svg { width: 18px; height: 18px; max-width: none; }
+.sai-obeect95__arrow svg { position: absolute; inset: 0; margin: auto; width: 45%; height: 45%; max-width: none; }
 .sai-obeect95__dots { display: inline-flex; align-items: center; gap: 8px; padding: 0; margin: 0; list-style: none; }
 .sai-obeect95__dots > li { margin: 0; padding: 0; list-style: none; display: inline-flex; }
 .sai-obeect95__dots--bars { gap: 6px; }
@@ -461,6 +464,7 @@
 .sai-obeect95__bar:focus-visible { outline: 2px solid var(--sai-ob-fg); outline-offset: 2px; }
 /* Play / pause toggle (shown when autoplay is on) */
 .sai-obeect95__pause {
+  position: relative;
   flex: 0 0 auto;
   display: inline-grid;
   place-items: center;
@@ -476,7 +480,7 @@
 }
 .sai-obeect95__pause:hover { background: rgba(0, 0, 0, 0.5); }
 .sai-obeect95__pause:focus-visible { outline: 2px solid var(--sai-ob-fg); outline-offset: 2px; }
-.sai-obeect95__pause .sai-obeect95__ic { width: 16px; height: 16px; max-width: none; }
+.sai-obeect95__pause .sai-obeect95__ic { position: absolute; inset: 0; margin: auto; width: 50%; height: 50%; max-width: none; }
 .sai-obeect95__pause .sai-obeect95__ic--play { display: none; }
 .sai-obeect95--paused .sai-obeect95__pause .sai-obeect95__ic--pause { display: none; }
 .sai-obeect95--paused .sai-obeect95__pause .sai-obeect95__ic--play { display: block; }
