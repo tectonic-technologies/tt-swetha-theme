@@ -57,12 +57,15 @@
    (centered, with side gutters) so it lines up with the rest of the page; Full
    width (no modifier) runs edge-to-edge. */
 .sai-obeect95--width-contained,
-.sai-obeect95--width-boxed {
-  margin-inline: auto;
-  padding-inline: clamp(16px, 4vw, 48px);
-}
+.sai-obeect95--width-boxed { margin-inline: auto; }
 .sai-obeect95--width-contained { max-width: var(--page-width, 1280px); }
 .sai-obeect95--width-boxed { max-width: 1080px; }
+/* Side gutters only from tablet up — a mobile hero stays full-bleed (no
+   surprise side padding on small screens). */
+@media screen and (min-width: 768px) {
+  .sai-obeect95--width-contained,
+  .sai-obeect95--width-boxed { padding-inline: clamp(20px, 4vw, 48px); }
+}
 
 /* Header ─────────────────────────────────────────────── */
 .sai-obeect95__header { margin-bottom: var(--sai-size-6, 24px); }
