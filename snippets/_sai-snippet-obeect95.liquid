@@ -49,7 +49,9 @@
   width: 100%;
   color: var(--sai-color-fg);
   font-family: var(--sai-font-body, inherit);
-  padding-block: var(--sai-size-8, 32px);
+  /* No vertical padding by default — the carousel runs flush (full-bleed hero).
+     Merchants can add top/bottom padding via the Container style node (spacing). */
+  padding-block: 0;
 }
 
 /* Header ─────────────────────────────────────────────── */
