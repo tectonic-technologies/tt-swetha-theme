@@ -53,6 +53,16 @@
      Merchants can add top/bottom padding via the Container style node (spacing). */
   padding-block: 0;
 }
+/* Section width. Contained/Boxed keep the carousel inside the page content width
+   (centered, with side gutters) so it lines up with the rest of the page; Full
+   width (no modifier) runs edge-to-edge. */
+.sai-obeect95--width-contained,
+.sai-obeect95--width-boxed {
+  margin-inline: auto;
+  padding-inline: clamp(16px, 4vw, 48px);
+}
+.sai-obeect95--width-contained { max-width: var(--page-width, 1280px); }
+.sai-obeect95--width-boxed { max-width: 1080px; }
 
 /* Header ─────────────────────────────────────────────── */
 .sai-obeect95__header { margin-bottom: var(--sai-size-6, 24px); }
@@ -490,6 +500,7 @@
 {%- liquid
   assign content = variant.content
 
+  assign section_width = content.section_width | default: 'contained'
   assign section_title = content.section_title | default: ''
   assign section_description = content.section_description | default: ''
   assign section_align = content.section_align | default: 'center'
@@ -710,6 +721,7 @@
 
 {%- comment -%}── Root modifier classes ──{%- endcomment -%}
 {%- assign root_class = 'sai-obeect95' -%}
+{%- assign root_class = root_class | append: ' sai-obeect95--width-' | append: section_width -%}
 {%- assign root_class = root_class | append: ' sai-obeect95--head-' | append: section_align -%}
 {%- assign root_class = root_class | append: ' sai-obeect95--dots-' | append: dots_placement -%}
 {%- if dots_placement_mobile != 'inherit' -%}{%- assign root_class = root_class | append: ' sai-obeect95--dots-m-' | append: dots_placement_mobile -%}{%- endif -%}
