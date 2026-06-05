@@ -27,6 +27,7 @@
   @param {boolean} show_subtitle - section subtitle toggle (per-card hide = blank Subtitle)
   @param {boolean} show_description - section description toggle (per-card hide = blank Description)
   @param {boolean} show_cta - section CTA toggle (per-card hide = blank label/link)
+  @param {boolean} show_secondary_cta - section secondary-CTA toggle (per-card label/link)
   @param {string} badge_style - badge style (pill|tag|ribbon|corner)
   @param {boolean} badge_accent - badge accent-bar toggle
   @param {string} cta_style - cta style (filled|outlined|ghost|text)
@@ -67,6 +68,8 @@
   assign card_desc = card.description | default: ''
   assign cta_text = card.cta_text | default: ''
   assign cta_url = card.cta_url | default: ''
+  assign secondary_cta_text = card.secondary_cta_text | default: ''
+  assign secondary_cta_url = card.secondary_cta_url | default: ''
 
   assign has_content = false
   if show_badge and badge_text != blank
@@ -82,6 +85,9 @@
     assign has_content = true
   endif
   if show_cta and cta_text != blank and cta_url != blank
+    assign has_content = true
+  endif
+  if show_secondary_cta and secondary_cta_text != blank and secondary_cta_url != blank
     assign has_content = true
   endif
 
@@ -181,9 +187,21 @@
           {%- if show_description and card_desc != blank -%}
             <p class="sai-obeect95__desc">{{ card_desc | escape }}</p>
           {%- endif -%}
-          {%- if show_cta and cta_text != blank and cta_url != blank -%}
-            <a class="sai-obeect95__cta sai-obeect95__cta--{{ cta_style }} sai-obeect95__cta--{{ cta_radius }} sai-obeect95__cta--{{ cta_size }}"
-               href="{{ cta_url | escape }}" data-sai-cta="primary">{{ cta_text | escape }}</a>
+          {%- assign _show_primary = false -%}
+          {%- if show_cta and cta_text != blank and cta_url != blank -%}{%- assign _show_primary = true -%}{%- endif -%}
+          {%- assign _show_secondary = false -%}
+          {%- if show_secondary_cta and secondary_cta_text != blank and secondary_cta_url != blank -%}{%- assign _show_secondary = true -%}{%- endif -%}
+          {%- if _show_primary or _show_secondary -%}
+            <div class="sai-obeect95__ctas">
+              {%- if _show_primary -%}
+                <a class="sai-obeect95__cta sai-obeect95__cta--primary sai-obeect95__cta--{{ cta_style }} sai-obeect95__cta--{{ cta_radius }} sai-obeect95__cta--{{ cta_size }}"
+                   href="{{ cta_url | escape }}" data-sai-cta="primary">{{ cta_text | escape }}</a>
+              {%- endif -%}
+              {%- if _show_secondary -%}
+                <a class="sai-obeect95__cta sai-obeect95__cta--secondary sai-obeect95__cta--{{ cta_style }} sai-obeect95__cta--{{ cta_radius }} sai-obeect95__cta--{{ cta_size }}"
+                   href="{{ secondary_cta_url | escape }}" data-sai-cta="secondary">{{ secondary_cta_text | escape }}</a>
+              {%- endif -%}
+            </div>
           {%- endif -%}
         </div>
       </div>

@@ -314,13 +314,13 @@
 .sai-obeect95__desc { margin: 0; max-width: 52ch; font-size: 1rem; line-height: 1.55; color: var(--sai-ob-muted); }
 
 /* CTA */
+.sai-obeect95__ctas { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 4px; }
 .sai-obeect95__cta {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   width: fit-content;
-  margin-top: 4px;
   padding: 14px 26px;
   font-weight: 600;
   font-size: 0.9rem;
@@ -556,6 +556,11 @@
   else
     assign show_cta = content.show_cta
   endif
+  if content.show_secondary_cta == nil
+    assign show_secondary_cta = false
+  else
+    assign show_secondary_cta = content.show_secondary_cta
+  endif
   if content.show_badge == nil
     assign show_badge = false
   else
@@ -765,6 +770,7 @@
             show_subtitle: show_subtitle,
             show_description: show_description,
             show_cta: show_cta,
+            show_secondary_cta: show_secondary_cta,
             badge_style: badge_style,
             badge_accent: badge_accent,
             cta_style: cta_style,
@@ -776,8 +782,8 @@
         {%- endfor -%}
       </ul>
 
-      {%- comment -%} Arrows: vertically-centered overlays on the frame's left/right edges. {%- endcomment -%}
-      {%- if show_arrows -%}
+      {%- comment -%} Arrows: vertically-centered overlays on the frame's left/right edges. Hidden with a single card (nothing to navigate). {%- endcomment -%}
+      {%- if show_arrows and total_banners > 1 -%}
         <button type="button" class="sai-obeect95__arrow sai-obeect95__arrow--prev" aria-label="Previous banner" data-spectrum-arrow="prev">
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 6l-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
