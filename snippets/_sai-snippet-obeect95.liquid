@@ -516,6 +516,26 @@
   else
     assign section_title_accent = content.section_title_accent
   endif
+  if content.show_title == nil
+    assign show_title = true
+  else
+    assign show_title = content.show_title
+  endif
+  if content.show_subtitle == nil
+    assign show_subtitle = true
+  else
+    assign show_subtitle = content.show_subtitle
+  endif
+  if content.show_description == nil
+    assign show_description = true
+  else
+    assign show_description = content.show_description
+  endif
+  if content.show_cta == nil
+    assign show_cta = true
+  else
+    assign show_cta = content.show_cta
+  endif
   if content.show_badge == nil
     assign show_badge = false
   else
@@ -716,6 +736,10 @@
             overlay_gradient_enabled: overlay_gradient_enabled,
             overlay_direction: overlay_direction,
             show_badge: show_badge,
+            show_title: show_title,
+            show_subtitle: show_subtitle,
+            show_description: show_description,
+            show_cta: show_cta,
             badge_style: badge_style,
             badge_accent: badge_accent,
             cta_style: cta_style,

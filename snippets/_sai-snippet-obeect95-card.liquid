@@ -23,6 +23,10 @@
   @param {boolean} overlay_gradient_enabled - whether the overlay is a gradient
   @param {string} overlay_direction - gradient direction key
   @param {boolean} show_badge - section badge toggle
+  @param {boolean} show_title - section title toggle (per-card hide = blank Title)
+  @param {boolean} show_subtitle - section subtitle toggle (per-card hide = blank Subtitle)
+  @param {boolean} show_description - section description toggle (per-card hide = blank Description)
+  @param {boolean} show_cta - section CTA toggle (per-card hide = blank label/link)
   @param {string} badge_style - badge style (pill|tag|ribbon|corner)
   @param {boolean} badge_accent - badge accent-bar toggle
   @param {string} cta_style - cta style (filled|outlined|ghost|text)
@@ -64,7 +68,19 @@
   assign cta_url = card.cta_url | default: ''
 
   assign has_content = false
-  if badge_text != blank or card_title != blank or card_subtitle != blank or card_desc != blank or cta_text != blank
+  if show_badge and badge_text != blank
+    assign has_content = true
+  endif
+  if show_title and card_title != blank
+    assign has_content = true
+  endif
+  if show_subtitle and card_subtitle != blank
+    assign has_content = true
+  endif
+  if show_description and card_desc != blank
+    assign has_content = true
+  endif
+  if show_cta and cta_text != blank and cta_url != blank
     assign has_content = true
   endif
 
@@ -154,16 +170,16 @@
               <span>{{ badge_text | escape }}</span>
             </div>
           {%- endif -%}
-          {%- if card_title != blank -%}
+          {%- if show_title and card_title != blank -%}
             <h3 class="sai-obeect95__title">{{ card_title | escape }}</h3>
           {%- endif -%}
-          {%- if card_subtitle != blank -%}
+          {%- if show_subtitle and card_subtitle != blank -%}
             <p class="sai-obeect95__subtitle">{{ card_subtitle | escape }}</p>
           {%- endif -%}
-          {%- if card_desc != blank -%}
+          {%- if show_description and card_desc != blank -%}
             <p class="sai-obeect95__desc">{{ card_desc | escape }}</p>
           {%- endif -%}
-          {%- if cta_text != blank and cta_url != blank -%}
+          {%- if show_cta and cta_text != blank and cta_url != blank -%}
             <a class="sai-obeect95__cta sai-obeect95__cta--{{ cta_style }} sai-obeect95__cta--{{ cta_radius }} sai-obeect95__cta--{{ cta_size }}"
                href="{{ cta_url | escape }}" data-sai-cta="primary">{{ cta_text | escape }}</a>
           {%- endif -%}
