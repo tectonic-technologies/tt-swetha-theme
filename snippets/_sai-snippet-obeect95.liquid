@@ -215,6 +215,9 @@
   z-index: 2;
   display: flex;
   padding: clamp(20px, 4vw, 56px);
+  /* Extra bottom room so bottom-positioned content clears the overlaid
+     pagination/pause controls. */
+  padding-bottom: clamp(52px, 9vw, 84px);
   pointer-events: none;
 }
 .sai-obeect95__content {
@@ -329,12 +332,21 @@
 }
 
 /* Controls (arrows + dots) */
+/* Controls overlay along the frame's bottom edge (placement-configurable). */
 .sai-obeect95__controls {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: clamp(12px, 2.5vw, 24px);
+  z-index: 4;
   display: flex;
   align-items: center;
   gap: var(--sai-size-4, 12px);
-  margin-top: var(--sai-size-5, 16px);
+  padding-inline: clamp(16px, 4vw, 48px);
+  /* Empty bar area lets clicks reach the card; interactive children opt back in. */
+  pointer-events: none;
 }
+.sai-obeect95__controls > * { pointer-events: auto; }
 .sai-obeect95--dots-left .sai-obeect95__controls { justify-content: flex-start; }
 .sai-obeect95--dots-center .sai-obeect95__controls { justify-content: center; }
 .sai-obeect95--dots-right .sai-obeect95__controls { justify-content: flex-end; }
@@ -344,23 +356,30 @@
   .sai-obeect95--dots-m-right .sai-obeect95__controls { justify-content: flex-end; }
 }
 .sai-obeect95__arrow {
-  flex: 0 0 auto;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 4;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 40px;
   height: 40px;
-  border: 1px solid var(--sai-color-border, #e2e2e2);
+  border: 1px solid var(--sai-ob-scrim);
   border-radius: 999px;
-  background: var(--sai-color-bg, #fff);
-  color: var(--sai-color-fg, #111);
+  background: rgba(0, 0, 0, 0.32);
+  color: var(--sai-ob-fg);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  transition: background-color 0.12s ease, border-color 0.12s ease;
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  transition: background-color 0.15s ease;
 }
-.sai-obeect95__arrow:hover { background: var(--sai-color-bg-subtle, #f4f4f4); }
-.sai-obeect95__arrow:focus-visible { outline: 2px solid var(--sai-color-fg, #111); outline-offset: 2px; }
-.sai-obeect95__arrow[disabled] { opacity: 0.4; cursor: not-allowed; }
+.sai-obeect95__arrow--prev { left: clamp(8px, 2vw, 20px); }
+.sai-obeect95__arrow--next { right: clamp(8px, 2vw, 20px); }
+.sai-obeect95__arrow:hover { background: rgba(0, 0, 0, 0.5); }
+.sai-obeect95__arrow:focus-visible { outline: 2px solid var(--sai-ob-fg); outline-offset: 2px; }
+.sai-obeect95__arrow[disabled] { opacity: 0.35; cursor: not-allowed; }
 .sai-obeect95__arrow svg { width: 18px; height: 18px; }
 .sai-obeect95__dots { display: inline-flex; align-items: center; gap: 8px; padding: 0; margin: 0; list-style: none; }
 .sai-obeect95__dots > li { margin: 0; padding: 0; list-style: none; display: inline-flex; }
@@ -372,12 +391,12 @@
   padding: 0;
   border: none;
   border-radius: 999px;
-  background: var(--sai-color-border, #c9c9c9);
+  background: rgba(255, 255, 255, 0.5);
   cursor: pointer;
   transition: width 0.2s ease, background-color 0.2s ease;
 }
-.sai-obeect95__dot.is-active { width: 22px; background: var(--sai-ob-accent, var(--sai-color-primary, var(--sai-color-fg, #111))); }
-.sai-obeect95__dot:focus-visible { outline: 2px solid var(--sai-color-fg, #111); outline-offset: 2px; }
+.sai-obeect95__dot.is-active { width: 22px; background: var(--sai-ob-fg); }
+.sai-obeect95__dot:focus-visible { outline: 2px solid var(--sai-ob-fg); outline-offset: 2px; }
 /* Progress bars — empty track bg, fill bg, and radius are all per-instance
    styleable (Pagination track / Pagination fill style nodes). The fill width
    is driven by JS (transform: scaleX) from the autoplay timer. */
@@ -389,7 +408,7 @@
   padding: 0;
   border: none;
   border-radius: 999px;
-  background: var(--sai-color-border, #d8d8d8);
+  background: rgba(255, 255, 255, 0.32);
   cursor: pointer;
   overflow: hidden;
 }
@@ -399,24 +418,27 @@
   transform: scaleX(0);
   transform-origin: left center;
   border-radius: inherit;
-  background: var(--sai-ob-accent, var(--sai-color-primary, var(--sai-color-fg, #111)));
+  background: var(--sai-ob-fg);
 }
-.sai-obeect95__bar:focus-visible { outline: 2px solid var(--sai-color-fg, #111); outline-offset: 2px; }
+.sai-obeect95__bar:focus-visible { outline: 2px solid var(--sai-ob-fg); outline-offset: 2px; }
 /* Play / pause toggle (shown when autoplay is on) */
 .sai-obeect95__pause {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
-  border: 1px solid var(--sai-color-border, #e2e2e2);
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--sai-ob-scrim);
   border-radius: 999px;
-  background: var(--sai-color-bg, #fff);
-  color: var(--sai-color-fg, #111);
+  background: rgba(0, 0, 0, 0.32);
+  color: var(--sai-ob-fg);
   cursor: pointer;
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
 }
-.sai-obeect95__pause:focus-visible { outline: 2px solid var(--sai-color-fg, #111); outline-offset: 2px; }
+.sai-obeect95__pause:hover { background: rgba(0, 0, 0, 0.5); }
+.sai-obeect95__pause:focus-visible { outline: 2px solid var(--sai-ob-fg); outline-offset: 2px; }
 .sai-obeect95__ic { width: 16px; height: 16px; }
 .sai-obeect95__ic--play { display: none; }
 .sai-obeect95--paused .sai-obeect95__ic--pause { display: none; }
@@ -701,47 +723,48 @@
             show_video_controls: show_video_controls %}
         {%- endfor -%}
       </ul>
-    </div>
 
-    {%- if show_arrows or show_dots or pause_visible -%}
-      <div class="sai-obeect95__controls">
-        {%- if show_arrows -%}
-          <button type="button" class="sai-obeect95__arrow sai-obeect95__arrow--prev" aria-label="Previous banner" data-spectrum-arrow="prev">
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 6l-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </button>
-        {%- endif -%}
-        {%- if show_dots -%}
-          <ul class="sai-obeect95__dots sai-obeect95__dots--{{ pagination_style }}" role="tablist" aria-label="Choose banner">
-            {%- for _card in banners -%}
-              <li role="presentation">
-                {%- if pagination_style == 'bars' -%}
-                  <button type="button" class="sai-obeect95__bar{% if forloop.first %} is-active{% endif %}" role="tab"
-                          aria-label="Go to banner {{ forloop.index }}"
-                          aria-selected="{% if forloop.first %}true{% else %}false{% endif %}"
-                          data-spectrum-dot="{{ forloop.index0 }}"><span class="sai-obeect95__bar-fill"></span></button>
-                {%- else -%}
-                  <button type="button" class="sai-obeect95__dot{% if forloop.first %} is-active{% endif %}" role="tab"
-                          aria-label="Go to banner {{ forloop.index }}"
-                          aria-selected="{% if forloop.first %}true{% else %}false{% endif %}"
-                          data-spectrum-dot="{{ forloop.index0 }}"></button>
-                {%- endif -%}
-              </li>
-            {%- endfor -%}
-          </ul>
-        {%- endif -%}
-        {%- if show_arrows -%}
-          <button type="button" class="sai-obeect95__arrow sai-obeect95__arrow--next" aria-label="Next banner" data-spectrum-arrow="next">
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </button>
-        {%- endif -%}
-        {%- if pause_visible -%}
-          <button type="button" class="sai-obeect95__pause" aria-label="Pause autoplay" data-spectrum-pause>
-            <svg class="sai-obeect95__ic sai-obeect95__ic--pause" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>
-            <svg class="sai-obeect95__ic sai-obeect95__ic--play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
-          </button>
-        {%- endif -%}
-      </div>
-    {%- endif -%}
+      {%- comment -%} Arrows: vertically-centered overlays on the frame's left/right edges. {%- endcomment -%}
+      {%- if show_arrows -%}
+        <button type="button" class="sai-obeect95__arrow sai-obeect95__arrow--prev" aria-label="Previous banner" data-spectrum-arrow="prev">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 6l-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button type="button" class="sai-obeect95__arrow sai-obeect95__arrow--next" aria-label="Next banner" data-spectrum-arrow="next">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      {%- endif -%}
+
+      {%- comment -%} Pagination + pause: overlaid along the frame's bottom edge, placement-configurable. {%- endcomment -%}
+      {%- if show_dots or pause_visible -%}
+        <div class="sai-obeect95__controls">
+          {%- if show_dots -%}
+            <ul class="sai-obeect95__dots sai-obeect95__dots--{{ pagination_style }}" role="tablist" aria-label="Choose banner">
+              {%- for _card in banners -%}
+                <li role="presentation">
+                  {%- if pagination_style == 'bars' -%}
+                    <button type="button" class="sai-obeect95__bar{% if forloop.first %} is-active{% endif %}" role="tab"
+                            aria-label="Go to banner {{ forloop.index }}"
+                            aria-selected="{% if forloop.first %}true{% else %}false{% endif %}"
+                            data-spectrum-dot="{{ forloop.index0 }}"><span class="sai-obeect95__bar-fill"></span></button>
+                  {%- else -%}
+                    <button type="button" class="sai-obeect95__dot{% if forloop.first %} is-active{% endif %}" role="tab"
+                            aria-label="Go to banner {{ forloop.index }}"
+                            aria-selected="{% if forloop.first %}true{% else %}false{% endif %}"
+                            data-spectrum-dot="{{ forloop.index0 }}"></button>
+                  {%- endif -%}
+                </li>
+              {%- endfor -%}
+            </ul>
+          {%- endif -%}
+          {%- if pause_visible -%}
+            <button type="button" class="sai-obeect95__pause" aria-label="Pause autoplay" data-spectrum-pause>
+              <svg class="sai-obeect95__ic sai-obeect95__ic--pause" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>
+              <svg class="sai-obeect95__ic sai-obeect95__ic--play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+            </button>
+          {%- endif -%}
+        </div>
+      {%- endif -%}
+    </div>
   {%- endif -%}
 
 </div>
