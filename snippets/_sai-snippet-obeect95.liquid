@@ -1,0 +1,749 @@
+{%- doc -%}
+  Banner Lists - Carousel — a horizontally-scrollable row of full-bleed banner
+  cards. Each card is an image or video background with an overlaid content
+  block (badge, title, subtitle, description, CTA). Configurable visible-cards
+  + peek per breakpoint, content position + text alignment over the media
+  (separate mobile/desktop), arrows, pagination dots, autoplay, and loop.
+
+  @param {string} mutation_handle - Mutation handle for DOM scoping (infrastructure)
+  @param {string} experience_handle - Experience handle for attribution (infrastructure)
+  @param {object} variant - Resolved snippet-instance variant; values live on `variant.content`
+  @param {object} mo - spectrum_snippet_instance metaobject drop (present for wrapper parity)
+
+  Content comes from `variant.content` like every other library snippet. The
+  cards live in the `banners` inline-list; each item's `image` is a Files-picker
+  snapshot read as `item.image.originalUrl` (no `{kind,refId}` pool resolution).
+  Per-element visual styling is authored in the Studio Styling panel via the
+  `style.nodes` declared in meta.json.
+
+  @example
+  {% render '_sai-snippet-obeect95', variant: variant, mo: mo, mutation_handle: 'mut-abcd1234', experience_handle: 'summer' %}
+{%- enddoc -%}
+
+{%- comment -%}
+  Institutional knowledge:
+  - Card content renders light over an overlaid media layer regardless of theme
+    palette; the over-media foreground/muted are fixed light values so contrast
+    holds over arbitrary merchant imagery. The section header (above the
+    carousel) uses theme text colours.
+  - Card width is pure CSS math: each card's flex-basis is
+    (100% - (visible-1)*gap - peek) / visible, where `visible` swaps per
+    breakpoint via the --sai-ob-vc custom property (mobile base, 768px tablet,
+    1440px desktop). `peek` is the slice of the next card left visible.
+  - The carousel breakpoints (768/1440) drive the visible-card math so the
+    responsive-number tablet slot is meaningful; the content/dots mobile
+    placement override uses 1024/1025 (one regime: tablet = mobile) to match
+    the rest of the hero family. Don't unify them.
+  - Per-card content position / text alignment / media mode / overlay opacity
+    are resolved in the card child from the section default + an optional
+    per-card text override (blank inherits). inline-list items can't carry
+    enum/number fields, so the overrides are validated text.
+{%- endcomment -%}
+
+{% stylesheet %}
+.sai-obeect95 {
+  --sai-ob-fg: #ffffff;
+  --sai-ob-muted: rgba(255, 255, 255, 0.82);
+  --sai-ob-scrim: rgba(255, 255, 255, 0.16);
+  display: block;
+  width: 100%;
+  color: var(--sai-color-fg);
+  font-family: var(--sai-font-body, inherit);
+  padding-block: var(--sai-size-8, 32px);
+}
+
+/* Header ─────────────────────────────────────────────── */
+.sai-obeect95__header { margin-bottom: var(--sai-size-6, 24px); }
+.sai-obeect95--head-left .sai-obeect95__header { text-align: left; }
+.sai-obeect95--head-center .sai-obeect95__header { text-align: center; }
+.sai-obeect95--head-right .sai-obeect95__header { text-align: right; }
+.sai-obeect95__eyebrow {
+  display: block;
+  margin: 0 0 var(--sai-size-3, 8px);
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--sai-ob-accent, var(--sai-color-primary, currentColor));
+}
+.sai-obeect95__eyebrow-text { display: inline-block; }
+/* Section-title accent: mobile underline, desktop vertical bar (≥1025px). */
+.sai-obeect95--title-accent .sai-obeect95__eyebrow-text {
+  padding-bottom: var(--sai-size-2, 4px);
+  border-bottom: var(--sai-ob-title-accent-thickness, 3px) solid var(--sai-ob-title-accent-color, currentColor);
+}
+@media screen and (min-width: 1025px) {
+  .sai-obeect95--title-accent .sai-obeect95__eyebrow-text {
+    position: relative;
+    padding-bottom: 0;
+    padding-left: var(--sai-size-4, 12px);
+    border-bottom: none;
+  }
+  .sai-obeect95--title-accent .sai-obeect95__eyebrow-text::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.15em;
+    bottom: 0.15em;
+    width: var(--sai-ob-title-accent-thickness, 3px);
+    border-radius: 999px;
+    background: var(--sai-ob-title-accent-color, currentColor);
+  }
+}
+.sai-obeect95__heading {
+  margin: 0;
+  font-family: var(--sai-font-heading, inherit);
+  font-weight: 700;
+  font-size: clamp(1.25rem, 2.5vw, 2rem);
+  line-height: 1.25;
+  color: var(--sai-color-fg);
+}
+
+/* Track ──────────────────────────────────────────────── */
+.sai-obeect95__frame { position: relative; width: 100%; }
+.sai-obeect95__track {
+  --sai-ob-vc: var(--sai-ob-vc-m, 1);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: var(--sai-ob-gap, 0px);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.sai-obeect95__track::-webkit-scrollbar { display: none; }
+.sai-obeect95--no-snap .sai-obeect95__track { scroll-snap-type: none; }
+.sai-obeect95__track > li {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  /* Card width: (100% − between-card gaps − peek slice) / visible cards.
+     `--sai-ob-vc` swaps per breakpoint below; one calc covers all three. */
+  flex: 0 0 calc((100% - (var(--sai-ob-vc, 1) - 1) * var(--sai-ob-gap, 0px) - var(--sai-ob-peek, 0px)) / var(--sai-ob-vc, 1));
+  scroll-snap-align: center;
+}
+@media screen and (min-width: 768px) {
+  .sai-obeect95__track { --sai-ob-vc: var(--sai-ob-vc-t, 1); }
+}
+@media screen and (min-width: 1440px) {
+  .sai-obeect95__track { --sai-ob-vc: var(--sai-ob-vc-d, 1); }
+}
+
+/* Card ───────────────────────────────────────────────── */
+.sai-obeect95__card {
+  position: relative;
+  display: block;
+  width: 100%;
+  border-radius: var(--sai-ob-radius, 0px);
+  overflow: hidden;
+  color: var(--sai-ob-fg);
+  text-decoration: none;
+  background: var(--sai-color-bg-subtle, #0d0d0d);
+  isolation: isolate;
+  box-shadow: var(--sai-ob-card-shadow, none);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+.sai-obeect95--has-aspect .sai-obeect95__card { aspect-ratio: var(--sai-ob-aspect); }
+.sai-obeect95:not(.sai-obeect95--has-aspect) .sai-obeect95__card { min-height: var(--sai-ob-mh-m, 420px); }
+@media screen and (min-width: 768px) {
+  .sai-obeect95:not(.sai-obeect95--has-aspect) .sai-obeect95__card { min-height: var(--sai-ob-mh-t, 520px); }
+}
+@media screen and (min-width: 1440px) {
+  .sai-obeect95:not(.sai-obeect95--has-aspect) .sai-obeect95__card { min-height: var(--sai-ob-mh-d, 600px); }
+}
+.sai-obeect95__card:focus-visible { outline: 2px solid var(--sai-ob-fg); outline-offset: 2px; }
+
+/* Card shadow presets */
+.sai-obeect95__card--shadow-sm { box-shadow: 0 1px 3px rgba(0,0,0,0.18); }
+.sai-obeect95__card--shadow-md { box-shadow: 0 4px 12px rgba(0,0,0,0.22); }
+.sai-obeect95__card--shadow-lg { box-shadow: 0 10px 28px rgba(0,0,0,0.26); }
+.sai-obeect95__card--shadow-xl { box-shadow: 0 20px 48px rgba(0,0,0,0.3); }
+
+/* Media */
+.sai-obeect95__media {
+  position: absolute;
+  inset: 0;
+  /* `!important` so the media fills the card even under themes that force
+     `img { height: auto !important }`. A class selector with !important (0,1,0)
+     outranks the theme's element-level img !important (0,0,1). */
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover;
+  display: block;
+  z-index: 0;
+  transition: transform 0.4s ease;
+}
+/* Foreground mode: contained, centered media on a solid backdrop. */
+.sai-obeect95__card--foreground { background: var(--sai-ob-fg-backdrop, #0d0d0d); }
+.sai-obeect95__card--foreground .sai-obeect95__media { object-fit: contain; }
+
+.sai-obeect95__overlay { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+
+/* Play button (video cards, custom controls off) */
+.sai-obeect95__play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  border: 1px solid var(--sai-ob-scrim);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.32);
+  color: var(--sai-ob-fg);
+  cursor: pointer;
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.sai-obeect95__play:hover { transform: translate(-50%, -50%) scale(1.06); }
+.sai-obeect95__play:focus-visible { outline: 2px solid var(--sai-ob-fg); outline-offset: 2px; }
+.sai-obeect95__play svg { width: 26px; height: 26px; margin-left: 3px; }
+.sai-obeect95__play.is-hidden { opacity: 0; pointer-events: none; }
+
+/* Content block over the media */
+.sai-obeect95__content-wrap {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  padding: clamp(20px, 4vw, 56px);
+  pointer-events: none;
+}
+.sai-obeect95__content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sai-ob-content-gap, 16px);
+  max-width: var(--sai-ob-content-max, 560px);
+  pointer-events: auto;
+}
+/* Horizontal placement of the content block */
+.sai-obeect95__card--ph-left .sai-obeect95__content-wrap { justify-content: flex-start; }
+.sai-obeect95__card--ph-center .sai-obeect95__content-wrap { justify-content: center; }
+.sai-obeect95__card--ph-right .sai-obeect95__content-wrap { justify-content: flex-end; }
+/* Vertical placement */
+.sai-obeect95__card--pv-top .sai-obeect95__content-wrap { align-items: flex-start; }
+.sai-obeect95__card--pv-middle .sai-obeect95__content-wrap { align-items: center; }
+.sai-obeect95__card--pv-bottom .sai-obeect95__content-wrap { align-items: flex-end; }
+/* Text alignment within the block */
+.sai-obeect95__card--ta-left .sai-obeect95__content { text-align: left; align-items: flex-start; }
+.sai-obeect95__card--ta-center .sai-obeect95__content { text-align: center; align-items: center; }
+.sai-obeect95__card--ta-right .sai-obeect95__content { text-align: right; align-items: flex-end; }
+
+/* Mobile placement override (≤1024px). Placed after the base rules so the
+   same-specificity mobile rule wins below 1025px; above it the base holds. */
+@media screen and (max-width: 1024px) {
+  .sai-obeect95__card--ph-m-left .sai-obeect95__content-wrap { justify-content: flex-start; }
+  .sai-obeect95__card--ph-m-center .sai-obeect95__content-wrap { justify-content: center; }
+  .sai-obeect95__card--ph-m-right .sai-obeect95__content-wrap { justify-content: flex-end; }
+  .sai-obeect95__card--ta-m-left .sai-obeect95__content { text-align: left; align-items: flex-start; }
+  .sai-obeect95__card--ta-m-center .sai-obeect95__content { text-align: center; align-items: center; }
+  .sai-obeect95__card--ta-m-right .sai-obeect95__content { text-align: right; align-items: flex-end; }
+}
+
+/* Badge */
+.sai-obeect95__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 8px 14px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--sai-ob-fg);
+  background: transparent;
+  border: none;
+  border-radius: 999px;
+}
+.sai-obeect95__badge--tag,
+.sai-obeect95__badge--ribbon,
+.sai-obeect95__badge--corner { border-radius: 4px; }
+/* Accent bar: mobile underline (below text), desktop vertical bar (left). */
+.sai-obeect95__badge--accent { flex-direction: column; align-items: flex-start; gap: 10px; }
+.sai-obeect95__badge--accent::before {
+  content: "";
+  flex: none;
+  order: 1;
+  width: 100%;
+  height: var(--sai-ob-badge-accent-thickness, 4px);
+  border-radius: 999px;
+  background: var(--sai-ob-badge-accent-color, #ff3b20);
+}
+@media screen and (min-width: 1025px) {
+  .sai-obeect95__badge--accent { flex-direction: row; align-items: center; }
+  .sai-obeect95__badge--accent::before { order: -1; width: var(--sai-ob-badge-accent-thickness, 4px); height: 1.4em; }
+}
+
+.sai-obeect95__title { margin: 0; font-family: var(--sai-font-heading, inherit); font-weight: 700; font-size: clamp(1.6rem, 4vw, 3rem); line-height: 1.05; letter-spacing: -0.01em; }
+.sai-obeect95__subtitle { margin: 0; font-size: 0.95rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--sai-ob-muted); }
+.sai-obeect95__desc { margin: 0; max-width: 52ch; font-size: 1rem; line-height: 1.55; color: var(--sai-ob-muted); }
+
+/* CTA */
+.sai-obeect95__cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: fit-content;
+  margin-top: 4px;
+  padding: 14px 26px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+  cursor: pointer;
+  color: #111111;
+  background: var(--sai-ob-fg);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  transition: transform 0.14s ease, opacity 0.15s ease;
+}
+.sai-obeect95__cta:hover { opacity: 0.96; transform: translateY(-2px); }
+.sai-obeect95__cta:active { transform: scale(0.96); }
+.sai-obeect95__cta:focus-visible { outline: 2px solid var(--sai-ob-fg); outline-offset: 2px; }
+.sai-obeect95__cta--filled { background: var(--sai-ob-fg); color: #111111; }
+.sai-obeect95__cta--outlined { background: transparent; color: var(--sai-ob-fg); border-color: var(--sai-ob-scrim); }
+.sai-obeect95__cta--ghost { background: rgba(255, 255, 255, 0.14); color: var(--sai-ob-fg); }
+.sai-obeect95__cta--text { background: transparent; color: var(--sai-ob-fg); padding-inline: 4px; border: 0; text-decoration: underline; }
+.sai-obeect95__cta--square { border-radius: 4px; }
+.sai-obeect95__cta--rounded { border-radius: 10px; }
+.sai-obeect95__cta--pill { border-radius: 999px; }
+.sai-obeect95__cta--small { padding: 10px 18px; font-size: 0.8rem; }
+.sai-obeect95__cta--large { padding: 18px 34px; font-size: 1rem; }
+
+/* Hover effects (desktop pointer only) */
+@media (hover: hover) {
+  .sai-obeect95--hover-zoom .sai-obeect95__card:hover .sai-obeect95__media { transform: scale(1.05); }
+  .sai-obeect95--hover-lift .sai-obeect95__card:hover { transform: translateY(-6px); box-shadow: 0 18px 40px rgba(0,0,0,0.28); }
+  .sai-obeect95--hover-darken .sai-obeect95__card:hover .sai-obeect95__overlay { opacity: 0.55; }
+}
+
+/* Controls (arrows + dots) */
+.sai-obeect95__controls {
+  display: flex;
+  align-items: center;
+  gap: var(--sai-size-4, 12px);
+  margin-top: var(--sai-size-5, 16px);
+}
+.sai-obeect95--dots-left .sai-obeect95__controls { justify-content: flex-start; }
+.sai-obeect95--dots-center .sai-obeect95__controls { justify-content: center; }
+.sai-obeect95--dots-right .sai-obeect95__controls { justify-content: flex-end; }
+@media screen and (max-width: 1024px) {
+  .sai-obeect95--dots-m-left .sai-obeect95__controls { justify-content: flex-start; }
+  .sai-obeect95--dots-m-center .sai-obeect95__controls { justify-content: center; }
+  .sai-obeect95--dots-m-right .sai-obeect95__controls { justify-content: flex-end; }
+}
+.sai-obeect95__arrow {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--sai-color-border, #e2e2e2);
+  border-radius: 999px;
+  background: var(--sai-color-bg, #fff);
+  color: var(--sai-color-fg, #111);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+.sai-obeect95__arrow:hover { background: var(--sai-color-bg-subtle, #f4f4f4); }
+.sai-obeect95__arrow:focus-visible { outline: 2px solid var(--sai-color-fg, #111); outline-offset: 2px; }
+.sai-obeect95__arrow[disabled] { opacity: 0.4; cursor: not-allowed; }
+.sai-obeect95__arrow svg { width: 18px; height: 18px; }
+.sai-obeect95__dots { display: inline-flex; align-items: center; gap: 8px; padding: 0; margin: 0; list-style: none; }
+.sai-obeect95__dots > li { margin: 0; padding: 0; list-style: none; display: inline-flex; }
+.sai-obeect95__dots--bars { gap: 6px; }
+/* Dots */
+.sai-obeect95__dot {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: var(--sai-color-border, #c9c9c9);
+  cursor: pointer;
+  transition: width 0.2s ease, background-color 0.2s ease;
+}
+.sai-obeect95__dot.is-active { width: 22px; background: var(--sai-ob-accent, var(--sai-color-primary, var(--sai-color-fg, #111))); }
+.sai-obeect95__dot:focus-visible { outline: 2px solid var(--sai-color-fg, #111); outline-offset: 2px; }
+/* Progress bars — empty track bg, fill bg, and radius are all per-instance
+   styleable (Pagination track / Pagination fill style nodes). The fill width
+   is driven by JS (transform: scaleX) from the autoplay timer. */
+.sai-obeect95__bar {
+  position: relative;
+  width: 48px;
+  max-width: 14vw;
+  height: 4px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: var(--sai-color-border, #d8d8d8);
+  cursor: pointer;
+  overflow: hidden;
+}
+.sai-obeect95__bar-fill {
+  position: absolute;
+  inset: 0;
+  transform: scaleX(0);
+  transform-origin: left center;
+  border-radius: inherit;
+  background: var(--sai-ob-accent, var(--sai-color-primary, var(--sai-color-fg, #111)));
+}
+.sai-obeect95__bar:focus-visible { outline: 2px solid var(--sai-color-fg, #111); outline-offset: 2px; }
+/* Play / pause toggle (shown when autoplay is on) */
+.sai-obeect95__pause {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--sai-color-border, #e2e2e2);
+  border-radius: 999px;
+  background: var(--sai-color-bg, #fff);
+  color: var(--sai-color-fg, #111);
+  cursor: pointer;
+}
+.sai-obeect95__pause:focus-visible { outline: 2px solid var(--sai-color-fg, #111); outline-offset: 2px; }
+.sai-obeect95__ic { width: 16px; height: 16px; }
+.sai-obeect95__ic--play { display: none; }
+.sai-obeect95--paused .sai-obeect95__ic--pause { display: none; }
+.sai-obeect95--paused .sai-obeect95__ic--play { display: block; }
+
+/* Entrance animation — opacity (fade) / opacity + scale (zoom) */
+.sai-obeect95__track { transition: opacity var(--sai-ob-anim-duration, 600ms) ease var(--sai-ob-anim-delay, 0ms), transform var(--sai-ob-anim-duration, 600ms) ease var(--sai-ob-anim-delay, 0ms); }
+.sai-obeect95--js.sai-obeect95--anim-fade:not(.is-in) .sai-obeect95__track { opacity: 0; }
+.sai-obeect95--js.sai-obeect95--anim-zoom:not(.is-in) .sai-obeect95__track { opacity: 0; transform: scale(0.97); }
+
+@media screen and (max-width: 1024px) {
+  .sai-obeect95--hide-mobile { display: none; }
+}
+@media screen and (min-width: 1025px) {
+  .sai-obeect95--hide-desktop { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sai-obeect95__track { transition: none; opacity: 1; transform: none; }
+  .sai-obeect95__cta,
+  .sai-obeect95__media,
+  .sai-obeect95__card { transition: none; }
+}
+{% endstylesheet %}
+
+{%- liquid
+  assign content = variant.content
+
+  assign section_title = content.section_title | default: ''
+  assign section_description = content.section_description | default: ''
+  assign section_align = content.section_align | default: 'center'
+
+  assign position_h = content.content_position_h | default: 'center'
+  assign position_v = content.content_position_v | default: 'bottom'
+  assign text_align = content.content_align | default: 'center'
+  assign position_h_mobile = content.content_position_h_mobile | default: 'inherit'
+  assign text_align_mobile = content.content_align_mobile | default: 'inherit'
+  assign content_max_width = content.content_max_width | default: 560
+  assign content_gap = content.content_gap | default: 16
+  assign media_mode = content.media_mode | default: 'background'
+  assign foreground_backdrop = content.foreground_backdrop | default: '#0d0d0d'
+
+  assign badge_style = content.badge_style | default: 'pill'
+  assign badge_accent_color = content.badge_accent_color | default: '#FF3B20'
+  assign badge_accent_thickness = content.badge_accent_thickness | default: 4
+  assign cta_style = content.cta_style | default: 'filled'
+  assign cta_radius = content.cta_radius | default: 'pill'
+  assign cta_size = content.cta_size | default: 'medium'
+
+  assign overlay_color = content.overlay_color | default: '#000000'
+  assign overlay_opacity = content.overlay_opacity | default: 40
+  assign overlay_direction = content.overlay_gradient_direction | default: 'bottom-top'
+
+  assign pagination_style = content.pagination_style | default: 'bars'
+  assign dots_placement = content.dots_placement | default: 'center'
+  assign dots_placement_mobile = content.dots_placement_mobile | default: 'inherit'
+
+  assign card_aspect_ratio = content.card_aspect_ratio | default: '16/9'
+  assign corner_radius = content.corner_radius | default: 0
+  assign card_shadow = content.card_shadow | default: 'none'
+  assign hover_effect = content.hover_effect | default: 'none'
+
+  assign entrance = content.entrance_animation | default: 'fade'
+  assign anim_duration = content.animation_duration | default: 600
+  assign anim_delay = content.animation_delay | default: 0
+
+  assign title_accent_color = content.section_title_accent_color | default: '#FF3B20'
+
+  comment
+    Booleans via == nil (the default filter would clobber an explicit false).
+  endcomment
+  if content.section_title_accent == nil
+    assign section_title_accent = false
+  else
+    assign section_title_accent = content.section_title_accent
+  endif
+  if content.show_badge == nil
+    assign show_badge = false
+  else
+    assign show_badge = content.show_badge
+  endif
+  if content.badge_accent == nil
+    assign badge_accent = false
+  else
+    assign badge_accent = content.badge_accent
+  endif
+  if content.overlay_enabled == nil
+    assign overlay_enabled = true
+  else
+    assign overlay_enabled = content.overlay_enabled
+  endif
+  if content.overlay_gradient_enabled == nil
+    assign overlay_gradient_enabled = true
+  else
+    assign overlay_gradient_enabled = content.overlay_gradient_enabled
+  endif
+  if content.peek_enabled == nil
+    assign peek_enabled = false
+  else
+    assign peek_enabled = content.peek_enabled
+  endif
+  if content.show_arrows == nil
+    assign show_arrows = true
+  else
+    assign show_arrows = content.show_arrows
+  endif
+  if content.show_dots == nil
+    assign show_dots = true
+  else
+    assign show_dots = content.show_dots
+  endif
+  if content.autoplay == nil
+    assign autoplay = false
+  else
+    assign autoplay = content.autoplay
+  endif
+  if content.show_pause == nil
+    assign show_pause = true
+  else
+    assign show_pause = content.show_pause
+  endif
+  assign pause_visible = false
+  if autoplay and show_pause
+    assign pause_visible = true
+  endif
+  if content.loop == nil
+    assign loop = true
+  else
+    assign loop = content.loop
+  endif
+  if content.scroll_snap == nil
+    assign scroll_snap = true
+  else
+    assign scroll_snap = content.scroll_snap
+  endif
+  if content.show_video_controls == nil
+    assign show_video_controls = false
+  else
+    assign show_video_controls = content.show_video_controls
+  endif
+
+  comment
+    Visible cards per breakpoint — cascade mobile -> tablet -> desktop, clamped per range.
+  endcomment
+  assign vc = content.visible_cards
+  assign vc_m = vc.mobile | default: 1
+  if vc_m < 1
+    assign vc_m = 1
+  endif
+  if vc_m > 2
+    assign vc_m = 2
+  endif
+  assign vc_t = vc.tablet | default: vc_m
+  if vc_t < 1
+    assign vc_t = 1
+  endif
+  if vc_t > 3
+    assign vc_t = 3
+  endif
+  assign vc_d = vc.desktop | default: vc_t
+  if vc_d < 1
+    assign vc_d = 1
+  endif
+  if vc_d > 5
+    assign vc_d = 5
+  endif
+
+  assign mh = content.card_min_height
+  assign mh_m = mh.mobile | default: 420
+  assign mh_t = mh.tablet | default: 520
+  assign mh_d = mh.desktop | default: 600
+
+  assign card_gap = content.card_gap | default: 0
+  assign peek_width = content.peek_width | default: 24
+  if peek_enabled
+    assign peek_css = peek_width | append: 'px'
+  else
+    assign peek_css = '0px'
+  endif
+
+  assign autoplay_ms = content.autoplay_ms | default: 5000
+  if autoplay_ms < 2000
+    assign autoplay_ms = 2000
+  endif
+  if autoplay_ms > 15000
+    assign autoplay_ms = 15000
+  endif
+
+  assign banners = content.banners
+  if banners == nil
+    assign banners = '' | split: ','
+  endif
+  assign total_banners = banners.size
+
+  comment
+    Card shadow preset -> box-shadow class suffix; none stays unset.
+  endcomment
+  assign shadow_class = ''
+  unless card_shadow == 'none'
+    assign shadow_class = ' sai-obeect95__card--shadow-' | append: card_shadow
+  endunless
+-%}
+
+{%- comment -%}── Overlay background value (Liquid-interpolated, fail-safe) ──{%- endcomment -%}
+{%- assign _ov = 'color-mix(in srgb, ' | append: overlay_color | append: ' ' | append: overlay_opacity | append: '%, transparent)' -%}
+{%- if overlay_gradient_enabled -%}
+  {%- case overlay_direction -%}
+    {%- when 'top-bottom' -%}{%- assign overlay_bg = 'linear-gradient(180deg, ' | append: _ov | append: ', transparent)' -%}
+    {%- when 'bottom-top' -%}{%- assign overlay_bg = 'linear-gradient(0deg, ' | append: _ov | append: ', transparent)' -%}
+    {%- when 'radial' -%}{%- assign overlay_bg = 'radial-gradient(circle at 30% 50%, transparent, ' | append: _ov | append: ')' -%}
+    {%- else -%}{%- assign overlay_bg = 'linear-gradient(90deg, ' | append: _ov | append: ', transparent)' -%}
+  {%- endcase -%}
+{%- else -%}
+  {%- assign overlay_bg = _ov -%}
+{%- endif -%}
+
+{%- comment -%}── Root modifier classes ──{%- endcomment -%}
+{%- assign root_class = 'sai-obeect95' -%}
+{%- assign root_class = root_class | append: ' sai-obeect95--head-' | append: section_align -%}
+{%- assign root_class = root_class | append: ' sai-obeect95--dots-' | append: dots_placement -%}
+{%- if dots_placement_mobile != 'inherit' -%}{%- assign root_class = root_class | append: ' sai-obeect95--dots-m-' | append: dots_placement_mobile -%}{%- endif -%}
+{%- if section_title_accent -%}{%- assign root_class = root_class | append: ' sai-obeect95--title-accent' -%}{%- endif -%}
+{%- unless hover_effect == 'none' -%}{%- assign root_class = root_class | append: ' sai-obeect95--hover-' | append: hover_effect -%}{%- endunless -%}
+{%- if entrance == 'fade' or entrance == 'zoom' -%}{%- assign root_class = root_class | append: ' sai-obeect95--anim-' | append: entrance -%}{%- endif -%}
+{%- unless scroll_snap -%}{%- assign root_class = root_class | append: ' sai-obeect95--no-snap' -%}{%- endunless -%}
+{%- if card_aspect_ratio != 'auto' -%}{%- assign root_class = root_class | append: ' sai-obeect95--has-aspect' -%}{%- endif -%}
+{%- if content.hide_on_mobile -%}{%- assign root_class = root_class | append: ' sai-obeect95--hide-mobile' -%}{%- endif -%}
+{%- if content.hide_on_desktop -%}{%- assign root_class = root_class | append: ' sai-obeect95--hide-desktop' -%}{%- endif -%}
+
+{%- capture root_style -%}--sai-ob-radius: {{ corner_radius }}px; --sai-ob-content-gap: {{ content_gap }}px; --sai-ob-content-max: {% if content_max_width > 0 %}{{ content_max_width }}px{% else %}none{% endif %}; --sai-ob-fg-backdrop: {{ foreground_backdrop }}; --sai-ob-badge-accent-color: {{ badge_accent_color }}; --sai-ob-badge-accent-thickness: {{ badge_accent_thickness }}px; --sai-ob-title-accent-color: {{ title_accent_color }}; --sai-ob-anim-duration: {{ anim_duration }}ms; --sai-ob-anim-delay: {{ anim_delay }}ms; --sai-ob-mh-m: {{ mh_m }}px; --sai-ob-mh-t: {{ mh_t }}px; --sai-ob-mh-d: {{ mh_d }}px;{%- if card_aspect_ratio != 'auto' %} --sai-ob-aspect: {{ card_aspect_ratio }};{% endif %}{%- endcapture -%}
+
+{%- capture track_style -%}--sai-ob-vc-m: {{ vc_m }}; --sai-ob-vc-t: {{ vc_t }}; --sai-ob-vc-d: {{ vc_d }}; --sai-ob-gap: {{ card_gap }}px; --sai-ob-peek: {{ peek_css }};{%- endcapture -%}
+
+{%- if section_title != blank or section_description != blank or total_banners > 0 -%}
+<div class="{{ root_class }}"
+     style="{{ root_style }}"
+     data-spectrum-snippet-id="obeect95"
+     data-spectrum-feature-slug="banner_lists_carousel"
+     data-entrance="{{ entrance }}"
+     data-autoplay="{% if autoplay %}true{% else %}false{% endif %}"
+     data-autoplay-ms="{{ autoplay_ms }}"
+     data-loop="{% if loop %}true{% else %}false{% endif %}"
+     data-total="{{ total_banners }}">
+
+  {%- if section_title != blank or section_description != blank -%}
+    <div class="sai-obeect95__header">
+      {%- if section_title != blank -%}
+        <span class="sai-obeect95__eyebrow"><span class="sai-obeect95__eyebrow-text">{{ section_title | escape }}</span></span>
+      {%- endif -%}
+      {%- if section_description != blank -%}
+        <h2 class="sai-obeect95__heading">{{ section_description | escape }}</h2>
+      {%- endif -%}
+    </div>
+  {%- endif -%}
+
+  {%- if total_banners > 0 -%}
+    <div class="sai-obeect95__frame">
+      <ul class="sai-obeect95__track" style="{{ track_style }}" role="list">
+        {%- for _card in banners -%}
+          {% render '_sai-snippet-obeect95-card',
+            card: _card,
+            index: forloop.index0,
+            first: forloop.first,
+            section_position_h: position_h,
+            section_position_v: position_v,
+            section_text_align: text_align,
+            position_h_mobile: position_h_mobile,
+            text_align_mobile: text_align_mobile,
+            section_media_mode: media_mode,
+            section_overlay_opacity: overlay_opacity,
+            overlay_enabled: overlay_enabled,
+            overlay_bg: overlay_bg,
+            overlay_color: overlay_color,
+            overlay_gradient_enabled: overlay_gradient_enabled,
+            overlay_direction: overlay_direction,
+            show_badge: show_badge,
+            badge_style: badge_style,
+            badge_accent: badge_accent,
+            cta_style: cta_style,
+            cta_radius: cta_radius,
+            cta_size: cta_size,
+            shadow_class: shadow_class,
+            show_video_controls: show_video_controls %}
+        {%- endfor -%}
+      </ul>
+    </div>
+
+    {%- if show_arrows or show_dots or pause_visible -%}
+      <div class="sai-obeect95__controls">
+        {%- if show_arrows -%}
+          <button type="button" class="sai-obeect95__arrow sai-obeect95__arrow--prev" aria-label="Previous banner" data-spectrum-arrow="prev">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 6l-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        {%- endif -%}
+        {%- if show_dots -%}
+          <ul class="sai-obeect95__dots sai-obeect95__dots--{{ pagination_style }}" role="tablist" aria-label="Choose banner">
+            {%- for _card in banners -%}
+              <li role="presentation">
+                {%- if pagination_style == 'bars' -%}
+                  <button type="button" class="sai-obeect95__bar{% if forloop.first %} is-active{% endif %}" role="tab"
+                          aria-label="Go to banner {{ forloop.index }}"
+                          aria-selected="{% if forloop.first %}true{% else %}false{% endif %}"
+                          data-spectrum-dot="{{ forloop.index0 }}"><span class="sai-obeect95__bar-fill"></span></button>
+                {%- else -%}
+                  <button type="button" class="sai-obeect95__dot{% if forloop.first %} is-active{% endif %}" role="tab"
+                          aria-label="Go to banner {{ forloop.index }}"
+                          aria-selected="{% if forloop.first %}true{% else %}false{% endif %}"
+                          data-spectrum-dot="{{ forloop.index0 }}"></button>
+                {%- endif -%}
+              </li>
+            {%- endfor -%}
+          </ul>
+        {%- endif -%}
+        {%- if show_arrows -%}
+          <button type="button" class="sai-obeect95__arrow sai-obeect95__arrow--next" aria-label="Next banner" data-spectrum-arrow="next">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        {%- endif -%}
+        {%- if pause_visible -%}
+          <button type="button" class="sai-obeect95__pause" aria-label="Pause autoplay" data-spectrum-pause>
+            <svg class="sai-obeect95__ic sai-obeect95__ic--pause" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>
+            <svg class="sai-obeect95__ic sai-obeect95__ic--play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+          </button>
+        {%- endif -%}
+      </div>
+    {%- endif -%}
+  {%- endif -%}
+
+</div>
+<script src="{{ 'sai-snippet-obeect95.js' | asset_url }}" defer></script>
+{%- endif -%}

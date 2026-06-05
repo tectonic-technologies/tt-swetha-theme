@@ -1,0 +1,174 @@
+{%- doc -%}
+  Banner Lists - Carousel — single card partial. Rendered in a loop by the main
+  file. Renders one banner: media (image OR video, background OR foreground),
+  overlay, and the overlaid content block (badge, title, subtitle, description,
+  CTA), plus a play button for video cards without native controls.
+
+  Render scope is isolated ({% render %}), so EVERY value this card needs is
+  passed explicitly — it never reads caller-scope locals or `variant`.
+
+  @param {object} card - one `banners` inline-list item
+  @param {number} index - zero-based card index (for analytics + scroll targeting)
+  @param {boolean} first - true for the first card (eager image, active dot)
+  @param {string} section_position_h - section default content position (left|center|right)
+  @param {string} section_position_v - section default vertical position (top|middle|bottom)
+  @param {string} section_text_align - section default text alignment (left|center|right)
+  @param {string} position_h_mobile - mobile horizontal override (inherit|left|center|right)
+  @param {string} text_align_mobile - mobile text-align override (inherit|left|center|right)
+  @param {string} section_media_mode - section default media mode (background|foreground)
+  @param {number} section_overlay_opacity - section overlay opacity (0-100)
+  @param {boolean} overlay_enabled - whether the overlay layer renders
+  @param {string} overlay_bg - precomputed section overlay background value
+  @param {string} overlay_color - overlay base colour (for per-card opacity override)
+  @param {boolean} overlay_gradient_enabled - whether the overlay is a gradient
+  @param {string} overlay_direction - gradient direction key
+  @param {boolean} show_badge - section badge toggle
+  @param {string} badge_style - badge style (pill|tag|ribbon|corner)
+  @param {boolean} badge_accent - badge accent-bar toggle
+  @param {string} cta_style - cta style (filled|outlined|ghost|text)
+  @param {string} cta_radius - cta corner style (square|rounded|pill)
+  @param {string} cta_size - cta size (small|medium|large)
+  @param {string} shadow_class - precomputed card shadow class (may be empty)
+  @param {boolean} show_video_controls - native controls on video cards
+{%- enddoc -%}
+
+{%- liquid
+  comment
+    Per-card override resolution: validated text overrides; blank/invalid inherits the section value.
+  endcomment
+  assign pos_h = card.pos_h | default: '' | downcase
+  unless pos_h == 'left' or pos_h == 'center' or pos_h == 'right'
+    assign pos_h = section_position_h
+  endunless
+  assign pos_v = card.pos_v | default: '' | downcase
+  unless pos_v == 'top' or pos_v == 'middle' or pos_v == 'bottom'
+    assign pos_v = section_position_v
+  endunless
+  assign text_align = card.align | default: '' | downcase
+  unless text_align == 'left' or text_align == 'center' or text_align == 'right'
+    assign text_align = section_text_align
+  endunless
+  assign media_mode = card.media_mode | default: '' | downcase
+  unless media_mode == 'background' or media_mode == 'foreground'
+    assign media_mode = section_media_mode
+  endunless
+
+  assign vsrc = card.video_url | default: ''
+  assign img = card.image.originalUrl | default: card.image.previewUrl | default: ''
+
+  assign badge_text = card.badge_text | default: ''
+  assign card_title = card.title | default: ''
+  assign card_subtitle = card.subtitle | default: ''
+  assign card_desc = card.description | default: ''
+  assign cta_text = card.cta_text | default: ''
+  assign cta_url = card.cta_url | default: ''
+
+  assign has_content = false
+  if badge_text != blank or card_title != blank or card_subtitle != blank or card_desc != blank or cta_text != blank
+    assign has_content = true
+  endif
+
+  comment
+    Per-card overlay-opacity override: rebuild the overlay value when a valid number is supplied.
+  endcomment
+  assign card_overlay_bg = overlay_bg
+  assign ov_raw = card.overlay_opacity | default: ''
+  if ov_raw != blank
+    assign ov_op = ov_raw | plus: 0
+    if ov_op < 0
+      assign ov_op = 0
+    endif
+    if ov_op > 100
+      assign ov_op = 100
+    endif
+    assign _cov = 'color-mix(in srgb, ' | append: overlay_color | append: ' ' | append: ov_op | append: '%, transparent)'
+    if overlay_gradient_enabled
+      case overlay_direction
+        when 'top-bottom'
+          assign card_overlay_bg = 'linear-gradient(180deg, ' | append: _cov | append: ', transparent)'
+        when 'bottom-top'
+          assign card_overlay_bg = 'linear-gradient(0deg, ' | append: _cov | append: ', transparent)'
+        when 'radial'
+          assign card_overlay_bg = 'radial-gradient(circle at 30% 50%, transparent, ' | append: _cov | append: ')'
+        else
+          assign card_overlay_bg = 'linear-gradient(90deg, ' | append: _cov | append: ', transparent)'
+      endcase
+    else
+      assign card_overlay_bg = _cov
+    endif
+  endif
+
+  comment
+    Card modifier classes.
+  endcomment
+  assign card_class = 'sai-obeect95__card'
+  assign card_class = card_class | append: shadow_class
+  if media_mode == 'foreground'
+    assign card_class = card_class | append: ' sai-obeect95__card--foreground'
+  endif
+  assign card_class = card_class | append: ' sai-obeect95__card--ph-' | append: pos_h
+  assign card_class = card_class | append: ' sai-obeect95__card--pv-' | append: pos_v
+  assign card_class = card_class | append: ' sai-obeect95__card--ta-' | append: text_align
+  if position_h_mobile != 'inherit'
+    assign card_class = card_class | append: ' sai-obeect95__card--ph-m-' | append: position_h_mobile
+  endif
+  if text_align_mobile != 'inherit'
+    assign card_class = card_class | append: ' sai-obeect95__card--ta-m-' | append: text_align_mobile
+  endif
+
+  assign is_video = false
+  if vsrc != blank
+    assign is_video = true
+  endif
+-%}
+
+<li>
+  <div class="{{ card_class }}" data-spectrum-banner-index="{{ index }}">
+    {%- if is_video -%}
+      <video class="sai-obeect95__media" muted loop playsinline preload="metadata"
+        {%- if show_video_controls %} controls{% endif %}
+        {%- if img != blank %} poster="{{ img }}"{% endif %}
+        data-sai-video>
+        <source src="{{ vsrc }}">
+      </video>
+    {%- elsif img != blank -%}
+      <img class="sai-obeect95__media" src="{{ img }}" alt="{{ card_title | escape }}"
+           {%- if first %} loading="eager" fetchpriority="high"{% else %} loading="lazy"{% endif %}>
+    {%- endif -%}
+
+    {%- if overlay_enabled -%}
+      <div class="sai-obeect95__overlay" aria-hidden="true" style="background: {{ card_overlay_bg }}"></div>
+    {%- endif -%}
+
+    {%- if is_video and show_video_controls == false -%}
+      <button type="button" class="sai-obeect95__play" aria-label="Play video" data-sai-play>
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+      </button>
+    {%- endif -%}
+
+    {%- if has_content -%}
+      <div class="sai-obeect95__content-wrap">
+        <div class="sai-obeect95__content">
+          {%- if show_badge and badge_text != blank -%}
+            <div class="sai-obeect95__badge sai-obeect95__badge--{{ badge_style }}{% if badge_accent %} sai-obeect95__badge--accent{% endif %}">
+              <span>{{ badge_text | escape }}</span>
+            </div>
+          {%- endif -%}
+          {%- if card_subtitle != blank -%}
+            <p class="sai-obeect95__subtitle">{{ card_subtitle | escape }}</p>
+          {%- endif -%}
+          {%- if card_title != blank -%}
+            <h3 class="sai-obeect95__title">{{ card_title | escape }}</h3>
+          {%- endif -%}
+          {%- if card_desc != blank -%}
+            <p class="sai-obeect95__desc">{{ card_desc | escape }}</p>
+          {%- endif -%}
+          {%- if cta_text != blank and cta_url != blank -%}
+            <a class="sai-obeect95__cta sai-obeect95__cta--{{ cta_style }} sai-obeect95__cta--{{ cta_radius }} sai-obeect95__cta--{{ cta_size }}"
+               href="{{ cta_url | escape }}" data-sai-cta="primary">{{ cta_text | escape }}</a>
+          {%- endif -%}
+        </div>
+      </div>
+    {%- endif -%}
+  </div>
+</li>
