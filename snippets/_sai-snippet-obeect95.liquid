@@ -250,10 +250,7 @@
   inset: 0;
   z-index: 2;
   display: flex;
-  padding: clamp(20px, 4vw, 56px);
-  /* Extra bottom room so bottom-positioned content clears the overlaid
-     pagination/pause controls. */
-  padding-bottom: clamp(52px, 9vw, 84px);
+  padding: var(--sai-ob-content-inset, 48px);
   pointer-events: none;
 }
 .sai-obeect95__content {
@@ -375,7 +372,7 @@
   position: absolute;
   left: 0;
   right: 0;
-  bottom: clamp(12px, 2.5vw, 24px);
+  bottom: var(--sai-ob-dots-inset, 16px);
   z-index: 4;
   display: flex;
   align-items: center;
@@ -388,6 +385,10 @@
 .sai-obeect95--dots-left .sai-obeect95__controls { justify-content: flex-start; }
 .sai-obeect95--dots-center .sai-obeect95__controls { justify-content: center; }
 .sai-obeect95--dots-right .sai-obeect95__controls { justify-content: flex-end; }
+/* Pagination vertical position within the carousel. */
+.sai-obeect95--dotsv-top .sai-obeect95__controls { top: var(--sai-ob-dots-inset, 16px); bottom: auto; }
+.sai-obeect95--dotsv-middle .sai-obeect95__controls { top: 50%; bottom: auto; transform: translateY(-50%); }
+.sai-obeect95--dotsv-bottom .sai-obeect95__controls { bottom: var(--sai-ob-dots-inset, 16px); top: auto; }
 @media screen and (max-width: 1024px) {
   .sai-obeect95--dots-m-left .sai-obeect95__controls { justify-content: flex-start; }
   .sai-obeect95--dots-m-center .sai-obeect95__controls { justify-content: center; }
@@ -519,6 +520,7 @@
   assign text_align_mobile = content.content_align_mobile | default: 'inherit'
   assign content_max_width = content.content_max_width | default: 560
   assign content_gap = content.content_gap | default: 16
+  assign content_inset = content.content_inset | default: 48
   assign media_mode = content.media_mode | default: 'background'
   assign foreground_backdrop = content.foreground_backdrop | default: '#0d0d0d'
 
@@ -536,6 +538,8 @@
   assign pagination_style = content.pagination_style | default: 'bars'
   assign dots_placement = content.dots_placement | default: 'center'
   assign dots_placement_mobile = content.dots_placement_mobile | default: 'inherit'
+  assign dots_position_v = content.dots_position_v | default: 'bottom'
+  assign dots_inset = content.dots_inset | default: 16
 
   assign card_aspect_ratio = content.card_aspect_ratio | default: '16/9'
   assign corner_radius = content.corner_radius | default: 0
@@ -731,6 +735,7 @@
 {%- assign root_class = root_class | append: ' sai-obeect95--width-' | append: section_width -%}
 {%- assign root_class = root_class | append: ' sai-obeect95--head-' | append: section_align -%}
 {%- assign root_class = root_class | append: ' sai-obeect95--dots-' | append: dots_placement -%}
+{%- assign root_class = root_class | append: ' sai-obeect95--dotsv-' | append: dots_position_v -%}
 {%- if dots_placement_mobile != 'inherit' -%}{%- assign root_class = root_class | append: ' sai-obeect95--dots-m-' | append: dots_placement_mobile -%}{%- endif -%}
 {%- if section_title_accent -%}{%- assign root_class = root_class | append: ' sai-obeect95--title-accent' -%}{%- endif -%}
 {%- unless hover_effect == 'none' -%}{%- assign root_class = root_class | append: ' sai-obeect95--hover-' | append: hover_effect -%}{%- endunless -%}
@@ -740,7 +745,7 @@
 {%- if content.hide_on_mobile -%}{%- assign root_class = root_class | append: ' sai-obeect95--hide-mobile' -%}{%- endif -%}
 {%- if content.hide_on_desktop -%}{%- assign root_class = root_class | append: ' sai-obeect95--hide-desktop' -%}{%- endif -%}
 
-{%- capture root_style -%}--sai-ob-radius: {{ corner_radius }}px; --sai-ob-content-gap: {{ content_gap }}px; --sai-ob-content-max: {% if content_max_width > 0 %}{{ content_max_width }}px{% else %}100%{% endif %}; --sai-ob-fg-backdrop: {{ foreground_backdrop }}; --sai-ob-badge-accent-color: {{ badge_accent_color }}; --sai-ob-badge-accent-thickness: {{ badge_accent_thickness }}px; --sai-ob-title-accent-color: {{ title_accent_color }}; --sai-ob-anim-duration: {{ anim_duration }}ms; --sai-ob-anim-delay: {{ anim_delay }}ms; --sai-ob-mh-m: {{ mh_m }}px; --sai-ob-mh-t: {{ mh_t }}px; --sai-ob-mh-d: {{ mh_d }}px;{%- if card_aspect_ratio != 'auto' %} --sai-ob-aspect: {{ card_aspect_ratio }};{% endif %}{%- endcapture -%}
+{%- capture root_style -%}--sai-ob-radius: {{ corner_radius }}px; --sai-ob-content-gap: {{ content_gap }}px; --sai-ob-content-inset: {{ content_inset }}px; --sai-ob-dots-inset: {{ dots_inset }}px; --sai-ob-content-max: {% if content_max_width > 0 %}{{ content_max_width }}px{% else %}100%{% endif %}; --sai-ob-fg-backdrop: {{ foreground_backdrop }}; --sai-ob-badge-accent-color: {{ badge_accent_color }}; --sai-ob-badge-accent-thickness: {{ badge_accent_thickness }}px; --sai-ob-title-accent-color: {{ title_accent_color }}; --sai-ob-anim-duration: {{ anim_duration }}ms; --sai-ob-anim-delay: {{ anim_delay }}ms; --sai-ob-mh-m: {{ mh_m }}px; --sai-ob-mh-t: {{ mh_t }}px; --sai-ob-mh-d: {{ mh_d }}px;{%- if card_aspect_ratio != 'auto' %} --sai-ob-aspect: {{ card_aspect_ratio }};{% endif %}{%- endcapture -%}
 
 {%- capture track_style -%}--sai-ob-vc-m: {{ vc_m }}; --sai-ob-vc-t: {{ vc_t }}; --sai-ob-vc-d: {{ vc_d }}; --sai-ob-gap: {{ card_gap }}px; --sai-ob-peek: {{ peek_css }};{%- endcapture -%}
 
