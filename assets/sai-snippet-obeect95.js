@@ -313,11 +313,16 @@
     }
 
     /* ── Autoplay + progress ──
-       One rAF loop fills the active progress bar and advances the slide, so the
-       bar and slide stay in sync and pause together. For a video card the bar
-       tracks the VIDEO's real progress and the slide advances when the video
-       ends; image cards fill over the configured interval. */
-    if (autoplayOn) {
+       One rAF loop fills the active progress bar and (when autoplay is on)
+       advances the slide. A video card's bar tracks the VIDEO's real progress
+       and advances when it ends; image cards fill over the interval. The loop
+       runs whenever autoplay is on OR any card is a video — so a single video
+       banner still shows live progress even with autoplay off. */
+    const anyVideo = cards.some((c) => {
+      const v = c.querySelector('video[data-sai-video]')
+      return v && !v.hasAttribute('controls')
+    })
+    if (autoplayOn || anyVideo) {
       const interval = Math.max(2000, Math.min(15000, Number(root.dataset.autoplayMs) || 5000))
       let lastTs = 0
 
@@ -336,17 +341,22 @@
         }
         const vid = activeVideo()
         if (vid && Number.isFinite(vid.duration) && vid.duration > 0 && vid.readyState >= 2) {
-          fillRatio = Math.min(1, vid.currentTime / vid.duration)
+          // Bar tracks the video (works with or without autoplay).
+          fillRatio = vid.currentTime / vid.duration
+          if (fillRatio > 1) fillRatio = 1
           paintBars()
           lastTs = ts
-          if (vid.ended || vid.currentTime >= vid.duration - 0.1) advance()
-        } else {
+          if (autoplayOn && (vid.ended || vid.currentTime >= vid.duration - 0.1)) advance()
+        } else if (autoplayOn) {
+          // Image card — fill over the interval, then advance.
           if (!lastTs) lastTs = ts
           slideElapsed += ts - lastTs
           lastTs = ts
           fillRatio = Math.min(1, slideElapsed / interval)
           paintBars()
           if (slideElapsed >= interval) advance()
+        } else {
+          lastTs = ts
         }
       }
       requestAnimationFrame(frame)

@@ -34,6 +34,7 @@
   @param {string} cta_size - cta size (small|medium|large)
   @param {string} shadow_class - precomputed card shadow class (may be empty)
   @param {boolean} show_video_controls - native controls on video cards
+  @param {boolean} show_play_button - centered play/pause overlay on video cards
 {%- enddoc -%}
 
 {%- liquid
@@ -156,7 +157,7 @@
       <div class="sai-obeect95__overlay" aria-hidden="true" style="background: {{ card_overlay_bg }}"></div>
     {%- endif -%}
 
-    {%- if is_video and show_video_controls == false -%}
+    {%- if is_video and show_video_controls == false and show_play_button -%}
       <button type="button" class="sai-obeect95__play is-paused" aria-label="Play video" data-sai-play>
         <svg class="sai-obeect95__ic sai-obeect95__ic--play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
         <svg class="sai-obeect95__ic sai-obeect95__ic--pause" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>

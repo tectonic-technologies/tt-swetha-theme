@@ -149,12 +149,15 @@
   transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
 .sai-obeect95--has-aspect .sai-obeect95__card { aspect-ratio: var(--sai-ob-aspect); }
-.sai-obeect95:not(.sai-obeect95--has-aspect) .sai-obeect95__card { min-height: var(--sai-ob-mh-m, 420px); }
+/* Min-height is a universal floor (applies even with a fixed aspect ratio), so a
+   narrow mobile width never collapses the card to a thin strip — the taller of
+   the aspect-derived height and this floor wins. */
+.sai-obeect95__card { min-height: var(--sai-ob-mh-m, 420px); }
 @media screen and (min-width: 768px) {
-  .sai-obeect95:not(.sai-obeect95--has-aspect) .sai-obeect95__card { min-height: var(--sai-ob-mh-t, 520px); }
+  .sai-obeect95__card { min-height: var(--sai-ob-mh-t, 520px); }
 }
 @media screen and (min-width: 1440px) {
-  .sai-obeect95:not(.sai-obeect95--has-aspect) .sai-obeect95__card { min-height: var(--sai-ob-mh-d, 600px); }
+  .sai-obeect95__card { min-height: var(--sai-ob-mh-d, 600px); }
 }
 .sai-obeect95__card:focus-visible { outline: 2px solid var(--sai-ob-fg); outline-offset: 2px; }
 
@@ -194,9 +197,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 72px;
-  height: 72px;
-  border: 1px solid var(--sai-ob-scrim);
+  width: 64px;
+  height: 64px;
+  border: none;
   border-radius: 999px;
   background: rgba(0, 0, 0, 0.32);
   color: var(--sai-ob-fg);
@@ -603,6 +606,11 @@
   else
     assign show_video_controls = content.show_video_controls
   endif
+  if content.show_play_button == nil
+    assign show_play_button = true
+  else
+    assign show_play_button = content.show_play_button
+  endif
 
   comment
     Visible cards per breakpoint — cascade mobile -> tablet -> desktop, clamped per range.
@@ -749,7 +757,8 @@
             cta_radius: cta_radius,
             cta_size: cta_size,
             shadow_class: shadow_class,
-            show_video_controls: show_video_controls %}
+            show_video_controls: show_video_controls,
+            show_play_button: show_play_button %}
         {%- endfor -%}
       </ul>
 
