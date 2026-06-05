@@ -170,7 +170,20 @@
 
 // ─── Configuration ───────────────────────────────────────────────────
 
-const VERSION = '1.8.0';
+/*
+ * The entire SDK runs inside this IIFE so its top-level declarations
+ * (cart, products, sections, money, …) stay private and never enter the
+ * page's shared global lexical scope. Only `window.Spectrum` is exposed.
+ *
+ * Without the wrapper a top-level `const cart` lands in global scope and
+ * collides with any other global `cart` on the page (e.g. the edge
+ * bundle's cart.js), throwing "Identifier 'cart' has already been
+ * declared" — a SyntaxError that aborts this whole file before it can
+ * assign `window.Spectrum`, silently breaking every storefront API call.
+ */
+;(function () {
+
+const VERSION = '1.8.1';
 
 const _config = {};
 
@@ -2550,3 +2563,5 @@ if (_isLoggedIn()) {
     });
   }
 }
+
+})();
