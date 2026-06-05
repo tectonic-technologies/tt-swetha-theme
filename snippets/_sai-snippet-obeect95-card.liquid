@@ -154,11 +154,11 @@
               <span>{{ badge_text | escape }}</span>
             </div>
           {%- endif -%}
-          {%- if card_subtitle != blank -%}
-            <p class="sai-obeect95__subtitle">{{ card_subtitle | escape }}</p>
-          {%- endif -%}
           {%- if card_title != blank -%}
             <h3 class="sai-obeect95__title">{{ card_title | escape }}</h3>
+          {%- endif -%}
+          {%- if card_subtitle != blank -%}
+            <p class="sai-obeect95__subtitle">{{ card_subtitle | escape }}</p>
           {%- endif -%}
           {%- if card_desc != blank -%}
             <p class="sai-obeect95__desc">{{ card_desc | escape }}</p>
