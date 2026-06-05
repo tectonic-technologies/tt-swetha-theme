@@ -203,12 +203,15 @@
   cursor: pointer;
   -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  transition: background-color 0.2s ease, transform 0.2s ease;
 }
-.sai-obeect95__play:hover { transform: translate(-50%, -50%) scale(1.06); }
+.sai-obeect95__play:hover { transform: translate(-50%, -50%) scale(1.06); background: rgba(0, 0, 0, 0.5); }
 .sai-obeect95__play:focus-visible { outline: 2px solid var(--sai-ob-fg); outline-offset: 2px; }
-.sai-obeect95__play svg { width: 26px; height: 26px; margin-left: 3px; }
-.sai-obeect95__play.is-hidden { opacity: 0; pointer-events: none; }
+.sai-obeect95__play .sai-obeect95__ic { width: 26px; height: 26px; }
+.sai-obeect95__play .sai-obeect95__ic--play { display: none; margin-left: 3px; }
+.sai-obeect95__play .sai-obeect95__ic--pause { display: block; }
+.sai-obeect95__play.is-paused .sai-obeect95__ic--play { display: block; }
+.sai-obeect95__play.is-paused .sai-obeect95__ic--pause { display: none; }
 
 /* Content block over the media */
 .sai-obeect95__content-wrap {
@@ -441,10 +444,10 @@
 }
 .sai-obeect95__pause:hover { background: rgba(0, 0, 0, 0.5); }
 .sai-obeect95__pause:focus-visible { outline: 2px solid var(--sai-ob-fg); outline-offset: 2px; }
-.sai-obeect95__ic { width: 16px; height: 16px; }
-.sai-obeect95__ic--play { display: none; }
-.sai-obeect95--paused .sai-obeect95__ic--pause { display: none; }
-.sai-obeect95--paused .sai-obeect95__ic--play { display: block; }
+.sai-obeect95__pause .sai-obeect95__ic { width: 16px; height: 16px; }
+.sai-obeect95__pause .sai-obeect95__ic--play { display: none; }
+.sai-obeect95--paused .sai-obeect95__pause .sai-obeect95__ic--pause { display: none; }
+.sai-obeect95--paused .sai-obeect95__pause .sai-obeect95__ic--play { display: block; }
 
 /* Entrance animation — opacity (fade) / opacity + scale (zoom) */
 .sai-obeect95__track { transition: opacity var(--sai-ob-anim-duration, 600ms) ease var(--sai-ob-anim-delay, 0ms), transform var(--sai-ob-anim-duration, 600ms) ease var(--sai-ob-anim-delay, 0ms); }
