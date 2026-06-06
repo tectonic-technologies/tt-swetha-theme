@@ -93,33 +93,26 @@
   endif
 
   comment
-    Per-card overlay-opacity override: rebuild the overlay value when a valid number is supplied.
+    Per-card overlay-opacity override (validated text). Only rebuild the overlay
+    when the value is genuinely numeric: a non-numeric entry like "forty" parses
+    to 0 via `| plus: 0`, so guard with a round-trip (parsed value re-stringified
+    must equal the input) — otherwise the card inherits the section overlay.
   endcomment
   assign card_overlay_bg = overlay_bg
-  assign ov_raw = card.overlay_opacity | default: ''
-  if ov_raw != blank
-    assign ov_op = ov_raw | plus: 0
+  assign ov_raw = card.overlay_opacity | default: '' | strip
+  assign ov_op = ov_raw | plus: 0
+  assign ov_roundtrip = ov_op | append: ''
+  if ov_raw != blank and ov_roundtrip == ov_raw
     if ov_op < 0
       assign ov_op = 0
     endif
     if ov_op > 100
       assign ov_op = 100
     endif
-    assign _cov = 'color-mix(in srgb, ' | append: overlay_color | append: ' ' | append: ov_op | append: '%, transparent)'
-    if overlay_gradient_enabled
-      case overlay_direction
-        when 'top-bottom'
-          assign card_overlay_bg = 'linear-gradient(180deg, ' | append: _cov | append: ', transparent)'
-        when 'bottom-top'
-          assign card_overlay_bg = 'linear-gradient(0deg, ' | append: _cov | append: ', transparent)'
-        when 'radial'
-          assign card_overlay_bg = 'radial-gradient(circle at 30% 50%, transparent, ' | append: _cov | append: ')'
-        else
-          assign card_overlay_bg = 'linear-gradient(90deg, ' | append: _cov | append: ', transparent)'
-      endcase
-    else
-      assign card_overlay_bg = _cov
-    endif
+    capture card_overlay_bg
+      render '_sai-snippet-obeect95-overlay', ov_color: overlay_color, ov_opacity: ov_op, ov_gradient: overlay_gradient_enabled, ov_direction: overlay_direction
+    endcapture
+    assign card_overlay_bg = card_overlay_bg | strip
   endif
 
   comment
@@ -154,12 +147,12 @@
     {%- if is_video -%}
       <video class="sai-obeect95__media" muted loop playsinline preload="metadata"
         {%- if show_video_controls %} controls{% endif %}
-        {%- if img != blank %} poster="{{ img }}"{% endif %}
+        {%- if img != blank %} poster="{{ img | escape }}"{% endif %}
         data-sai-video>
-        <source src="{{ vsrc }}">
+        <source src="{{ vsrc | escape }}">
       </video>
     {%- elsif img != blank -%}
-      <img class="sai-obeect95__media" src="{{ img }}" alt="{{ card_title | escape }}"
+      <img class="sai-obeect95__media" src="{{ img | escape }}" alt="{{ card_title | escape }}"
            {%- if first %} loading="eager" fetchpriority="high"{% else %} loading="lazy"{% endif %}>
     {%- endif -%}
 

@@ -134,6 +134,11 @@
     // hover/focus auto-pause — an explicit control must win.
     let userPaused = false
     let inView = true
+    // Restarts the autoplay/progress rAF loop after it self-stops on a guard
+    // (paused / off-screen / reduced-motion). Reassigned when that loop is wired
+    // up below; a no-op until then so the pause + visibility paths can call it
+    // unconditionally.
+    let kickAutoplay = () => {}
     // Active-segment fill ratio for the progress bars: 1 (static) when autoplay
     // is off; driven 0→1 by the autoplay rAF when on. `slideElapsed` accumulates
     // play time for the current slide (ms), reset on every slide change.
@@ -238,17 +243,42 @@
       root.classList.toggle(`sai-${SNIPPET_ID}--paused`, next)
       if (pauseBtn) pauseBtn.setAttribute('aria-label', next ? 'Play' : 'Pause')
       syncVideos()
+      kickAutoplay()
     }
 
-    // Centered overlay on video cards: toggles playback; its icon mirrors the
-    // video's real play/pause state via media events (so it's always correct).
-    for (const card of cards) {
+    // Centered overlay on video cards: controls THIS card, not the whole
+    // carousel. Tapping a non-active (peek) card's button brings it into focus
+    // and plays it; tapping the active card's button toggles play/pause. The
+    // icon + aria-label mirror the video's real state via media events, so each
+    // card's overlay is independently correct.
+    for (let i = 0; i < cards.length; i++) {
+      const card = cards[i]
       const playBtn = card.querySelector('[data-sai-play]')
       const video = card.querySelector('video[data-sai-video]')
       if (!playBtn || !video) continue
-      playBtn.addEventListener('click', () => setPaused(!userPaused))
-      video.addEventListener('play', () => playBtn.classList.remove('is-paused'))
-      video.addEventListener('pause', () => playBtn.classList.add('is-paused'))
+      const relabel = () => {
+        playBtn.setAttribute('aria-label', video.paused ? 'Play video' : 'Pause video')
+      }
+      playBtn.addEventListener('click', () => {
+        if (i !== currentIdx) {
+          // Focus the tapped card, then ensure the carousel is playing so its
+          // (now-active) video starts.
+          setIndex(i, 'play')
+          scrollToCurrent(false)
+          setPaused(false)
+        } else {
+          setPaused(!userPaused)
+        }
+      })
+      video.addEventListener('play', () => {
+        playBtn.classList.remove('is-paused')
+        relabel()
+      })
+      video.addEventListener('pause', () => {
+        playBtn.classList.add('is-paused')
+        relabel()
+      })
+      relabel()
     }
     pauseBtn?.addEventListener('click', () => setPaused(!userPaused))
 
@@ -340,20 +370,37 @@
         scrollToCurrent(wrapping)
       }
 
+      // `rafAnimId` is the live loop handle / running flag (0 = stopped). The
+      // loop self-stops when nothing needs animating (paused / off-screen /
+      // reduced motion) instead of spinning a 60fps no-op; `kickAutoplay`
+      // restarts it when those conditions clear (see setPaused + the
+      // IntersectionObserver below).
+      let rafAnimId = 0
       const frame = (ts) => {
-        requestAnimationFrame(frame)
+        rafAnimId = 0
+        // Orphan guard: if Studio swapped this root out (live-preview re-render),
+        // let the detached instance's loop die instead of running forever.
+        if (!root.isConnected) return
         if (userPaused || !inView || prefersReducedMotion()) {
           lastTs = ts
           return
         }
+        rafAnimId = requestAnimationFrame(frame)
         const vid = activeVideo()
-        if (vid && Number.isFinite(vid.duration) && vid.duration > 0 && vid.readyState >= 2) {
-          // Bar tracks the video (works with or without autoplay).
-          fillRatio = vid.currentTime / vid.duration
-          if (fillRatio > 1) fillRatio = 1
-          paintBars()
-          lastTs = ts
-          if (autoplayOn && (vid.ended || vid.currentTime >= vid.duration - 0.1)) advance()
+        if (vid) {
+          // Active card is a video: the bar tracks the video's real progress and
+          // (under autoplay) the slide advances only when the video ENDS — never
+          // on the image timer. A still-buffering video (readyState < 2) just
+          // holds the slide so it's never skipped before it plays.
+          if (Number.isFinite(vid.duration) && vid.duration > 0 && vid.readyState >= 2) {
+            fillRatio = vid.currentTime / vid.duration
+            if (fillRatio > 1) fillRatio = 1
+            paintBars()
+            lastTs = ts
+            if (autoplayOn && (vid.ended || vid.currentTime >= vid.duration - 0.1)) advance()
+          } else {
+            lastTs = ts
+          }
         } else if (autoplayOn) {
           // Image card — fill over the interval, then advance.
           if (!lastTs) lastTs = ts
@@ -366,13 +413,21 @@
           lastTs = ts
         }
       }
-      requestAnimationFrame(frame)
+      // Reset `lastTs` so the first frame after a restart measures a 0ms delta
+      // (no stale-timestamp jump in the image-card fill).
+      kickAutoplay = () => {
+        if (rafAnimId || !root.isConnected) return
+        lastTs = 0
+        rafAnimId = requestAnimationFrame(frame)
+      }
+      kickAutoplay()
 
       if (typeof IntersectionObserver !== 'undefined') {
         const vio = new IntersectionObserver(
           (entries) => {
             inView = entries[0]?.isIntersecting === true
             syncVideos()
+            kickAutoplay()
           },
           { threshold: 0.25 },
         )

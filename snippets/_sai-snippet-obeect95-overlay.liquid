@@ -1,0 +1,32 @@
+{%- doc -%}
+  Banner Lists - Carousel — overlay background builder. Single source of truth
+  for the colour-mix + gradient-direction mapping, shared by the main file
+  (section default) and the card partial (per-card opacity override) so the two
+  cannot drift.
+
+  Render scope is isolated ({% render %}), so every input is passed explicitly.
+  Echoes the CSS `background` value; callers capture + `| strip` it.
+
+  @param {string} ov_color - overlay base colour (e.g. '#000000')
+  @param {number} ov_opacity - overlay opacity 0-100 (caller clamps)
+  @param {boolean} ov_gradient - true = gradient, false = flat colour-mix
+  @param {string} ov_direction - gradient key (top-bottom|bottom-top|radial|<else=left-right>)
+{%- enddoc -%}
+{%- liquid
+  assign _cov = 'color-mix(in srgb, ' | append: ov_color | append: ' ' | append: ov_opacity | append: '%, transparent)'
+  if ov_gradient
+    case ov_direction
+      when 'top-bottom'
+        assign _bg = 'linear-gradient(180deg, ' | append: _cov | append: ', transparent)'
+      when 'bottom-top'
+        assign _bg = 'linear-gradient(0deg, ' | append: _cov | append: ', transparent)'
+      when 'radial'
+        assign _bg = 'radial-gradient(circle at 30% 50%, transparent, ' | append: _cov | append: ')'
+      else
+        assign _bg = 'linear-gradient(90deg, ' | append: _cov | append: ', transparent)'
+    endcase
+  else
+    assign _bg = _cov
+  endif
+  echo _bg
+-%}

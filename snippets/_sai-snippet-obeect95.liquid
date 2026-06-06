@@ -430,7 +430,16 @@
 .sai-obeect95__arrow--next { right: clamp(8px, 2vw, 20px); }
 .sai-obeect95__arrow:hover { background: rgba(0, 0, 0, 0.5); }
 .sai-obeect95__arrow:focus-visible { outline: 2px solid var(--sai-ob-fg); outline-offset: 2px; }
-.sai-obeect95__arrow[disabled] { opacity: 0.35; cursor: not-allowed; }
+/* Edge cue (loop off, first/last slide): dim the arrow's fill so "no further"
+   reads at a glance, while the glyph stays legible. The fill is dimmed via
+   opacity on a translucent black so it layers over whatever background the
+   merchant baked in (a fixed colour here would be lost under the higher-
+   specificity per-instance baked rule). The glyph is only lightly dimmed so it
+   never disappears — past icon-visibility regressions came from fading the
+   whole button. */
+.sai-obeect95__arrow[disabled] { cursor: not-allowed; background: rgba(0, 0, 0, 0.12); }
+.sai-obeect95__arrow[disabled]:hover { background: rgba(0, 0, 0, 0.12); }
+.sai-obeect95__arrow[disabled] svg { opacity: 0.45; }
 /* Icon scales with the button so resizing it via the style node keeps the glyph
    proportional and visible. Size by height + width:auto (the square SVG derives
    its width from its aspect ratio) — a percentage *width* on an SVG flex child
@@ -521,7 +530,7 @@
 {%- liquid
   assign content = variant.content
 
-  assign section_width = content.section_width | default: 'contained'
+  assign section_width = content.section_width | default: 'full'
   assign section_title = content.section_title | default: ''
   assign section_description = content.section_description | default: ''
   assign section_align = content.section_align | default: 'center'
@@ -532,7 +541,7 @@
   assign text_align = content.content_align | default: 'center'
   assign position_h_mobile = content.content_position_h_mobile | default: 'inherit'
   assign text_align_mobile = content.content_align_mobile | default: 'inherit'
-  assign content_max_width = content.content_max_width | default: 560
+  assign content_max_width = content.content_max_width | default: 0
   assign content_gap = content.content_gap | default: 16
   assign content_inset = content.content_inset | default: 48
   assign content_inset_mobile = content.content_inset_mobile | default: 24
@@ -558,7 +567,7 @@
   assign dots_inset = content.dots_inset | default: 16
   assign dots_inset_mobile = content.dots_inset_mobile | default: 12
 
-  assign card_aspect_ratio = content.card_aspect_ratio | default: '16/9'
+  assign card_aspect_ratio = content.card_aspect_ratio | default: 'auto'
   assign corner_radius = content.corner_radius | default: 0
   assign card_shadow = content.card_shadow | default: 'none'
   assign hover_effect = content.hover_effect | default: 'none'
@@ -734,18 +743,9 @@
   endunless
 -%}
 
-{%- comment -%}── Overlay background value (Liquid-interpolated, fail-safe) ──{%- endcomment -%}
-{%- assign _ov = 'color-mix(in srgb, ' | append: overlay_color | append: ' ' | append: overlay_opacity | append: '%, transparent)' -%}
-{%- if overlay_gradient_enabled -%}
-  {%- case overlay_direction -%}
-    {%- when 'top-bottom' -%}{%- assign overlay_bg = 'linear-gradient(180deg, ' | append: _ov | append: ', transparent)' -%}
-    {%- when 'bottom-top' -%}{%- assign overlay_bg = 'linear-gradient(0deg, ' | append: _ov | append: ', transparent)' -%}
-    {%- when 'radial' -%}{%- assign overlay_bg = 'radial-gradient(circle at 30% 50%, transparent, ' | append: _ov | append: ')' -%}
-    {%- else -%}{%- assign overlay_bg = 'linear-gradient(90deg, ' | append: _ov | append: ', transparent)' -%}
-  {%- endcase -%}
-{%- else -%}
-  {%- assign overlay_bg = _ov -%}
-{%- endif -%}
+{%- comment -%}── Overlay background value (shared builder — see _sai-snippet-obeect95-overlay) ──{%- endcomment -%}
+{%- capture overlay_bg -%}{%- render '_sai-snippet-obeect95-overlay', ov_color: overlay_color, ov_opacity: overlay_opacity, ov_gradient: overlay_gradient_enabled, ov_direction: overlay_direction -%}{%- endcapture -%}
+{%- assign overlay_bg = overlay_bg | strip -%}
 
 {%- comment -%}── Root modifier classes ──{%- endcomment -%}
 {%- assign root_class = 'sai-obeect95' -%}
