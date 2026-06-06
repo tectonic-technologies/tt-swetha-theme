@@ -319,15 +319,27 @@
     }
     trackEl.addEventListener('scroll', recompute, { passive: true })
 
-    /* ── Card-click analytics ── */
+    /* ── Card-click + CTA-click analytics ── */
     if (track) {
       for (let i = 0; i < cards.length; i++) {
+        const title = () =>
+          cards[i].querySelector(`.sai-${SNIPPET_ID}__title`)?.textContent?.trim() || ''
         cards[i].addEventListener('click', () => {
-          track(`${FEATURE_SLUG}:card_click`, {
-            banner_index: i,
-            title: cards[i].querySelector(`.sai-${SNIPPET_ID}__title`)?.textContent?.trim() || '',
-          })
+          track(`${FEATURE_SLUG}:card_click`, { banner_index: i, title: title() })
         })
+        // CTA clicks are a distinct signal; they also bubble to card_click above
+        // (both are intentional — overall card engagement vs. the specific CTA).
+        for (const cta of cards[i].querySelectorAll('[data-sai-cta]')) {
+          cta.addEventListener('click', () => {
+            track(`${FEATURE_SLUG}:cta_click`, {
+              banner_index: i,
+              cta: cta.getAttribute('data-sai-cta') || 'primary',
+              label: cta.textContent?.trim() || '',
+              href: cta.getAttribute('href') || '',
+              title: title(),
+            })
+          })
+        }
       }
     }
 
