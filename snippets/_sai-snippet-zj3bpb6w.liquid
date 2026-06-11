@@ -1,0 +1,389 @@
+{% doc %}
+  Cart Line Item — configurable, JS-rendered cart lines.
+
+  SSR-emits a shell plus a config JSON blob. The async asset
+  (`sai-snippet-zj3bpb6w.js`) reads the live cart via `Spectrum.cart.get()`
+  and renders one line per cart item honouring the config below. Quantity and
+  remove mutations go through `Spectrum.cart.change`; variant edits go through
+  `Spectrum.cart.change` with the new variant id.
+
+  @param {Object} variant - Resolved variant; merchant config at `variant.content.*`.
+
+  All `variant.content.*` fields are optional; defaults are applied in the
+  {%- liquid -%} block below. Behavioural/structural/content settings are props;
+  colour + font are exposed via the per-instance style nodes in meta.json
+  (Studio Styling panel), not as form props.
+{% enddoc %}
+
+{%- comment -%}
+  Visual defaults below match the Frido cart-drawer line (image-left, rounded
+  thumbnail, bold multi-line title, muted variant line, pill quantity stepper,
+  grey compare-at strikethrough above a green current price). Theme CSS
+  variables take precedence; the literal fallbacks reproduce that design when a
+  theme doesn't define the token.
+
+  Cart prices arrive from cart.js in the shop's minor unit (cents). Formatting
+  happens in JS via Intl.NumberFormat using `cart.currency` — do not format
+  money in Liquid; the cart is rendered client-side.
+
+  Booleans are resolved with `== nil` (not `| default:`) — Liquid's `default`
+  filter treats an explicit `false` as missing. See generated-liquid.md #6.
+{%- endcomment -%}
+
+{% stylesheet %}
+.sai-zj3bpb6w { display: block; }
+.sai-zj3bpb6w__lines { list-style: none; margin: 0; padding: 0; }
+
+.sai-zj3bpb6w__line {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  column-gap: var(--sai-space-4, 1rem);
+  row-gap: var(--sai-space-2, 0.5rem);
+  padding: var(--sai-space-4, 1rem) 0;
+}
+/* Row dividers */
+/* Divider separates items — only between plain lines. Skipped on: the last line,
+   the gift card itself, and the line immediately before a gift card (the gift
+   card's own margin carries that separation). */
+.sai-zj3bpb6w[data-sai-divider="line"] .sai-zj3bpb6w__line:not(:last-of-type):not(.sai-zj3bpb6w__line--gift):not(:has(+ .sai-zj3bpb6w__line--gift)) { border-bottom: 1px solid var(--sai-color-border, #ececec); }
+.sai-zj3bpb6w[data-sai-divider="dashed"] .sai-zj3bpb6w__line:not(:last-of-type):not(.sai-zj3bpb6w__line--gift):not(:has(+ .sai-zj3bpb6w__line--gift)) { border-bottom: 1px dashed var(--sai-color-border, #d8d8d8); }
+.sai-zj3bpb6w[data-sai-divider="spacing"] .sai-zj3bpb6w__line { padding: var(--sai-space-3, 0.75rem) 0; }
+.sai-zj3bpb6w[data-sai-divider="none"] .sai-zj3bpb6w__line { border: 0; }
+
+/* Image-top layout */
+.sai-zj3bpb6w[data-sai-layout="image_top"] .sai-zj3bpb6w__line {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "thumb thumb" "body aside";
+}
+.sai-zj3bpb6w[data-sai-layout="image_top"] .sai-zj3bpb6w__thumb { grid-area: thumb; justify-self: start; }
+.sai-zj3bpb6w[data-sai-layout="image_top"] .sai-zj3bpb6w__body { grid-area: body; }
+.sai-zj3bpb6w[data-sai-layout="image_top"] .sai-zj3bpb6w__aside { grid-area: aside; }
+
+.sai-zj3bpb6w__thumb {
+  width: 76px;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: var(--sai-radius-card, 14px);
+  background: var(--sai-color-surface, #f4f4f5);
+  display: block;
+}
+.sai-zj3bpb6w[data-sai-fit="contain"] .sai-zj3bpb6w__thumb { object-fit: contain; }
+.sai-zj3bpb6w[data-sai-ar="4:3"] .sai-zj3bpb6w__thumb { aspect-ratio: 4 / 3; width: 96px; }
+.sai-zj3bpb6w[data-sai-ar="3:4"] .sai-zj3bpb6w__thumb { aspect-ratio: 3 / 4; width: 68px; }
+
+.sai-zj3bpb6w__body { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.sai-zj3bpb6w__title {
+  font-family: var(--sai-font-heading, inherit);
+  font-weight: 700;
+  font-size: var(--sai-font-size-lg, 1.3rem);
+  line-height: 1.15;
+  color: var(--sai-color-text, #18181b);
+  text-decoration: none;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--sai-zj3bpb6w-title-lines, 3);
+  overflow: hidden;
+}
+.sai-zj3bpb6w__variant {
+  font-size: var(--sai-font-size-sm, 0.95rem);
+  color: var(--sai-color-text-muted, #9aa0a6);
+  line-height: 1.45;
+}
+.sai-zj3bpb6w__variant-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+.sai-zj3bpb6w__pill, .sai-zj3bpb6w__select {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--sai-color-surface, #f3f4f6);
+  color: var(--sai-color-text, #374151);
+  border: 0;
+  border-radius: var(--sai-radius-chip, 12px);
+  padding: 8px 14px;
+  font: inherit; font-size: var(--sai-font-size-sm, 0.9rem);
+  cursor: default;
+}
+.sai-zj3bpb6w__select { cursor: pointer; appearance: none; padding-right: 30px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 12px center; }
+
+.sai-zj3bpb6w__badges { display: flex; gap: 6px; flex-wrap: wrap; }
+.sai-zj3bpb6w__badge {
+  font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600;
+  padding: 2px var(--sai-space-2, 0.5rem);
+  color: var(--sai-color-text, #374151);
+  background: var(--sai-color-surface, #f3f4f6);
+  border-radius: var(--sai-radius-badge, 6px);
+}
+.sai-zj3bpb6w__rating { font-size: var(--sai-font-size-sm, 0.9rem); color: var(--sai-color-star, #f5a623); }
+.sai-zj3bpb6w__meta { font-size: var(--sai-font-size-sm, 0.85rem); color: var(--sai-color-text-muted, #9aa0a6); }
+.sai-zj3bpb6w__props { font-size: 0.82rem; color: var(--sai-color-text-muted, #9aa0a6); margin: 0; }
+.sai-zj3bpb6w__props-summary { cursor: pointer; }
+
+/* Quantity control */
+.sai-zj3bpb6w__aside { display: flex; flex-direction: column; align-items: flex-end; gap: var(--sai-space-2, 0.5rem); }
+.sai-zj3bpb6w__qtyctl { display: inline-flex; align-items: center; }
+.sai-zj3bpb6w__stepper {
+  display: inline-flex; align-items: center;
+  background: var(--sai-color-surface-raised, #ffffff);
+  border: 1px solid var(--sai-color-border, #ececec);
+  border-radius: var(--sai-radius-button, 16px);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  padding: 4px 6px;
+}
+.sai-zj3bpb6w__step {
+  background: none; border: 0; cursor: pointer;
+  width: 40px; height: 34px; line-height: 1;
+  font-size: 1.5rem; color: var(--sai-color-text-muted, #6b7280);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.sai-zj3bpb6w__step:disabled { opacity: 0.35; cursor: default; }
+.sai-zj3bpb6w__qty { min-width: 2.5ch; text-align: center; font-weight: 700; font-size: 1.1rem; color: var(--sai-color-text, #18181b); font-variant-numeric: tabular-nums; }
+
+.sai-zj3bpb6w__prices { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.sai-zj3bpb6w__compare { text-decoration: line-through; color: var(--sai-color-text-muted, #9aa0a6); font-size: var(--sai-font-size-sm, 0.95rem); font-weight: 500; }
+.sai-zj3bpb6w__compare--nostrike { text-decoration: none; }
+.sai-zj3bpb6w__price { font-weight: 700; font-size: var(--sai-font-size-md, 1.1rem); color: var(--sai-color-sale, #1fa84b); }
+.sai-zj3bpb6w__unit { font-size: 0.78rem; color: var(--sai-color-text-muted, #9aa0a6); }
+.sai-zj3bpb6w__savings {
+  font-size: 0.78rem; font-weight: 600;
+  color: var(--sai-color-success, #0a7d33);
+  background: var(--sai-color-success-bg, rgba(10, 125, 51, 0.1));
+  border-radius: var(--sai-radius-chip, 999px);
+  padding: 0 var(--sai-space-2, 0.5rem);
+}
+
+.sai-zj3bpb6w__remove { background: none; border: 0; cursor: pointer; padding: 0; color: var(--sai-color-text-muted, #9aa0a6); display: inline-flex; align-items: center; gap: 4px; font: inherit; }
+.sai-zj3bpb6w__remove svg { width: 18px; height: 18px; }
+.sai-zj3bpb6w__wishlist { background: none; border: 0; cursor: pointer; padding: 0; color: var(--sai-color-text-muted, #9aa0a6); text-decoration: underline; font: inherit; font-size: 0.82rem; }
+
+.sai-zj3bpb6w__line--gift {
+  background: var(--sai-color-surface, #f6f6f7);
+  border-radius: var(--sai-radius-card, 16px);
+  padding: 1.15rem var(--sai-space-4, 1rem);
+  margin: 1rem 0;
+  border-bottom: 0;
+}
+.sai-zj3bpb6w__line--bundle-child { padding-left: var(--sai-space-4, 1rem); border-left: 2px solid var(--sai-color-border, #ececec); }
+.sai-zj3bpb6w__empty { color: var(--sai-color-text-muted, #9aa0a6); padding: var(--sai-space-4, 1rem) 0; }
+
+.sai-zj3bpb6w--anim .sai-zj3bpb6w__line { transition: opacity 0.18s ease, transform 0.18s ease; }
+.sai-zj3bpb6w__line--leaving { opacity: 0; transform: translateX(8px); }
+.sai-zj3bpb6w__line--qty-bump .sai-zj3bpb6w__qty { animation: sai-zj3bpb6w-bump 0.2s ease; }
+@keyframes sai-zj3bpb6w-bump { 50% { transform: scale(1.25); } }
+
+/* In-flight loading — the interacted control's glyph is swapped for a spinner
+   in place (quantity control / remove icon), not a whole-line overlay. */
+.sai-zj3bpb6w__busy { display: inline-flex; align-items: center; justify-content: center; pointer-events: none; vertical-align: middle; }
+.sai-zj3bpb6w__spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--sai-color-border, #e5e7eb);
+  border-top-color: var(--sai-color-text, #18181b);
+  border-radius: 50%;
+  animation: sai-zj3bpb6w-spin 0.6s linear infinite;
+}
+@keyframes sai-zj3bpb6w-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .sai-zj3bpb6w--anim .sai-zj3bpb6w__line { transition: none; }
+  .sai-zj3bpb6w__line--qty-bump .sai-zj3bpb6w__qty { animation: none; }
+}
+{% endstylesheet %}
+
+{%- liquid
+  assign c = variant.content
+
+  assign line_layout = c.line_layout | default: 'image_left'
+  assign image_aspect_ratio = c.image_aspect_ratio | default: '1:1'
+  assign image_object_fit = c.image_object_fit | default: 'cover'
+  assign row_divider_style = c.row_divider_style | default: 'line'
+
+  assign title_max_lines = c.title_max_lines | default: 3
+  if c.title_links_to_pdp == nil
+    assign title_links_to_pdp = true
+  else
+    assign title_links_to_pdp = c.title_links_to_pdp
+  endif
+
+  assign variant_render_mode = c.variant_render_mode | default: 'label_value'
+  if c.variant_editable == nil
+    assign variant_editable = false
+  else
+    assign variant_editable = c.variant_editable
+  endif
+  assign variant_editor_type = c.variant_editor_type | default: 'mini_pdp_modal'
+
+  if c.show_compare_at == nil
+    assign show_compare_at = true
+  else
+    assign show_compare_at = c.show_compare_at
+  endif
+  if c.compare_at_strikethrough == nil
+    assign compare_at_strikethrough = true
+  else
+    assign compare_at_strikethrough = c.compare_at_strikethrough
+  endif
+  if c.show_per_unit_price == nil
+    assign show_per_unit_price = false
+  else
+    assign show_per_unit_price = c.show_per_unit_price
+  endif
+
+  if c.show_savings == nil
+    assign show_savings = false
+  else
+    assign show_savings = c.show_savings
+  endif
+  assign savings_format = c.savings_format | default: 'percentage'
+
+  assign quantity_control = c.quantity_control | default: 'stepper'
+  assign min_quantity = c.min_quantity | default: 1
+  assign max_quantity = c.max_quantity | default: 10
+  if c.remove_at_zero == nil
+    assign remove_at_zero = true
+  else
+    assign remove_at_zero = c.remove_at_zero
+  endif
+
+  assign remove_style = c.remove_style | default: 'trash'
+  if c.remove_confirmation == nil
+    assign remove_confirmation = false
+  else
+    assign remove_confirmation = c.remove_confirmation
+  endif
+
+  if c.show_wishlist == nil
+    assign show_wishlist = false
+  else
+    assign show_wishlist = c.show_wishlist
+  endif
+  assign wishlist_label = c.wishlist_label | default: 'Move to wishlist'
+
+  if c.show_badges == nil
+    assign show_badges = false
+  else
+    assign show_badges = c.show_badges
+  endif
+  assign badge_custom_text = c.badge_custom_text | default: ''
+
+  if c.show_rating == nil
+    assign show_rating = false
+  else
+    assign show_rating = c.show_rating
+  endif
+
+  if c.show_edd == nil
+    assign show_edd = false
+  else
+    assign show_edd = c.show_edd
+  endif
+  assign edd_template = c.edd_template | default: 'Arrives {date}'
+
+  if c.show_scarcity == nil
+    assign show_scarcity = false
+  else
+    assign show_scarcity = c.show_scarcity
+  endif
+  assign scarcity_source = c.scarcity_source | default: 'low_stock'
+  assign scarcity_template = c.scarcity_template | default: 'Only {qty} left'
+
+  if c.show_microline == nil
+    assign show_microline = false
+  else
+    assign show_microline = c.show_microline
+  endif
+  assign microline_text = c.microline_text | default: ''
+
+  if c.show_item_properties == nil
+    assign show_item_properties = true
+  else
+    assign show_item_properties = c.show_item_properties
+  endif
+  assign properties_display = c.properties_display | default: 'inline'
+
+  assign bundle_display = c.bundle_display | default: 'grouped'
+  if c.show_component_lines == nil
+    assign show_component_lines = true
+  else
+    assign show_component_lines = c.show_component_lines
+  endif
+  if c.show_component_prices == nil
+    assign show_component_prices = false
+  else
+    assign show_component_prices = c.show_component_prices
+  endif
+
+  assign free_label_text = c.free_label_text | default: 'Free'
+  if c.free_show_original_strikethrough == nil
+    assign free_show_original_strikethrough = true
+  else
+    assign free_show_original_strikethrough = c.free_show_original_strikethrough
+  endif
+  if c.free_removable == nil
+    assign free_removable = false
+  else
+    assign free_removable = c.free_removable
+  endif
+
+  assign empty_text = c.empty_text | default: 'Your cart is empty'
+
+  assign root_class = 'sai-zj3bpb6w sai-zj3bpb6w--anim'
+-%}
+
+<div class="{{ root_class }}"
+     data-sai-cart-line
+     data-sai-layout="{{ line_layout }}"
+     data-sai-divider="{{ row_divider_style }}"
+     data-sai-ar="{{ image_aspect_ratio }}"
+     data-sai-fit="{{ image_object_fit }}"
+     style="--sai-zj3bpb6w-title-lines: {{ title_max_lines }};">
+  <script type="application/json" data-sai-cart-line-config>
+{
+  "lineLayout": {{ line_layout | json }},
+  "imageAspectRatio": {{ image_aspect_ratio | json }},
+  "imageObjectFit": {{ image_object_fit | json }},
+  "rowDividerStyle": {{ row_divider_style | json }},
+  "titleMaxLines": {{ title_max_lines | json }},
+  "titleLinksToPdp": {{ title_links_to_pdp | json }},
+  "variantRenderMode": {{ variant_render_mode | json }},
+  "variantEditable": {{ variant_editable | json }},
+  "variantEditorType": {{ variant_editor_type | json }},
+  "showCompareAt": {{ show_compare_at | json }},
+  "compareAtStrikethrough": {{ compare_at_strikethrough | json }},
+  "showPerUnitPrice": {{ show_per_unit_price | json }},
+  "showSavings": {{ show_savings | json }},
+  "savingsFormat": {{ savings_format | json }},
+  "quantityControl": {{ quantity_control | json }},
+  "minQuantity": {{ min_quantity | json }},
+  "maxQuantity": {{ max_quantity | json }},
+  "removeAtZero": {{ remove_at_zero | json }},
+  "removeStyle": {{ remove_style | json }},
+  "removeConfirmation": {{ remove_confirmation | json }},
+  "showWishlist": {{ show_wishlist | json }},
+  "wishlistLabel": {{ wishlist_label | json }},
+  "showBadges": {{ show_badges | json }},
+  "badgeTypes": {{ c.badge_types | json }},
+  "badgeCustomText": {{ badge_custom_text | json }},
+  "showRating": {{ show_rating | json }},
+  "showEdd": {{ show_edd | json }},
+  "eddTemplate": {{ edd_template | json }},
+  "showScarcity": {{ show_scarcity | json }},
+  "scarcitySource": {{ scarcity_source | json }},
+  "scarcityTemplate": {{ scarcity_template | json }},
+  "showMicroline": {{ show_microline | json }},
+  "microlineText": {{ microline_text | json }},
+  "showItemProperties": {{ show_item_properties | json }},
+  "propertiesDisplay": {{ properties_display | json }},
+  "bundleDisplay": {{ bundle_display | json }},
+  "showComponentLines": {{ show_component_lines | json }},
+  "showComponentPrices": {{ show_component_prices | json }},
+  "freeLabelText": {{ free_label_text | json }},
+  "freeGiftImagePlaceholder": {{ c.free_gift_image_placeholder | json }},
+  "freeShowOriginalStrikethrough": {{ free_show_original_strikethrough | json }},
+  "freeRemovable": {{ free_removable | json }},
+  "emptyText": {{ empty_text | json }}
+}
+  </script>
+  <ul class="sai-zj3bpb6w__lines" data-sai-cart-lines></ul>
+  <p class="sai-zj3bpb6w__empty" data-sai-cart-empty hidden>{{ empty_text }}</p>
+</div>
