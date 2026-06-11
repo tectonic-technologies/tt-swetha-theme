@@ -39,14 +39,22 @@
   box-shadow: 0 1px 8px rgba(0, 0, 0, 0.06);
   padding: 4px var(--sai-space-4, 1rem);
 }
-.sai-zj3bpb6w__lines { list-style: none; margin: 0; padding: 0; }
+.sai-zj3bpb6w__lines {
+  list-style: none; margin: 0; padding: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  column-gap: var(--sai-space-4, 1rem);
+}
 
+/* Each line is a subgrid of __lines so the thumb / qty / price columns line
+   up across every row. A per-line independent grid lets each row size its
+   own columns, which staggers the qty stepper horizontally. */
 .sai-zj3bpb6w__line {
   position: relative;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
   align-items: center;
-  column-gap: var(--sai-space-4, 1rem);
   row-gap: var(--sai-space-2, 0.5rem);
   padding: var(--sai-space-4, 1rem) 0;
 }
