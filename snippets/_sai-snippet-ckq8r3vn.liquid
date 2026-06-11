@@ -154,6 +154,11 @@
     echo '--sai-ckq8r3vn-cta-radius:'
     echo cta_radius
     echo 'px;'
+    if content.marker_icon_size != blank
+      echo '--sai-ckq8r3vn-marker-icon-size:'
+      echo content.marker_icon_size
+      echo 'px;'
+    endif
   endcapture
 -%}
 
@@ -444,8 +449,8 @@
 }
 
 .sai-ckq8r3vn__marker-icon {
-  inline-size: 1.25rem;
-  block-size: 1.25rem;
+  inline-size: var(--sai-ckq8r3vn-marker-icon-size, 1.25rem);
+  block-size: var(--sai-ckq8r3vn-marker-icon-size, 1.25rem);
   flex-shrink: 0;
   color: var(--sai-ckq8r3vn-muted-fg);
 }
