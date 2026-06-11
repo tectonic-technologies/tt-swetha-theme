@@ -31,7 +31,14 @@
 {%- endcomment -%}
 
 {% stylesheet %}
-.sai-zj3bpb6w { display: block; }
+.sai-zj3bpb6w {
+  display: block;
+  background: var(--sai-color-surface-raised, #ffffff);
+  border: 1px solid var(--sai-color-border, #ececec);
+  border-radius: var(--sai-radius-card, 16px);
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.06);
+  padding: 4px var(--sai-space-4, 1rem);
+}
 .sai-zj3bpb6w__lines { list-style: none; margin: 0; padding: 0; }
 
 .sai-zj3bpb6w__line {
