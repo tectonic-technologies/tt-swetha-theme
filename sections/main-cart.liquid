@@ -58,6 +58,12 @@
         {%- content_for 'block', id: 'cart-page-items', type: '_cart-products' %}
       </div>
 
+      {%- comment -%} SPECTRUM TEST: manual Cart Line Item (zj3bpb6w) placement — remove after testing {%- endcomment -%}
+      <div data-spectrum-snippet-id="zj3bpb6w" style="margin-top:24px;padding:0 16px">
+        {% render '_sai-snippet-zj3bpb6w' %}
+      </div>
+      <script src="{{ 'sai-snippet-zj3bpb6w.js' | asset_url }}" defer></script>
+
       {%- unless cart.empty? -%}
         <div class="cart-page__summary">
           {%- content_for 'block', id: 'cart-page-summary', type: '_cart-summary' -%}
