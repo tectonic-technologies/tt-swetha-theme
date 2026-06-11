@@ -1,0 +1,270 @@
+{% doc %}
+  @description Amount-based multi-milestone cart progress bar. Renders a
+    templated unlock message, a horizontal track with evenly spaced milestone
+    nodes (check state when reached), and an animated fill driven by the live
+    cart total. Milestone data (thresholds, rewards) comes from
+    spectrum_progress_campaign / spectrum_progress_milestone metaobjects;
+    presentation comes from snippet props.
+
+  @param c {object} Variant content object injected by the snippet wrapper.
+    All keys optional — defaults below.
+  @param c.campaign_handle {string} Handle of a spectrum_progress_campaign
+    metaobject. Empty = first active campaign on the shop.
+  @param c.bar_style {string} 'continuous' | 'segmented'
+  @param c.marker_style {string} 'node_icon' | 'dot' | 'label_only'
+  @param c.show_milestone_icons {boolean} Show per-milestone reward icons.
+  @param c.bar_height {number} Track height in px.
+  @param c.bar_corner {string} 'rounded' | 'square'
+  @param c.show_labels {boolean} Show reward labels under nodes.
+  @param c.pre_goal_template {string} Message before first milestone.
+  @param c.mid_progress_template {string} Message between milestones.
+  @param c.complete_message {string} Message when all milestones reached.
+  @param c.message_alignment {string} 'left' | 'center' | 'right'
+  @param c.show_check_on_reached {boolean} Check icon on reached nodes.
+  @param c.show_confetti {boolean} Confetti burst on newly reached milestone.
+  @param c.fill_animation {boolean} Animate fill width changes.
+{% enddoc %}
+
+{% comment %}
+  Data contract: campaign config is read HERE in Liquid (server-side) because
+  metaobjects are not available to cart.js. The resolved milestones are baked
+  into the embedded JSON config; the asset JS only does cart math + DOM state
+  updates on cart events. No app-proxy round trip.
+
+  Eligible-scope caveat: cart.js line items carry no tags/collections, so only
+  scope 'all' is computed client-side in v1. 'collection' / 'tag' scoped
+  campaigns fall back to the full cart total (fields exist in the metaobject
+  so scoped totals can land later without remodeling).
+
+  Node positions are evenly spaced at index/(count+1) — matches the reference
+  design (track extends past the last node) and stays stable however uneven
+  the threshold amounts are. Fill interpolates linearly between node positions.
+
+  Color pattern: theme tokens with the reference design's palette as
+  fallbacks (light-blue card #e7f0fc, royal-blue fill #4b79dd, rest-track
+  #c9daf3, deep-blue strong text #2f55a4).
+{% endcomment %}
+
+{% stylesheet %}
+.sai-vg4guong {
+  display: block;
+  background: var(--sai-color-info-bg, #e7f0fc);
+  border-radius: var(--sai-radius-card, 12px);
+  padding: var(--sai-space-4, 1rem) var(--sai-space-4, 1rem) var(--sai-space-3, 0.75rem);
+}
+.sai-vg4guong__message {
+  margin: 0 0 var(--sai-space-2, 0.5rem);
+  font-family: var(--sai-font-heading, inherit);
+  font-size: var(--sai-font-size-md, 1.1rem);
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--sai-color-info-text, #647eb5);
+}
+.sai-vg4guong__message strong { color: var(--sai-color-info-strong, #2f55a4); font-weight: 700; }
+.sai-vg4guong[data-sai-align="center"] .sai-vg4guong__message { text-align: center; }
+.sai-vg4guong[data-sai-align="right"] .sai-vg4guong__message { text-align: right; }
+
+.sai-vg4guong__bar { position: relative; padding: 16px 0; }
+.sai-vg4guong[data-sai-labels="on"] .sai-vg4guong__bar { margin-bottom: 3.1em; }
+.sai-vg4guong__track {
+  position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%);
+  height: var(--sai-vg4guong-bar-h, 5px);
+  background: var(--sai-color-track, #c9daf3);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.sai-vg4guong[data-sai-corner="square"] .sai-vg4guong__track { border-radius: 0; }
+.sai-vg4guong__fill {
+  height: 100%; width: 0;
+  background: var(--sai-color-accent, #4b79dd);
+  border-radius: inherit;
+}
+.sai-vg4guong[data-sai-anim="on"] .sai-vg4guong__fill { transition: width 0.45s ease; }
+
+.sai-vg4guong__node-wrap {
+  position: absolute; top: 50%; transform: translate(-50%, -50%);
+}
+.sai-vg4guong__node {
+  width: 32px; height: 32px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--sai-color-surface-raised, #ffffff);
+  border: 2px solid var(--sai-color-track, #c9daf3);
+  box-shadow: 0 0 0 3px var(--sai-color-info-bg, #e7f0fc);
+  color: transparent;
+}
+.sai-vg4guong__node-wrap--reached .sai-vg4guong__node {
+  background: var(--sai-color-accent, #4b79dd);
+  border-color: var(--sai-color-surface-raised, #ffffff);
+  color: var(--sai-color-surface-raised, #ffffff);
+}
+.sai-vg4guong__node svg { width: 16px; height: 16px; display: block; }
+.sai-vg4guong__node img { width: 18px; height: 18px; display: block; object-fit: contain; }
+.sai-vg4guong[data-sai-marker="dot"] .sai-vg4guong__node { width: 14px; height: 14px; }
+.sai-vg4guong[data-sai-marker="dot"] .sai-vg4guong__node svg,
+.sai-vg4guong[data-sai-marker="dot"] .sai-vg4guong__node img { display: none; }
+.sai-vg4guong[data-sai-marker="label_only"] .sai-vg4guong__node { display: none; }
+.sai-vg4guong[data-sai-style="segmented"] .sai-vg4guong__node { box-shadow: 0 0 0 6px var(--sai-color-info-bg, #e7f0fc); }
+.sai-vg4guong[data-sai-checks="off"] .sai-vg4guong__node svg { display: none; }
+
+.sai-vg4guong__label {
+  position: absolute; top: calc(50% + 22px); left: 50%; transform: translateX(-50%);
+  width: max-content; max-width: 140px;
+  text-align: center;
+  font-size: var(--sai-font-size-sm, 0.85rem);
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--sai-color-text, #3a4456);
+}
+.sai-vg4guong[data-sai-labels="off"] .sai-vg4guong__label { display: none; }
+
+.sai-vg4guong__node-wrap--pulse .sai-vg4guong__node { animation: sai-vg4guong-pulse 0.5s ease; }
+@keyframes sai-vg4guong-pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.25); }
+  100% { transform: scale(1); }
+}
+.sai-vg4guong__confetti {
+  position: absolute; width: 7px; height: 7px; border-radius: 2px;
+  pointer-events: none;
+  animation: sai-vg4guong-burst 0.9s ease-out forwards;
+}
+@keyframes sai-vg4guong-burst {
+  0% { opacity: 1; transform: translate(0, 0) rotate(0deg); }
+  100% { opacity: 0; transform: translate(var(--sai-vg4guong-cx, 0), var(--sai-vg4guong-cy, -60px)) rotate(320deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sai-vg4guong[data-sai-anim="on"] .sai-vg4guong__fill { transition: none; }
+  .sai-vg4guong__node-wrap--pulse .sai-vg4guong__node { animation: none; }
+  .sai-vg4guong__confetti { display: none; }
+}
+{% endstylesheet %}
+
+{%- liquid
+  assign campaign_handle = c.campaign_handle | default: ''
+  assign bar_style = c.bar_style | default: 'continuous'
+  assign marker_style = c.marker_style | default: 'node_icon'
+  assign bar_height = c.bar_height | default: 5
+  assign bar_corner = c.bar_corner | default: 'rounded'
+  assign message_alignment = c.message_alignment | default: 'center'
+  assign pre_goal_template = c.pre_goal_template | default: 'Add {remaining} more to unlock {reward}'
+  assign mid_progress_template = c.mid_progress_template | default: "You're {remaining} away from {reward}"
+  assign complete_message = c.complete_message | default: "Congrats! You've unlocked {reward} 🎉"
+
+  if c.show_milestone_icons == nil
+    assign show_milestone_icons = true
+  else
+    assign show_milestone_icons = c.show_milestone_icons
+  endif
+  if c.show_labels == nil
+    assign show_labels = true
+  else
+    assign show_labels = c.show_labels
+  endif
+  if c.show_check_on_reached == nil
+    assign show_check_on_reached = true
+  else
+    assign show_check_on_reached = c.show_check_on_reached
+  endif
+  if c.show_confetti == nil
+    assign show_confetti = false
+  else
+    assign show_confetti = c.show_confetti
+  endif
+  if c.fill_animation == nil
+    assign fill_animation = true
+  else
+    assign fill_animation = c.fill_animation
+  endif
+
+  assign campaign = nil
+  if campaign_handle != blank
+    assign campaign = shop.metaobjects['spectrum_progress_campaign'][campaign_handle]
+  endif
+  if campaign == nil
+    for entry in shop.metaobjects['spectrum_progress_campaign'].values
+      if campaign == nil and entry.active.value
+        assign campaign = entry
+      endif
+    endfor
+  endif
+
+  assign milestones = nil
+  if campaign
+    assign milestones = campaign.milestones.value
+  endif
+
+  assign labels_attr = 'off'
+  if show_labels
+    assign labels_attr = 'on'
+  endif
+  assign checks_attr = 'on'
+  unless show_check_on_reached
+    assign checks_attr = 'off'
+  endunless
+  assign anim_attr = 'off'
+  if fill_animation
+    assign anim_attr = 'on'
+  endif
+-%}
+
+{%- if milestones and milestones.size > 0 -%}
+<div class="sai-vg4guong"
+     data-sai-progress
+     data-sai-style="{{ bar_style }}"
+     data-sai-marker="{{ marker_style }}"
+     data-sai-corner="{{ bar_corner }}"
+     data-sai-align="{{ message_alignment }}"
+     data-sai-labels="{{ labels_attr }}"
+     data-sai-checks="{{ checks_attr }}"
+     data-sai-anim="{{ anim_attr }}"
+     style="--sai-vg4guong-bar-h: {{ bar_height }}px;">
+  <script type="application/json" data-sai-progress-config>
+{
+  "milestones": [
+    {%- for m in milestones -%}
+    {%- liquid
+      assign icon_url = ''
+      if m.reward_icon.value
+        assign icon_url = m.reward_icon.value.preview_image | image_url: width: 64
+      endif
+    -%}
+    {"threshold": {{ m.threshold_amount.value | times: 100 | round }}, "label": {{ m.reward_label.value | json }}, "type": {{ m.reward_type.value | json }}, "code": {{ m.discount_code.value | json }}, "icon": {{ icon_url | json }}}{%- unless forloop.last -%},{%- endunless -%}
+    {%- endfor -%}
+  ],
+  "excludeDiscounted": {{ campaign.exclude_discounted_items.value | json }},
+  "eligibleScope": {{ campaign.eligible_scope.value | json }},
+  "preGoalTemplate": {{ pre_goal_template | json }},
+  "midProgressTemplate": {{ mid_progress_template | json }},
+  "completeMessage": {{ complete_message | json }},
+  "showConfetti": {{ show_confetti | json }},
+  "showMilestoneIcons": {{ show_milestone_icons | json }}
+}
+  </script>
+  <p class="sai-vg4guong__message" data-sai-msg>&nbsp;</p>
+  <div class="sai-vg4guong__bar" data-sai-bar>
+    <div class="sai-vg4guong__track">
+      <div class="sai-vg4guong__fill" data-sai-fill></div>
+    </div>
+    {%- assign denom = milestones.size | plus: 1 -%}
+    {%- for m in milestones -%}
+    {%- liquid
+      assign pos = forloop.index | times: 100.0 | divided_by: denom
+      assign icon_url = ''
+      if show_milestone_icons and m.reward_icon.value
+        assign icon_url = m.reward_icon.value.preview_image | image_url: width: 64
+      endif
+    -%}
+    <div class="sai-vg4guong__node-wrap" data-sai-node data-sai-threshold="{{ m.threshold_amount.value | times: 100 | round }}" style="left: {{ pos }}%;">
+      <div class="sai-vg4guong__node">
+        {%- if icon_url != blank -%}
+        <img src="{{ icon_url }}" alt="" loading="lazy">
+        {%- else -%}
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg>
+        {%- endif -%}
+      </div>
+      <div class="sai-vg4guong__label">{{ m.reward_label.value }}</div>
+    </div>
+    {%- endfor -%}
+  </div>
+</div>
+{%- endif -%}
