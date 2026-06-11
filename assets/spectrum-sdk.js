@@ -41,6 +41,14 @@
  *   Spectrum.products.getByHandle(handle)         → product JSON
  *   Spectrum.products.getRecommendations(id, { intent, limit })
  *
+ * ── Recently Viewed ─────────────────────────────────────────────────
+ *   Spectrum.recentlyViewed.getHistory()          → string[] (handles, most-recent-first)
+ *   Spectrum.recentlyViewed.push(handle)          → dedupe + prepend + cap at 20
+ *   Spectrum.recentlyViewed.clear()               → wipe history
+ *   Auto-tracks the current PDP product on SDK load via `/products/<handle>`
+ *   URL match. Off-PDP pages skip the auto-push silently. localStorage-backed
+ *   under `spectrum:rv:product-handles`; per-origin, per-device.
+ *
  * ── Sections (HTML) ─────────────────────────────────────────────────
  *   Spectrum.sections.fetch(url)                  → rendered HTML string
  *
@@ -929,6 +937,66 @@ const products = {
     let url = `recommendations/products.json?product_id=${productId}&intent=${intent}`;
     if (limit != null) url += `&limit=${limit}`;
     return _request(url, { signal });
+  },
+};
+
+// ─── Recently Viewed Products ────────────────────────────────────────
+//
+// Client-side history of product handles the visitor has landed on. Shopify
+// has no native recently-viewed surface (no Storefront field, no Liquid
+// object, no Admin endpoint), so storefronts that need this — e.g. the
+// Recently Viewed Products library snippet — read from here.
+//
+// Storage: localStorage under `spectrum:rv:product-handles`, capped at 20
+// entries, most-recent-first, deduped. The auto-tracker below pushes the
+// current product on every SDK load whose URL matches `/products/<handle>`.
+// Theme-agnostic — no dependency on `ShopifyAnalytics.meta` or theme JS.
+
+const _RV_STORAGE_KEY = 'spectrum:rv:product-handles';
+const _RV_CAP = 20;
+
+const recentlyViewed = {
+  /**
+   * Read the history list, most-recent-first. Returns an empty array when
+   * storage is empty, corrupt, or denied (private mode, blocked origins).
+   * @returns {string[]}
+   */
+  getHistory() {
+    try {
+      const raw = window.localStorage.getItem(_RV_STORAGE_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter((h) => typeof h === 'string' && h.length > 0);
+    } catch {
+      return [];
+    }
+  },
+
+  /**
+   * Prepend a handle, dedupe against existing entries, cap at 20. No-op for
+   * empty / non-string input or when localStorage is denied.
+   * @param {string} handle
+   */
+  push(handle) {
+    if (typeof handle !== 'string' || handle === '') return;
+    try {
+      const current = recentlyViewed.getHistory();
+      const filtered = current.filter((h) => h !== handle);
+      const next = [handle, ...filtered].slice(0, _RV_CAP);
+      window.localStorage.setItem(_RV_STORAGE_KEY, JSON.stringify(next));
+    } catch {
+      // localStorage unavailable; recently-viewed is best-effort.
+    }
+  },
+
+  /**
+   * Wipe the history.
+   */
+  clear() {
+    try {
+      window.localStorage.removeItem(_RV_STORAGE_KEY);
+    } catch {}
   },
 };
 
@@ -2534,6 +2602,7 @@ const SpectrumSDK = {
   getActiveCurrency,
   cart,
   products,
+  recentlyViewed,
   sections,
   platform,
   priceAdjustments,
@@ -2548,6 +2617,18 @@ const SpectrumSDK = {
 };
 
 window.Spectrum = SpectrumSDK;
+
+// ─── Recently-viewed: auto-track current PDP ─────────────────────────
+//
+// PDP detection is URL-based (`/products/<handle>`) — theme-agnostic and
+// independent of `ShopifyAnalytics.meta` (not present on every theme). Runs
+// once at SDK load. Off-PDP pages match nothing and skip silently.
+try {
+  const _rvPathMatch = window.location.pathname.match(/\/products\/([^/?#]+)/);
+  if (_rvPathMatch && _rvPathMatch[1]) {
+    recentlyViewed.push(_rvPathMatch[1]);
+  }
+} catch {}
 
 // ─── Auto-Merge Guest Wishlist on Login ──────────────────────────────
 
