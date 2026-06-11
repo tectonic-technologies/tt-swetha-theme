@@ -58,6 +58,12 @@
         {%- content_for 'block', id: 'cart-page-items', type: '_cart-products' %}
       </div>
 
+      {%- comment -%} SPECTRUM TEST: gate-free Cart Progress Bar (remove after testing) {%- endcomment -%}
+      <div data-spectrum-snippet-id="vg4guong" style="margin:16px 0">
+        {% render '_sai-snippet-vg4guong' %}
+      </div>
+      <script src="{{ 'sai-snippet-vg4guong.js' | asset_url }}" defer></script>
+
       {%- comment -%} SPECTRUM TEST: gate-free Cart Line Item, native lines hidden so only ours shows (remove after testing) {%- endcomment -%}
       <style>.cart-page__items{display:none !important}</style>
       <div data-spectrum-snippet-id="zj3bpb6w" style="margin:16px 0">
