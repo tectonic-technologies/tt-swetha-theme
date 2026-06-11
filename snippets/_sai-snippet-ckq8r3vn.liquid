@@ -1,0 +1,595 @@
+{% doc %}
+  Cart CTA Strip — checkout-action strip for the cart.
+
+  Renders a total + savings summary, a primary checkout button, optional
+  Shopify express checkout buttons, a footer message, and a row of trust
+  markers. Reads the native Shopify `cart` object (no metafield) and keeps
+  the totals live via the storefront cart events.
+
+  @param {string} mutation_handle - DOM scoping handle (infrastructure; consumed by the wrapper's outer div)
+  @param {string} experience_handle - Experience attribution (infrastructure; consumed by the wrapper's outer div)
+  @param {object} variant - Resolved snippet-instance variant; merchant props live on `variant.content`
+  @param {object} props - Legacy dev-loop prop bag (only present via the dev wrapper)
+
+  variant.content fields:
+    - strip_position {string} — "inline" | "sticky_footer"
+    - total_alignment {string} — "left" | "center"
+    - show_total {boolean}
+    - total_label {string}
+    - show_strikethrough_total {boolean}
+    - show_savings_chip {boolean}
+    - savings_chip_template {string} — "{amount}" token replaced with formatted cart savings
+    - expandable_total {boolean}
+    - cta_text {string}
+    - cta_bg_color {string} / cta_text_color {string} / cta_border_radius {number} / cta_text_alignment {string}
+    - show_payment_method_icons {boolean}
+    - show_subtext {boolean} / subtext_text {string}
+    - show_express_buttons {boolean} / express_providers {array}
+    - show_footer_message {boolean} / footer_message_text {string}
+    - show_trust_markers {boolean} / marker_placement {string} / trust_markers {array}
+    - checkout_destination {string} — "shopify" | "custom_url" / custom_checkout_url {string}
+
+  @example
+  {% render '_sai-snippet-ckq8r3vn', variant: variant, mutation_handle: 'mut-ckq8r3vnabcd1234', experience_handle: 'cart-strip' %}
+{% enddoc %}
+
+{%- liquid
+  # Prod wrapper passes `variant`; the legacy dev-loop wrapper passes `props`.
+  assign content = variant.content
+  unless content
+    assign content = props
+  endunless
+
+  assign strip_position = content.strip_position | default: 'inline'
+  assign total_alignment = content.total_alignment | default: 'left'
+  assign cta_text_alignment = content.cta_text_alignment | default: 'center'
+  assign marker_placement = content.marker_placement | default: 'below_cta'
+  assign checkout_destination = content.checkout_destination | default: 'shopify'
+
+  if content.show_total == nil
+    assign show_total = true
+  else
+    assign show_total = content.show_total
+  endif
+
+  assign total_label = content.total_label | default: 'Total Price'
+
+  if content.show_strikethrough_total == nil
+    assign show_strikethrough_total = false
+  else
+    assign show_strikethrough_total = content.show_strikethrough_total
+  endif
+
+  if content.show_savings_chip == nil
+    assign show_savings_chip = true
+  else
+    assign show_savings_chip = content.show_savings_chip
+  endif
+
+  assign savings_chip_template = content.savings_chip_template | default: '{amount} applied!'
+
+  if content.expandable_total == nil
+    assign expandable_total = false
+  else
+    assign expandable_total = content.expandable_total
+  endif
+
+  assign cta_text = content.cta_text | default: 'Proceed to Checkout'
+
+  if content.show_payment_method_icons == nil
+    assign show_payment_method_icons = false
+  else
+    assign show_payment_method_icons = content.show_payment_method_icons
+  endif
+
+  if content.show_subtext == nil
+    assign show_subtext = false
+  else
+    assign show_subtext = content.show_subtext
+  endif
+  assign subtext_text = content.subtext_text
+
+  if content.show_express_buttons == nil
+    assign show_express_buttons = false
+  else
+    assign show_express_buttons = content.show_express_buttons
+  endif
+
+  if content.show_footer_message == nil
+    assign show_footer_message = false
+  else
+    assign show_footer_message = content.show_footer_message
+  endif
+  assign footer_message_text = content.footer_message_text
+
+  if content.show_trust_markers == nil
+    assign show_trust_markers = true
+  else
+    assign show_trust_markers = content.show_trust_markers
+  endif
+  assign trust_markers = content.trust_markers
+
+  assign custom_checkout_url = content.custom_checkout_url
+
+  # Savings = MRP (compare-at) total − payable total. This counts compare-at
+  # price reductions AND any cart-level discount in one figure, matching the
+  # storefront "₹X applied!" convention. mrp_total sums each line's MRP
+  # (compare-at when it beats the selling price, else the selling price) × qty.
+  assign mrp_total = 0
+  for line in cart.items
+    assign line_unit = line.original_price
+    if line.variant.compare_at_price != blank and line.variant.compare_at_price > line.original_price
+      assign line_unit = line.variant.compare_at_price
+    endif
+    assign line_total = line_unit | times: line.quantity
+    assign mrp_total = mrp_total | plus: line_total
+  endfor
+  assign savings_cents = mrp_total | minus: cart.total_price
+  if savings_cents < 0
+    assign savings_cents = 0
+  endif
+
+  # Cents in, money string out.
+  assign total_money = cart.total_price | money
+  assign original_money = mrp_total | money
+  assign savings_money = savings_cents | money
+  assign chip_text = savings_chip_template | replace: '{amount}', savings_money
+  assign cta_radius = content.cta_border_radius | default: 16
+
+  # Build only the prop-driven CSS custom properties that carry a value, so an
+  # empty prop falls through to the stylesheet's var() fallback rather than
+  # emitting an invalid empty declaration.
+  capture host_style
+    if content.cta_bg_color != blank
+      echo '--sai-ckq8r3vn-cta-bg:'
+      echo content.cta_bg_color
+      echo ';'
+    endif
+    if content.cta_text_color != blank
+      echo '--sai-ckq8r3vn-cta-fg:'
+      echo content.cta_text_color
+      echo ';'
+    endif
+    echo '--sai-ckq8r3vn-cta-radius:'
+    echo cta_radius
+    echo 'px;'
+  endcapture
+-%}
+
+{% stylesheet %}
+/* =============================================================================
+ * Cart CTA Strip (ckq8r3vn).
+ *
+ * Author selectors stay at single-class (0,1,0) specificity so per-instance
+ * baked rules anchored on [data-spectrum-instance-id][data-spectrum-variant-id]
+ * always win. Prop-driven values arrive as --sai-ckq8r3vn-* custom properties
+ * set inline on the host; the stylesheet consumes them with var() fallbacks.
+ * ============================================================================= */
+
+.sai-ckq8r3vn {
+  --sai-ckq8r3vn-fg: var(--sai-color-fg, #1a1a1a);
+  --sai-ckq8r3vn-muted-fg: rgba(0, 0, 0, 0.55);
+  --sai-ckq8r3vn-card-bg: #ffffff;
+  --sai-ckq8r3vn-success-fg: #0e6f54;
+  --sai-ckq8r3vn-success-bg: #e9f5ef;
+  --sai-ckq8r3vn-cta-bg: #f5c542;
+  --sai-ckq8r3vn-cta-fg: #1a1a1a;
+  --sai-ckq8r3vn-cta-radius: 16px;
+
+  display: block;
+  box-sizing: border-box;
+  inline-size: 100%;
+  max-width: 640px;
+  margin-inline: auto;
+  padding: 1.25rem;
+  background: var(--sai-ckq8r3vn-card-bg);
+  border-radius: 16px;
+  font-family: var(--sai-font-body, inherit);
+  color: var(--sai-ckq8r3vn-fg);
+}
+
+.sai-ckq8r3vn *,
+.sai-ckq8r3vn *::before,
+.sai-ckq8r3vn *::after {
+  box-sizing: border-box;
+}
+
+.sai-ckq8r3vn [hidden] {
+  display: none !important;
+}
+
+.sai-ckq8r3vn[hidden] {
+  display: none !important;
+}
+
+/* Sticky footer — pin the strip to the bottom of the viewport, full width. */
+.sai-ckq8r3vn[data-position='sticky_footer'] {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 9990;
+  max-width: none;
+  margin-inline: 0;
+  border-radius: 0;
+  box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.12);
+  padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
+}
+
+.sai-ckq8r3vn__inner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+/* ── Summary row ──────────────────────────────────────────────────────────── */
+.sai-ckq8r3vn__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.sai-ckq8r3vn[data-total-align='center'] .sai-ckq8r3vn__summary {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+}
+
+.sai-ckq8r3vn__summary-left {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-width: 0;
+}
+
+.sai-ckq8r3vn__total-label {
+  font-weight: 800;
+  font-size: 1.1875rem;
+  color: var(--sai-ckq8r3vn-fg);
+}
+
+.sai-ckq8r3vn__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+  background: var(--sai-ckq8r3vn-success-bg);
+  color: var(--sai-ckq8r3vn-success-fg);
+  font-size: 0.875rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.sai-ckq8r3vn__chip-icon {
+  inline-size: 0.9375rem;
+  block-size: 0.9375rem;
+  flex-shrink: 0;
+}
+
+.sai-ckq8r3vn__total-right {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.sai-ckq8r3vn__strike {
+  color: var(--sai-ckq8r3vn-muted-fg);
+  text-decoration: line-through;
+  font-size: 0.9375rem;
+}
+
+.sai-ckq8r3vn__total-value {
+  font-weight: 800;
+  font-size: 1.1875rem;
+  color: var(--sai-ckq8r3vn-fg);
+}
+
+.sai-ckq8r3vn__toggle {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  cursor: pointer;
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.sai-ckq8r3vn__breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+  color: var(--sai-ckq8r3vn-muted-fg);
+}
+
+.sai-ckq8r3vn__breakdown-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* ── Primary CTA ──────────────────────────────────────────────────────────── */
+.sai-ckq8r3vn__cta {
+  appearance: none;
+  position: relative;
+  inline-size: 100%;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+  font-size: 1.25rem;
+  min-height: 3.75rem;
+  padding: 0.875rem 1.25rem;
+  background: var(--sai-ckq8r3vn-cta-bg);
+  color: var(--sai-ckq8r3vn-cta-fg);
+  border-radius: var(--sai-ckq8r3vn-cta-radius);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  transition: filter 160ms ease;
+}
+
+.sai-ckq8r3vn[data-cta-align='left'] .sai-ckq8r3vn__cta {
+  align-items: flex-start;
+  text-align: left;
+}
+
+.sai-ckq8r3vn[data-cta-align='right'] .sai-ckq8r3vn__cta {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.sai-ckq8r3vn__cta:hover {
+  filter: brightness(0.96);
+}
+
+.sai-ckq8r3vn__cta:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.sai-ckq8r3vn__cta[disabled] {
+  opacity: 0.7;
+  cursor: default;
+}
+
+/* Loading state — spinner shown while the CTA navigates to checkout. */
+.sai-ckq8r3vn__spinner {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  inline-size: 1.375rem;
+  block-size: 1.375rem;
+  border-radius: 50%;
+  border: 2.5px solid currentColor;
+  border-top-color: transparent;
+  animation: sai-ckq8r3vn-spin 0.7s linear infinite;
+}
+
+/* Loading: hide label/icons with visibility (not display) so the button box
+   keeps its exact size, and overlay the centered spinner — no layout shift. */
+.sai-ckq8r3vn__cta[aria-busy='true'] .sai-ckq8r3vn__cta-label,
+.sai-ckq8r3vn__cta[aria-busy='true'] .sai-ckq8r3vn__pay-icons {
+  visibility: hidden;
+}
+
+@keyframes sai-ckq8r3vn-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.sai-ckq8r3vn__pay-icons {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  opacity: 0.75;
+}
+
+.sai-ckq8r3vn__pay-icons svg {
+  inline-size: 1.5rem;
+  block-size: 1rem;
+}
+
+/* ── Subtext / footer ─────────────────────────────────────────────────────── */
+.sai-ckq8r3vn__subtext,
+.sai-ckq8r3vn__footer {
+  margin: 0;
+  text-align: center;
+  font-size: 0.8125rem;
+  color: var(--sai-ckq8r3vn-muted-fg);
+  line-height: 1.4;
+}
+
+/* ── Express buttons container ────────────────────────────────────────────── */
+.sai-ckq8r3vn__express {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* ── Trust markers ────────────────────────────────────────────────────────── */
+.sai-ckq8r3vn__markers {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-around;
+  gap: 0.75rem 1.25rem;
+}
+
+.sai-ckq8r3vn__marker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--sai-ckq8r3vn-fg);
+}
+
+.sai-ckq8r3vn__marker-icon {
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  flex-shrink: 0;
+  color: var(--sai-ckq8r3vn-muted-fg);
+}
+
+.sai-ckq8r3vn__marker-icon img,
+.sai-ckq8r3vn__marker-icon svg {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: contain;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sai-ckq8r3vn__cta {
+    transition: none;
+  }
+  .sai-ckq8r3vn__spinner {
+    animation-duration: 1.6s;
+  }
+}
+{% endstylesheet %}
+
+{%- comment -%}
+  Renders one trust-marker icon. Custom uploaded image wins; otherwise a
+  bundled named glyph; otherwise nothing. Capturable as a reusable block via
+  the marker loop below.
+{%- endcomment -%}
+
+<sai-ckq8r3vn
+  class="sai-ckq8r3vn"
+  data-mutation-handle="{{ mutation_handle }}"
+  data-position="{{ strip_position }}"
+  data-total-align="{{ total_alignment }}"
+  data-cta-align="{{ cta_text_alignment }}"
+  data-marker-placement="{{ marker_placement }}"
+  data-checkout="{{ checkout_destination }}"
+  style="{{ host_style }}"
+  {% if cart.item_count == 0 and content.force_visible != true %}hidden{% endif %}>
+
+  <div class="sai-ckq8r3vn__inner">
+
+    {%- if show_trust_markers and marker_placement == 'above_cta' and trust_markers != blank -%}
+      <div class="sai-ckq8r3vn__markers">
+        {%- for marker in trust_markers -%}
+          {%- render '_sai-snippet-ckq8r3vn-marker', marker: marker -%}
+        {%- endfor -%}
+      </div>
+    {%- endif -%}
+
+    {%- if show_total -%}
+      <div class="sai-ckq8r3vn__summary">
+        <div class="sai-ckq8r3vn__summary-left">
+          {%- if expandable_total -%}
+            <button type="button" class="sai-ckq8r3vn__toggle" data-sai-total-toggle aria-expanded="false">
+              <span class="sai-ckq8r3vn__total-label">{{ total_label }}</span>
+              <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
+                <path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          {%- else -%}
+            <span class="sai-ckq8r3vn__total-label">{{ total_label }}</span>
+          {%- endif -%}
+          {%- if show_savings_chip -%}
+            <span class="sai-ckq8r3vn__chip" data-sai-chip {% if savings_cents <= 0 %}hidden{% endif %}>
+              <svg class="sai-ckq8r3vn__chip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                <path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/>
+                <path d="m9 12 2 2 4-4"/>
+              </svg>
+              <span data-sai-chip-text>{{ chip_text }}</span>
+            </span>
+          {%- endif -%}
+        </div>
+        <div class="sai-ckq8r3vn__total-right">
+          {%- if show_strikethrough_total -%}
+            <span class="sai-ckq8r3vn__strike" data-sai-strike {% if mrp_total <= cart.total_price %}hidden{% endif %}>{{ original_money }}</span>
+          {%- endif -%}
+          <span class="sai-ckq8r3vn__total-value" data-sai-total>{{ total_money }}</span>
+        </div>
+      </div>
+
+      {%- if expandable_total -%}
+        <div class="sai-ckq8r3vn__breakdown" data-sai-breakdown hidden>
+          <div class="sai-ckq8r3vn__breakdown-row">
+            <span>Subtotal (MRP)</span><span data-sai-bd-subtotal>{{ original_money }}</span>
+          </div>
+          <div class="sai-ckq8r3vn__breakdown-row">
+            <span>Savings</span><span data-sai-bd-savings>{{ savings_money }}</span>
+          </div>
+          <div class="sai-ckq8r3vn__breakdown-row">
+            <span>Total</span><span data-sai-bd-total>{{ total_money }}</span>
+          </div>
+        </div>
+      {%- endif -%}
+    {%- endif -%}
+
+    <button type="button" class="sai-ckq8r3vn__cta" data-sai-checkout>
+      <span class="sai-ckq8r3vn__spinner" data-sai-spinner aria-hidden="true" hidden></span>
+      <span class="sai-ckq8r3vn__cta-label">{{ cta_text }}</span>
+      {%- if show_payment_method_icons -%}
+        <span class="sai-ckq8r3vn__pay-icons" aria-hidden="true">
+          <svg viewBox="0 0 36 24" fill="none" aria-hidden="true" focusable="false"><rect x="1" y="3" width="34" height="18" rx="3" stroke="currentColor" stroke-width="1.4"/><path d="M1 9h34" stroke="currentColor" stroke-width="1.4"/></svg>
+          <svg viewBox="0 0 36 24" fill="none" aria-hidden="true" focusable="false"><rect x="1" y="3" width="34" height="18" rx="3" stroke="currentColor" stroke-width="1.4"/><circle cx="15" cy="12" r="5" stroke="currentColor" stroke-width="1.4"/><circle cx="22" cy="12" r="5" stroke="currentColor" stroke-width="1.4"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><rect x="5" y="10" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="currentColor" stroke-width="1.6"/></svg>
+        </span>
+      {%- endif -%}
+    </button>
+
+    {%- if show_subtext and subtext_text != blank -%}
+      <p class="sai-ckq8r3vn__subtext">{{ subtext_text }}</p>
+    {%- endif -%}
+
+    {%- if show_express_buttons -%}
+      <div class="sai-ckq8r3vn__express" data-sai-express hidden></div>
+    {%- endif -%}
+
+    {%- if show_trust_markers and marker_placement == 'below_cta' and trust_markers != blank -%}
+      <div class="sai-ckq8r3vn__markers">
+        {%- for marker in trust_markers -%}
+          {%- render '_sai-snippet-ckq8r3vn-marker', marker: marker -%}
+        {%- endfor -%}
+      </div>
+    {%- endif -%}
+
+    {%- if show_footer_message and footer_message_text != blank -%}
+      <p class="sai-ckq8r3vn__footer">{{ footer_message_text }}</p>
+    {%- endif -%}
+
+  </div>
+
+  <script type="application/json" data-sai-payload>
+{
+  "config": {
+    "checkoutDestination": {{ checkout_destination | json }},
+    "customCheckoutUrl": {{ custom_checkout_url | json }},
+    "showExpressButtons": {{ show_express_buttons | json }},
+    "expressProviders": {%- if content.express_providers != blank -%}{{ content.express_providers | json }}{%- else -%}[]{%- endif -%},
+    "showTotal": {{ show_total | json }},
+    "showSavingsChip": {{ show_savings_chip | json }},
+    "savingsChipTemplate": {{ savings_chip_template | json }},
+    "showStrikethroughTotal": {{ show_strikethrough_total | json }},
+    "expandableTotal": {{ expandable_total | json }},
+    "forceVisible": {{ content.force_visible | json }}
+  },
+  "shop": {
+    "currency": {{ shop.currency | json }},
+    "moneyFormat": {{ shop.money_format | json }}
+  },
+  "compareAtByVariant": {
+    {%- for line in cart.items -%}
+      {%- unless forloop.first -%},{%- endunless -%}
+      "{{ line.variant_id }}": {{ line.variant.compare_at_price | default: 0 }}
+    {%- endfor -%}
+  }
+}
+  </script>
+</sai-ckq8r3vn>
+
+<script src="{{ 'sai-snippet-ckq8r3vn.js' | asset_url }}" defer></script>
