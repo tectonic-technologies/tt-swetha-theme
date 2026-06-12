@@ -528,6 +528,11 @@
       if (typeof handles.track === 'function') trackHandle = handles.track
       if (typeof handles.emit === 'function') emitHandle = handles.emit
     }
+    // Render immediately from the SSR pool — don't blank-wait on the SDK's
+    // variant-resolved callback, which doesn't fire for placements with no
+    // competing experiment/variant. hydrateTile is idempotent, so a later
+    // callback re-hydrate is a no-op.
+    hydrateAll(rootEl, cards, cfg, ctx)
 
     if (typeof IntersectionObserver !== 'undefined') {
       const io = new IntersectionObserver(
