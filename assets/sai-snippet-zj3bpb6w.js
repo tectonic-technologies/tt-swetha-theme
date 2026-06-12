@@ -78,6 +78,37 @@
     document.dispatchEvent(new CustomEvent('spectrum:cart:updated'))
   }
 
+  // The theme's summary (totals, subtotals, badges) is theme-owned SSR HTML
+  // that only the theme's own cart ops refresh. After OUR mutations, re-render
+  // the enclosing section via the Section Rendering API and swap it in — the
+  // theme's totals update, and our wiped snippet roots re-bind instantly via
+  // the DOM observer + cache paint. Debounced so rapid stepper clicks cost
+  // one re-render. The ?sections= GET does not match the cart-watch regex,
+  // so this never feeds back into the update loop.
+  let sectionRefreshTimer = null
+  function refreshThemeSection(node) {
+    const sec = node.closest('[id^="shopify-section-"]')
+    if (!sec) return
+    const sectionId = sec.id.replace('shopify-section-', '')
+    clearTimeout(sectionRefreshTimer)
+    sectionRefreshTimer = setTimeout(async () => {
+      try {
+        const res = await fetch(`${window.location.pathname}?sections=${encodeURIComponent(sectionId)}`, {
+          headers: { Accept: 'application/json' },
+        })
+        const data = await res.json()
+        const html = data && data[sectionId]
+        if (!html) return
+        const tpl = document.createElement('div')
+        tpl.innerHTML = html
+        const fresh = tpl.querySelector('[id^="shopify-section-"]') || tpl
+        sec.innerHTML = fresh.innerHTML
+      } catch {
+        /* totals refresh is cosmetic — cart state itself is already correct */
+      }
+    }, 350)
+  }
+
   // Swap a control's glyph/number for a spinner in place. The element is
   // replaced wholesale on the next render(), so no teardown is needed.
   function showSpinner(elm) {
@@ -438,6 +469,7 @@
         lastCart = updated
         render(node, cfg, ctx, updated)
         emitCartUpdated()
+        refreshThemeSection(node)
       } catch {
         refresh()
       }
@@ -496,6 +528,7 @@
         await cart.add([{ id: match.id, quantity: line.quantity }])
         track('cart_line:variant_change', { line_key: line.key, variant_id: match.id })
         emitCartUpdated()
+        refreshThemeSection(node)
         refresh()
       } catch {
         refresh()
@@ -540,9 +573,21 @@
     // the several aliases fired for one action cause a single re-render.
     let cartEventPending = false
     function onCartEvent() {
+      // Section swaps replace the instance root but document-level listeners
+      // survive — a disconnected node's listeners must become no-ops or every
+      // swap would add another fetch per cart event.
+      if (!node.isConnected) return
       if (cartEventPending) return
       cartEventPending = true
-      setTimeout(() => { cartEventPending = false; ctx.refresh() }, 0)
+      setTimeout(() => {
+        cartEventPending = false
+        if (!node.isConnected) return
+        ctx.refresh()
+        // Keep theme-owned totals in sync no matter who mutated the cart
+        // (upsell adds, third-party apps). Debounced inside; section swaps
+        // never re-fire cart events, so this cannot loop.
+        refreshThemeSection(node)
+      }, 0)
     }
     const CART_EVENTS = ['spectrum:cart:updated', 'cart:updated', 'cart:update', 'cart:refresh', 'cart:item-added', 'cart:add', 'cart:build']
     CART_EVENTS.forEach((name) => {

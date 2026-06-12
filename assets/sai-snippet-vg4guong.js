@@ -317,10 +317,15 @@
 
     let cartEventPending = false
     function onCartEvent() {
+      // Section swaps replace the instance root but document-level listeners
+      // survive — a disconnected node's listeners must become no-ops or every
+      // swap would add another fetch per cart event.
+      if (!node.isConnected) return
       if (cartEventPending) return
       cartEventPending = true
       setTimeout(() => {
         cartEventPending = false
+        if (!node.isConnected) return
         refresh()
       }, 0)
     }
