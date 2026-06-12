@@ -105,6 +105,10 @@
 .sai-vg4guong__node-wrap--reached .sai-vg4guong__node img { display: none; }
 .sai-vg4guong__node--icon { width: 40px; height: 40px; }
 .sai-vg4guong__node-wrap--icon .sai-vg4guong__label { top: calc(50% + 28px); }
+/* Once reached, the image swaps to the check — the node collapses to the
+   standard size so all reached milestones read identically. */
+.sai-vg4guong__node-wrap--reached .sai-vg4guong__node--icon { width: 32px; height: 32px; }
+.sai-vg4guong__node-wrap--icon.sai-vg4guong__node-wrap--reached .sai-vg4guong__label { top: calc(50% + 22px); }
 .sai-vg4guong[data-sai-marker="dot"] .sai-vg4guong__node { width: 14px; height: 14px; }
 .sai-vg4guong[data-sai-marker="dot"] .sai-vg4guong__node svg,
 .sai-vg4guong[data-sai-marker="dot"] .sai-vg4guong__node img { display: none; }
