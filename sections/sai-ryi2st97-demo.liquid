@@ -413,6 +413,15 @@
 
   /* ── Mini-PDP popup ── */
   .sai-ryi2st97__pdp-backdrop {
+    /* The popup is portalled to <body> (to escape tile overflow/stacking), so it
+       lives outside .sai-ryi2st97 and cannot inherit its scoped vars — redeclare
+       the ones the Mini-PDP needs here, with theme-var fallbacks. */
+    --sai-ryi2st97-bg: var(--color-background, #ffffff);
+    --sai-ryi2st97-fg: var(--color-foreground, #131313);
+    --sai-ryi2st97-accent: var(--color-button, #fcd00b);
+    --sai-ryi2st97-accent-text: #131313;
+    --sai-ryi2st97-muted: #8a8a8a;
+    --sai-ryi2st97-pdp-radius: 24px;
     position: fixed;
     inset: 0;
     z-index: 2147483000;
