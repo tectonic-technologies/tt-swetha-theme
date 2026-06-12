@@ -66,10 +66,23 @@
 
       {%- comment -%} SPECTRUM TEST: gate-free Cart Line Item, native lines hidden so only ours shows (remove after testing) {%- endcomment -%}
       <style>.cart-page__items{display:none !important}</style>
-      <div data-spectrum-snippet-id="zj3bpb6w" style="margin:16px 0">
+      <div id="sai-test-cartline" data-spectrum-snippet-id="zj3bpb6w" style="margin:16px 0">
         {% render '_sai-snippet-zj3bpb6w' %}
       </div>
       <script src="{{ 'sai-snippet-zj3bpb6w.js' | asset_url }}" defer></script>
+      <script>
+        (function () {
+          function dedupe() {
+            var mine = document.getElementById('sai-test-cartline')
+            if (!mine) return
+            var studio = document.querySelector('[data-spectrum-lq-snippet][data-spectrum-vis="on"] [data-sai-cart-line]')
+            mine.style.display = studio ? 'none' : ''
+          }
+          dedupe()
+          setTimeout(dedupe, 800)
+          setTimeout(dedupe, 2500)
+        })()
+      </script>
 
       {%- unless cart.empty? -%}
         <div class="cart-page__summary">

@@ -60,6 +60,30 @@
     document.dispatchEvent(new CustomEvent('spectrum:cart:updated'))
   }
 
+  // Theme JS (native steppers, recommendation adds, third-party apps) mutates
+  // the cart without firing any event name we can rely on — theme event
+  // vocabularies vary per theme. Watching the network layer is the only
+  // theme-agnostic signal, so this is a deliberate exception to the
+  // no-global-side-effects rule: installed once across all Spectrum snippets
+  // (window guard), transparent pass-through, GET /cart.js reads don't match.
+  function installCartWatch() {
+    if (window.__saiCartWatch__) return
+    window.__saiCartWatch__ = true
+    const isCartMutation = (url) => /\/cart\/(add|change|update|clear)/.test(String(url || ''))
+    const origFetch = window.fetch
+    window.fetch = function (...args) {
+      const url = typeof args[0] === 'string' ? args[0] : args[0] && args[0].url
+      const p = origFetch.apply(this, args)
+      if (isCartMutation(url)) p.then(() => emitCartUpdated()).catch(() => {})
+      return p
+    }
+    const origOpen = XMLHttpRequest.prototype.open
+    XMLHttpRequest.prototype.open = function (method, url, ...rest) {
+      if (isCartMutation(url)) this.addEventListener('load', () => emitCartUpdated())
+      return origOpen.call(this, method, url, ...rest)
+    }
+  }
+
   async function cartAdd(variantId) {
     if (window.Spectrum && window.Spectrum.cart && typeof window.Spectrum.cart.add === 'function') {
       return window.Spectrum.cart.add([{ id: variantId, quantity: 1, properties: { _sai_progress_reward: '1' } }])
@@ -283,7 +307,7 @@
         refresh()
       }, 0)
     }
-    const CART_EVENTS = ['spectrum:cart:updated', 'cart:updated', 'cart:refresh', 'cart:item-added', 'cart:build']
+    const CART_EVENTS = ['spectrum:cart:updated', 'cart:updated', 'cart:update', 'cart:refresh', 'cart:item-added', 'cart:add', 'cart:build']
     CART_EVENTS.forEach((name) => {
       document.addEventListener(name, onCartEvent)
       window.addEventListener(name, onCartEvent)
@@ -300,12 +324,32 @@
     document.querySelectorAll('[data-sai-progress]').forEach(initNode)
   }
 
+  // Themes morph/replace the cart section's DOM after cart mutations
+  // (Section Rendering API). That discards bound instance roots, so re-scan
+  // on every subtree change — initNode is a no-op for already-bound nodes,
+  // and fresh (replaced) roots get bound + rendered immediately.
+  function watchDom() {
+    if (typeof MutationObserver === 'undefined') return
+    let pending = false
+    const mo = new MutationObserver(() => {
+      if (pending) return
+      pending = true
+      setTimeout(() => {
+        pending = false
+        init()
+      }, 60)
+    })
+    mo.observe(document.body, { childList: true, subtree: true })
+  }
+
   // The Spectrum SDK enriches (cart API + analytics bind) but isn't required:
   // /cart.js fetch covers data, so init proceeds after a short SDK grace poll.
   let tries = 0
   function ready() {
     if ((window.Spectrum && window.__spectrumAi) || tries >= 40) {
+      installCartWatch()
       init()
+      watchDom()
       return
     }
     tries++

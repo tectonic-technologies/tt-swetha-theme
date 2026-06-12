@@ -535,7 +535,7 @@
       cartEventPending = true
       setTimeout(() => { cartEventPending = false; ctx.refresh() }, 0)
     }
-    const CART_EVENTS = ['spectrum:cart:updated', 'cart:updated', 'cart:refresh', 'cart:item-added', 'cart:build']
+    const CART_EVENTS = ['spectrum:cart:updated', 'cart:updated', 'cart:update', 'cart:refresh', 'cart:item-added', 'cart:add', 'cart:build']
     CART_EVENTS.forEach((name) => {
       document.addEventListener(name, onCartEvent)
       window.addEventListener(name, onCartEvent)
@@ -563,9 +563,53 @@
     document.querySelectorAll(`[data-spectrum-snippet-id="${SNIPPET_ID}"]`).forEach(initNode)
   }
 
+  // Theme JS (native steppers, recommendation adds, third-party apps) mutates
+  // the cart without firing any event name we can rely on — theme event
+  // vocabularies vary per theme. Watching the network layer is the only
+  // theme-agnostic signal, so this is a deliberate exception to the
+  // no-global-side-effects rule: installed once across all Spectrum snippets
+  // (window guard), transparent pass-through, GET /cart.js reads don't match.
+  function installCartWatch() {
+    if (window.__saiCartWatch__) return
+    window.__saiCartWatch__ = true
+    const isCartMutation = (url) => /\/cart\/(add|change|update|clear)/.test(String(url || ''))
+    const origFetch = window.fetch
+    window.fetch = function (...args) {
+      const url = typeof args[0] === 'string' ? args[0] : args[0] && args[0].url
+      const p = origFetch.apply(this, args)
+      if (isCartMutation(url)) p.then(() => emitCartUpdated()).catch(() => {})
+      return p
+    }
+    const origOpen = XMLHttpRequest.prototype.open
+    XMLHttpRequest.prototype.open = function (method, url, ...rest) {
+      if (isCartMutation(url)) this.addEventListener('load', () => emitCartUpdated())
+      return origOpen.call(this, method, url, ...rest)
+    }
+  }
+
+  // Themes morph/replace the cart section's DOM after cart mutations
+  // (Section Rendering API). That discards bound instance roots, so re-scan
+  // on every subtree change — initNode is a no-op for already-bound nodes,
+  // and fresh (replaced) roots get bound + rendered immediately.
+  function watchDom() {
+    if (typeof MutationObserver === 'undefined') return
+    let pending = false
+    const mo = new MutationObserver(() => {
+      if (pending) return
+      pending = true
+      setTimeout(() => {
+        pending = false
+        init()
+      }, 60)
+    })
+    mo.observe(document.body, { childList: true, subtree: true })
+  }
+
   function ready() {
     if (window.Spectrum && window.__spectrumAi) {
+      installCartWatch()
       init()
+      watchDom()
       return true
     }
     return false
