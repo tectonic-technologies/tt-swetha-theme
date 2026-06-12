@@ -20,7 +20,9 @@
   @param c.mid_progress_template {string} Message between milestones.
   @param c.complete_message {string} Message when all milestones reached.
   @param c.message_alignment {string} 'left' | 'center' | 'right'
-  @param c.show_check_on_reached {boolean} Check icon on reached nodes.
+  @param c.show_check_on_reached {boolean} Icon on reached nodes.
+  @param c.reached_icon_style {string} 'check' | 'star' | 'custom'
+  @param c.reached_icon_url {string} Image URL for 'custom' reached icon.
   @param c.show_confetti {boolean} Confetti burst on newly reached milestone.
   @param c.fill_animation {boolean} Animate fill width changes.
 {% enddoc %}
@@ -97,12 +99,15 @@
   border-color: var(--sai-color-surface-raised, #ffffff);
   color: var(--sai-color-surface-raised, #ffffff);
 }
-/* Check appears only once reached; the reward image (when the milestone has
-   one) previews the unreached reward and swaps out for the check. */
+/* Reached icon (check/star svg or custom image) appears only once reached;
+   the reward preview image (when the milestone has one) shows while
+   unreached and swaps out at that moment. */
 .sai-vg4guong__node svg { width: 16px; height: 16px; display: none; }
 .sai-vg4guong__node-wrap--reached .sai-vg4guong__node svg { display: block; }
 .sai-vg4guong__node img { width: 26px; height: 26px; display: block; object-fit: contain; border-radius: 50%; }
-.sai-vg4guong__node-wrap--reached .sai-vg4guong__node img { display: none; }
+.sai-vg4guong__node .sai-vg4guong__reached-icon { display: none; width: 18px; height: 18px; border-radius: 0; }
+.sai-vg4guong__node-wrap--reached .sai-vg4guong__node .sai-vg4guong__preview { display: none; }
+.sai-vg4guong__node-wrap--reached .sai-vg4guong__node .sai-vg4guong__reached-icon { display: block; }
 .sai-vg4guong__node--icon { width: 40px; height: 40px; }
 .sai-vg4guong__node-wrap--icon .sai-vg4guong__label { top: calc(50% + 28px); }
 /* Once reached, the image swaps to the check — the node collapses to the
@@ -111,11 +116,13 @@
 .sai-vg4guong__node-wrap--icon.sai-vg4guong__node-wrap--reached .sai-vg4guong__label { top: calc(50% + 22px); }
 .sai-vg4guong[data-sai-marker="dot"] .sai-vg4guong__node { width: 14px; height: 14px; }
 .sai-vg4guong[data-sai-marker="dot"] .sai-vg4guong__node svg,
-.sai-vg4guong[data-sai-marker="dot"] .sai-vg4guong__node img { display: none; }
+.sai-vg4guong[data-sai-marker="dot"] .sai-vg4guong__node img,
+.sai-vg4guong[data-sai-marker="dot"] .sai-vg4guong__node .sai-vg4guong__reached-icon { display: none; }
 .sai-vg4guong[data-sai-marker="label_only"] .sai-vg4guong__node { display: none; }
 .sai-vg4guong[data-sai-marker="label_only"] .sai-vg4guong__label { top: calc(50% + 12px); }
 .sai-vg4guong[data-sai-style="segmented"] .sai-vg4guong__node { box-shadow: 0 0 0 6px var(--sai-color-info-bg, #e7f0fc); }
-.sai-vg4guong[data-sai-checks="off"] .sai-vg4guong__node svg { display: none; }
+.sai-vg4guong[data-sai-checks="off"] .sai-vg4guong__node svg,
+.sai-vg4guong[data-sai-checks="off"] .sai-vg4guong__node .sai-vg4guong__reached-icon { display: none; }
 
 .sai-vg4guong__label {
   position: absolute; top: calc(50% + 22px); left: 50%; transform: translateX(-50%);
@@ -177,6 +184,11 @@
     assign show_check_on_reached = true
   else
     assign show_check_on_reached = c.show_check_on_reached
+  endif
+  assign reached_icon_style = c.reached_icon_style | default: 'check'
+  assign reached_icon_url = c.reached_icon_url | default: ''
+  if reached_icon_style == 'custom' and reached_icon_url == blank
+    assign reached_icon_style = 'check'
   endif
   if c.show_confetti == nil
     assign show_confetti = false
@@ -351,9 +363,15 @@
     <div class="{{ wrap_class }}" data-sai-node data-sai-threshold="{{ m.threshold_amount.value | times: 100 | round }}" style="left: {{ pos }}%;">
       <div class="{{ node_class }}">
         {%- if icon_url != blank -%}
-        <img src="{{ icon_url }}" alt="{{ m.reward_label.value | escape }}" loading="lazy">
+        <img class="sai-vg4guong__preview" src="{{ icon_url }}" alt="{{ m.reward_label.value | escape }}" loading="lazy">
         {%- endif -%}
+        {%- if reached_icon_style == 'star' -%}
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5l2.95 6.27 6.55.62-4.97 4.45 1.44 6.66L12 17.1l-5.97 3.4 1.44-6.66L2.5 9.39l6.55-.62z"/></svg>
+        {%- elsif reached_icon_style == 'custom' -%}
+        <img class="sai-vg4guong__reached-icon" src="{{ reached_icon_url }}" alt="" loading="lazy">
+        {%- else -%}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg>
+        {%- endif -%}
       </div>
       <div class="sai-vg4guong__label">{{ m.reward_label.value }}</div>
     </div>
