@@ -1491,6 +1491,11 @@ const _predictiveCache = new Map();
 const _PREDICTIVE_CACHE_TTL = 30000; // 30 seconds
 const _PREDICTIVE_CACHE_MAX = 50;
 
+// `va` (view activity) is deliberately NOT part of the key: a view recorded
+// mid-session (quick-view, SPA theme, another tab) can serve up to
+// _PREDICTIVE_CACHE_TTL of pre-view personalized ranking for a repeated
+// query. Accepted staleness — on classic themes the page navigation that
+// records the view destroys this in-memory cache anyway.
 function _predictiveCacheKey(q, opts) {
   const filterStr = opts.filters ? JSON.stringify(opts.filters) : '';
   const sortStr = opts.sort || '';
@@ -1516,6 +1521,51 @@ function _predictiveCacheSet(key, result) {
     _predictiveCache.delete(oldest);
   }
   _predictiveCache.set(key, { result, ts: Date.now() });
+}
+
+// ─── Internal — View Activity (search personalization) ─────────────
+
+/**
+ * Cross-bundle localStorage contract with the analytics SDK's activity
+ * tracker. Key `__spectrum_activity_context` holds:
+ *   { activity: { productViews: {
+ *       recent: [{ productId: string, viewedAt: epochMs }],   // ≤10 entries
+ *       countsByProductId: { [productId]: number } } } }
+ * The activity tracker owns the shape; this side only reads it. Serialized
+ * as `va=<productId>:<count>:<epochSeconds>,…` (≤10 triplets). The server
+ * treats `va` as best-effort and drops malformed/stale triplets itself, so
+ * this helper's only hard requirements are: never throw, never block a
+ * search call, emit nothing when there is no usable view history.
+ */
+
+// Mirrors the server-side seed cap (MAX_AFFINITY_SEEDS in the affinity engine) —
+// the server silently drops triplets beyond it, so sending more is wasted bytes.
+const _VA_MAX_TRIPLETS = 10;
+
+function _buildViewActivityParam() {
+  try {
+    const raw = localStorage.getItem('__spectrum_activity_context');
+    if (!raw) return null;
+    const state = JSON.parse(raw);
+    const views = state && state.activity && state.activity.productViews;
+    if (!views || !Array.isArray(views.recent)) return null;
+    const counts =
+      views.countsByProductId && typeof views.countsByProductId === 'object'
+        ? views.countsByProductId
+        : {};
+    const triplets = [];
+    for (const entry of views.recent) {
+      if (triplets.length >= _VA_MAX_TRIPLETS) break;
+      if (!entry || typeof entry.productId !== 'string' || !entry.productId) continue;
+      const seconds = Math.floor(Number(entry.viewedAt) / 1000);
+      if (!Number.isFinite(seconds) || seconds <= 0) continue;
+      const count = Math.max(1, Math.floor(Number(counts[entry.productId])) || 1);
+      triplets.push(`${entry.productId}:${count}:${seconds}`);
+    }
+    return triplets.length > 0 ? triplets.join(',') : null;
+  } catch {
+    return null;
+  }
 }
 
 // ─── Internal — Recent Searches ─────────────────────────────────────
@@ -1571,6 +1621,9 @@ const search = {
         if (value !== undefined && value !== null) params[key] = value;
       }
     }
+
+    const va = _buildViewActivityParam();
+    if (va) params.va = va;
 
     const url = _buildUrl(`${base}/search`, '', params);
     const result = await _searchJSON(url, { signal: opts.signal });
@@ -1630,6 +1683,8 @@ const search = {
     const base = _proxyBase();
     if (!base) return _normalizeError('Proxy not configured', 'NO_PROXY');
 
+    const va = _buildViewActivityParam();
+
     const params = {};
     if (q) params.q = q;
     if (opts.sort) params.sort = opts.sort;
@@ -1640,6 +1695,7 @@ const search = {
         if (value !== undefined && value !== null) params[key] = value;
       }
     }
+    if (va) params.va = va;
 
     const url = _buildUrl(`${base}/search`, '', params);
     const result = await _searchJSON(url, { signal: _predictiveController.signal });
