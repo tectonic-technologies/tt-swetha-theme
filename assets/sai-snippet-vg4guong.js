@@ -103,14 +103,14 @@
     return res.json()
   }
 
-  async function cartRemove(lineKey) {
+  async function cartSetQuantity(lineKey, quantity) {
     if (window.Spectrum && window.Spectrum.cart && typeof window.Spectrum.cart.change === 'function') {
-      return window.Spectrum.cart.change({ id: lineKey, quantity: 0 })
+      return window.Spectrum.cart.change({ id: lineKey, quantity })
     }
     const res = await fetch('/cart/change.js', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({ id: lineKey, quantity: 0 }),
+      body: JSON.stringify({ id: lineKey, quantity }),
     })
     if (!res.ok) throw new Error('cart change failed')
     return res.json()
@@ -215,8 +215,14 @@
             await cartAdd(m.giftVariantId)
             track('cart_progress:reward_added', { threshold: m.threshold, milestone_title: m.title, variant_id: m.giftVariantId })
             changed = true
+          } else if (reached && line && line.quantity > 1) {
+            // Concurrent sessions can race the add (each reads the cart
+            // before any add lands; Shopify merges them into one line) —
+            // clamp back to exactly one reward per milestone.
+            await cartSetQuantity(line.key, 1)
+            changed = true
           } else if (!reached && line) {
-            await cartRemove(line.key)
+            await cartSetQuantity(line.key, 0)
             track('cart_progress:reward_removed', { threshold: m.threshold, milestone_title: m.title, variant_id: m.giftVariantId })
             changed = true
           }
