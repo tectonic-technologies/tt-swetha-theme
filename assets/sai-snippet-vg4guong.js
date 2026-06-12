@@ -192,6 +192,30 @@
     }
   }
 
+  // Ribbon-rain celebration: pieces drop across the card's full width.
+  // Spread, sway, spin, and stagger are all deterministic per index — no
+  // layout reads, and pieces self-remove so repeated unlocks can't pile up.
+  function rainRibbons(rootEl, assetUrl) {
+    const colors = ['#4b79dd', '#f5b942', '#e2574c', '#43b97f', '#8a63d2']
+    for (let i = 0; i < 26; i++) {
+      const piece = document.createElement('span')
+      piece.className = 'sai-vg4guong__ribbon'
+      if (assetUrl) {
+        piece.style.width = '16px'
+        piece.style.height = '16px'
+        piece.style.background = `url("${assetUrl}") center / contain no-repeat`
+        piece.style.borderRadius = '0'
+      } else piece.style.background = colors[i % colors.length]
+      piece.style.left = `${(i * 137) % 100}%`
+      piece.style.animationDelay = `${(i % 7) * 110}ms`
+      piece.style.setProperty('--sai-vg4guong-rx', `${(((i * 53) % 5) - 2) * 16}px`)
+      piece.style.setProperty('--sai-vg4guong-ry', `${130 + (i % 4) * 24}px`)
+      piece.style.setProperty('--sai-vg4guong-rr', `${300 + ((i * 97) % 5) * 120}deg`)
+      rootEl.appendChild(piece)
+      setTimeout(() => piece.remove(), 2800)
+    }
+  }
+
   function makeRenderer(node, cfg, track) {
     const milestones = (cfg.milestones || [])
       .slice()
@@ -297,7 +321,10 @@
           if (total >= threshold && crossed) {
             el.classList.add('sai-vg4guong__node-wrap--pulse')
             setTimeout(() => el.classList.remove('sai-vg4guong__node-wrap--pulse'), 600)
-            if (crossed.confetti) burstConfetti(el, crossed.confettiAssetUrl)
+            if (crossed.confetti) {
+              if (crossed.confettiStyle === 'rain') rainRibbons(node, crossed.confettiAssetUrl)
+              else burstConfetti(el, crossed.confettiAssetUrl)
+            }
           }
         })
       }

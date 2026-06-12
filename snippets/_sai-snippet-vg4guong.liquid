@@ -46,6 +46,9 @@
 {% stylesheet %}
 .sai-vg4guong {
   display: block;
+  /* Positioning context + clip for the ribbon-rain celebration pieces. */
+  position: relative;
+  overflow: hidden;
   background: var(--sai-color-info-bg, #e7f0fc);
   border-radius: var(--sai-radius-card, 12px);
   padding: var(--sai-space-5, 1.4rem) var(--sai-space-4, 1rem) var(--sai-space-3, 0.75rem);
@@ -178,10 +181,24 @@
   0% { opacity: 1; transform: translate(0, 0) rotate(0deg); }
   100% { opacity: 0; transform: translate(var(--sai-vg4guong-cx, 0), var(--sai-vg4guong-cy, -60px)) rotate(320deg); }
 }
+/* Ribbon-rain celebration: strips drop from the card's top edge, swaying
+   sideways and tumbling. Width/height are the ribbon proportions; image
+   particles override them inline. */
+.sai-vg4guong__ribbon {
+  position: absolute; top: -20px; width: 7px; height: 16px; border-radius: 2px;
+  pointer-events: none;
+  animation: sai-vg4guong-rain 1.8s ease-in forwards;
+}
+@keyframes sai-vg4guong-rain {
+  0% { opacity: 1; transform: translate(0, 0) rotate(0deg); }
+  70% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--sai-vg4guong-rx, 0), var(--sai-vg4guong-ry, 140px)) rotate(var(--sai-vg4guong-rr, 540deg)); }
+}
 @media (prefers-reduced-motion: reduce) {
   .sai-vg4guong[data-sai-anim="on"] .sai-vg4guong__fill { transition: none; }
   .sai-vg4guong__node-wrap--pulse .sai-vg4guong__state--active { animation: none; }
   .sai-vg4guong__confetti { display: none; }
+  .sai-vg4guong__ribbon { display: none; }
 }
 {% endstylesheet %}
 
@@ -358,7 +375,7 @@
 {
   "milestones": [
     {%- for m in milestones -%}
-    {"threshold": {{ m.thresholdCents | round }}, "title": {{ m.title | json }}, "inactiveHelper": {{ m.inactive.helperText | json }}, "activeHelper": {{ m.active.helperText | json }}, "confetti": {{ m.triggerConfetti | json }}, "confettiAssetUrl": {{ m.active.confettiAssetUrl | json }}, "giftVariantId": {{ m.giftVariantId | json }}}{%- unless forloop.last -%},{%- endunless -%}
+    {"threshold": {{ m.thresholdCents | round }}, "title": {{ m.title | json }}, "inactiveHelper": {{ m.inactive.helperText | json }}, "activeHelper": {{ m.active.helperText | json }}, "confetti": {{ m.triggerConfetti | json }}, "confettiAssetUrl": {{ m.active.confettiAssetUrl | json }}, "confettiStyle": {{ m.active.confettiStyle | json }}, "giftVariantId": {{ m.giftVariantId | json }}}{%- unless forloop.last -%},{%- endunless -%}
     {%- endfor -%}
   ],
   "excludedProductIds": {{ cfg.excludedProductIds | json }}
