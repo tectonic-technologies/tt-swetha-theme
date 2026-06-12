@@ -1,0 +1,608 @@
+/**
+ * Explore Our Range — Shoppable Grid (snippet ryi2st97)
+ *
+ * Runtime asset. Ships to the merchant theme as assets/sai-snippet-ryi2st97.js
+ * and runs only as a deferred <script src> in a storefront DOM.
+ *
+ * Lifecycle:
+ *   1. Find each instance wrapper by [data-spectrum-snippet-id][data-spectrum-instance-id].
+ *   2. Bind via __spectrumAi.snippet.bind(node, cb) — the SDK resolves the
+ *      variant (targeting / experiment) and invokes the callback.
+ *   3. Read the sibling <script data-spectrum-snippet-pool> for card data.
+ *   4. Hydrate each tile: image, gradient, label, arrow link, hotspot pins.
+ *   5. Hotspot tap → Mini-PDP popup (variant swatches fetched from
+ *      /products/{handle}.js) → window.Spectrum.cart.addAndOpen.
+ *
+ * No client-side HTML escaping of pool data: it is server-rendered through
+ * Liquid's `json` filter. Dynamic text from /products/{handle}.js is written
+ * via textContent / setAttribute (DOM-safe by construction), never innerHTML.
+ */
+;(() => {
+  if (window.__sai_ryi2st97_initialized__) return
+  window.__sai_ryi2st97_initialized__ = true
+
+  const SNIPPET_ID = 'ryi2st97'
+  const TAG = 'sai-ryi2st97'
+  const C = 'sai-ryi2st97'
+  const EVENT_NS = 'looks'
+  const SOURCE_ID = 'spectrum-ryi2st97'
+
+  // ── DOM helpers ──
+  function h(tag, attrs, children) {
+    const node = document.createElement(tag)
+    if (attrs) {
+      for (const k in attrs) {
+        const v = attrs[k]
+        if (v === null || v === undefined || v === false) continue
+        if (k === 'text') node.textContent = v
+        else if (k === 'html') node.innerHTML = v
+        else if (k === 'class') node.className = v
+        else node.setAttribute(k, v === true ? '' : v)
+      }
+    }
+    if (children) {
+      for (const c of [].concat(children)) {
+        if (c === null || c === undefined || c === false) continue
+        node.appendChild(typeof c === 'string' ? document.createTextNode(c) : c)
+      }
+    }
+    return node
+  }
+
+  const ICON_ARROW =
+    '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M5 8h6M8 5l3 3-3 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+  const ICON_CLOSE =
+    '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>'
+
+  // ── Pool ──
+  function readSnippetPool(node) {
+    for (const child of node.children) {
+      if (child.tagName === 'SCRIPT' && child.hasAttribute('data-spectrum-snippet-pool')) {
+        try {
+          return JSON.parse(child.textContent)
+        } catch (e) {
+          return null
+        }
+      }
+    }
+    return null
+  }
+
+  function readConfig(rootEl) {
+    const d = rootEl.dataset
+    return {
+      layout: d.layout || 'bento',
+      hotspots: d.hotspots !== 'false',
+      miniPdp: d.miniPdp !== 'false',
+      ctaLabel: d.ctaLabel || 'Shop Now',
+      ctaText: d.ctaText || 'Add to Cart',
+    }
+  }
+
+  // ── Tile hydration ──
+  function findTagged(card, tagId, productId) {
+    const list = card?.tagged_products || []
+    let match = list.find((t) => t.tag_id === tagId)
+    if (!match) match = list.find((t) => String(t.product_id) === String(productId))
+    return match || null
+  }
+
+  function hydrateTile(tileEl, card, cfg, ctx) {
+    if (!card || tileEl.dataset.saiHydrated === '1') return
+    tileEl.dataset.saiHydrated = '1'
+    tileEl.classList.remove(`${C}__tile--placeholder`)
+    tileEl.textContent = ''
+
+    if (card.tile_image) {
+      tileEl.appendChild(
+        h('img', {
+          class: `${C}__tile-img`,
+          src: card.tile_image,
+          alt: card.title || '',
+          loading: 'lazy',
+          decoding: 'async',
+        }),
+      )
+    }
+    tileEl.appendChild(h('span', { class: `${C}__tile-overlay`, 'aria-hidden': 'true' }))
+
+    // Hotspot pins
+    if (cfg.hotspots && Array.isArray(card.pins) && card.pins.length) {
+      const pinsWrap = h('div', { class: `${C}__pins` })
+      for (const pin of card.pins) {
+        const tagged = findTagged(card, pin.tag_id, pin.product_id)
+        const btn = h('button', {
+          type: 'button',
+          class: `${C}__pin`,
+          'data-tag-id': pin.tag_id,
+          'data-product-id': pin.product_id,
+          'aria-label': tagged ? tagged.display_name : 'View product',
+          style: `--sai-x:${Number(pin.hotspot_x) || 50}%;--sai-y:${Number(pin.hotspot_y) || 50}%;`,
+        })
+        btn.addEventListener('click', (e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          onPinActivate(tileEl, card, pin, btn, cfg, ctx)
+        })
+        pinsWrap.appendChild(btn)
+      }
+      tileEl.appendChild(pinsWrap)
+    }
+
+    // Bottom bar: label + hover CTA + arrow
+    const link = card.cta_url || null
+    const labelEl = h('p', { class: `${C}__tile-label`, text: card.title || '' })
+    const left = h('div', { class: `${C}__tile-bar-left` }, [labelEl])
+    if (link) {
+      left.appendChild(h('a', { class: `${C}__tile-cta`, href: link, text: cfg.ctaLabel }))
+    }
+    const arrow = link
+      ? h('a', {
+          class: `${C}__tile-arrow`,
+          href: link,
+          'aria-label': card.title || 'Explore',
+          html: ICON_ARROW,
+        })
+      : h('span', { class: `${C}__tile-arrow`, 'aria-hidden': 'true', html: ICON_ARROW })
+    if (link) {
+      arrow.addEventListener('click', () => {
+        ctx.track(`${EVENT_NS}:product_click`, { card: card.title || '', href: link })
+      })
+    }
+    tileEl.appendChild(h('div', { class: `${C}__tile-bar` }, [left, arrow]))
+  }
+
+  // ── Pin → Mini-PDP / compact card ──
+  function onPinActivate(tileEl, card, pin, btn, cfg, ctx) {
+    const tagged = findTagged(card, pin.tag_id, pin.product_id)
+    for (const p of tileEl.querySelectorAll(`.${C}__pin--active`)) {
+      p.classList.remove(`${C}__pin--active`)
+    }
+    btn.classList.add(`${C}__pin--active`)
+    ctx.track(`${EVENT_NS}:pin_interact`, {
+      kind: 'tap',
+      tag_id: pin.tag_id,
+      product_id: pin.product_id,
+    })
+    if (!tagged) return
+    openPdp(tagged, cfg, ctx)
+  }
+
+  // ── Mini-PDP popup (one per page, reused) ──
+  let pdpBackdrop = null
+  let pdpState = null
+
+  function ensurePdp(cfg, ctx) {
+    if (pdpBackdrop) return pdpBackdrop
+    const card = h('div', {
+      class: `${C}__pdp`,
+      role: 'dialog',
+      'aria-modal': 'true',
+      'aria-label': 'Product details',
+    })
+    pdpBackdrop = h('div', { class: `${C}__pdp-backdrop` }, [card])
+    pdpBackdrop._card = card
+    pdpBackdrop.addEventListener('click', (e) => {
+      if (e.target === pdpBackdrop) closePdp()
+    })
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && pdpBackdrop.dataset.open === 'true') closePdp()
+    })
+    document.body.appendChild(pdpBackdrop)
+    return pdpBackdrop
+  }
+
+  function closePdp() {
+    if (!pdpBackdrop) return
+    pdpBackdrop.dataset.open = 'false'
+    pdpState = null
+  }
+
+  function openPdp(tagged, cfg, ctx) {
+    ensurePdp(cfg, ctx)
+    const card = pdpBackdrop._card
+    card.textContent = ''
+    pdpBackdrop.dataset.open = 'true'
+    ctx.track(`${EVENT_NS}:overlay_card_view`, {
+      tag_id: tagged.tag_id,
+      product_id: tagged.product_id,
+    })
+
+    // Header
+    const head = h('div', { class: `${C}__pdp-head` }, [
+      h('h3', { class: `${C}__pdp-title`, text: tagged.display_name || 'Product' }),
+      (() => {
+        const close = h('button', {
+          type: 'button',
+          class: `${C}__pdp-close`,
+          'aria-label': 'Close',
+          html: ICON_CLOSE,
+        })
+        close.addEventListener('click', closePdp)
+        return close
+      })(),
+    ])
+    card.appendChild(head)
+
+    const body = h('div', { class: `${C}__pdp-body` })
+    card.appendChild(body)
+
+    // Compact fallback first (single-variant or while fetching)
+    renderCompact(body, tagged, cfg, ctx)
+
+    if (!cfg.miniPdp || tagged.single_variant || !tagged.handle) return
+
+    fetch(`/products/${tagged.handle}.js`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((product) => {
+        if (!product || pdpBackdrop.dataset.open !== 'true') return
+        renderFull(body, tagged, product, cfg, ctx)
+      })
+      .catch(() => {})
+  }
+
+  function priceMarkup(tagged) {
+    const now = tagged.price_override || tagged.variant_price || ''
+    const row = h('div', { class: `${C}__pdp-price` }, [
+      h('span', { class: `${C}__pdp-price-now`, text: now }),
+    ])
+    if (tagged.show_compare && tagged.variant_compare_at_price) {
+      row.appendChild(
+        h('span', { class: `${C}__pdp-price-was`, text: tagged.variant_compare_at_price }),
+      )
+    }
+    row.appendChild(h('span', { class: `${C}__pdp-tax`, text: '(Incl. of all taxes)' }))
+    return row
+  }
+
+  function ctaButton(cfg, onClick) {
+    const btn = h('button', { type: 'button', class: `${C}__pdp-cta`, text: cfg.ctaText })
+    btn.addEventListener('click', () => onClick(btn))
+    return btn
+  }
+
+  function setLoading(btn, on, cfg) {
+    if (on) {
+      btn.dataset.loading = '1'
+      btn.textContent = ''
+      btn.appendChild(h('span', { class: `${C}__pdp-spinner`, 'aria-hidden': 'true' }))
+    } else {
+      delete btn.dataset.loading
+      btn.textContent = cfg.ctaText
+    }
+  }
+
+  function addToCart(variantId, btn, cfg, ctx, meta) {
+    if (!variantId || btn.dataset.loading === '1') return
+    setLoading(btn, true, cfg)
+    ctx.track(`${EVENT_NS}:add_to_cart`, Object.assign({ variant_id: variantId }, meta))
+    const done = () => {
+      setLoading(btn, false, cfg)
+      ctx.track(`${EVENT_NS}:added_to_cart`, Object.assign({ variant_id: variantId }, meta))
+      closePdp()
+    }
+    const fail = () => setLoading(btn, false, cfg)
+    const cartApi = window.Spectrum?.cart
+    if (cartApi && typeof cartApi.addAndOpen === 'function') {
+      const p = cartApi.addAndOpen({ id: variantId, quantity: 1 }, { sourceId: SOURCE_ID })
+      if (p && typeof p.then === 'function') p.then(done).catch(fail)
+      else done()
+    } else {
+      fetch('/cart/add.js', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: variantId, quantity: 1 }),
+      })
+        .then((r) => (r.ok ? done() : fail()))
+        .catch(fail)
+    }
+  }
+
+  // Single-variant / loading compact view
+  function renderCompact(body, tagged, cfg, ctx) {
+    body.textContent = ''
+    if (tagged.thumb_url) {
+      body.appendChild(
+        h('div', { class: `${C}__pdp-gallery` }, [
+          h('div', { class: `${C}__pdp-thumb` }, [
+            h('img', { src: tagged.thumb_url, alt: tagged.display_name || '', loading: 'lazy' }),
+          ]),
+        ]),
+      )
+    }
+    body.appendChild(priceMarkup(tagged))
+    const cta = ctaButton(cfg, (btn) =>
+      addToCart(tagged.variant_id, btn, cfg, ctx, {
+        product_id: tagged.product_id,
+        tag_id: tagged.tag_id,
+      }),
+    )
+    if (!tagged.variant_available) {
+      cta.disabled = true
+      cta.textContent = 'Sold out'
+    }
+    body.appendChild(cta)
+  }
+
+  // Full Mini-PDP with gallery + option swatches
+  function renderFull(body, tagged, product, cfg, ctx) {
+    body.textContent = ''
+    pdpState = { product, optionValues: [], variant: null }
+
+    // Gallery (up to 3 thumbs)
+    const images = (product.images || []).slice(0, 3)
+    if (images.length) {
+      const gallery = h('div', { class: `${C}__pdp-gallery` })
+      for (const src of images) {
+        gallery.appendChild(
+          h('div', { class: `${C}__pdp-thumb` }, [
+            h('img', { src: src, alt: product.title || '', loading: 'lazy' }),
+          ]),
+        )
+      }
+      body.appendChild(gallery)
+    }
+
+    // Resolve the initial variant (preselected from pool, else first available)
+    const initial =
+      product.variants.find((v) => String(v.id) === String(tagged.variant_id)) ||
+      product.variants.find((v) => v.available) ||
+      product.variants[0]
+    pdpState.optionValues = (initial?.options ? initial.options.slice() : []) || []
+
+    const optionNames = product.options.map((o) => (typeof o === 'string' ? o : o.name))
+    const groups = []
+    optionNames.forEach((name, idx) => {
+      const group = h('div', { class: `${C}__pdp-group` })
+      const labelEl = h('span', { class: `${C}__pdp-group-label` })
+      group.appendChild(labelEl)
+      const swatchWrap = h('div', { class: `${C}__pdp-swatches` })
+      const values = uniqueOptionValues(product, idx)
+      for (const val of values) {
+        const sw = buildSwatch(product, idx, val)
+        sw.addEventListener('click', () => {
+          if (sw.disabled) return
+          pdpState.optionValues[idx] = val
+          syncVariant(product, body, groups, optionNames, priceEl, cta, cfg)
+        })
+        swatchWrap.appendChild(sw)
+      }
+      group.appendChild(swatchWrap)
+      body.appendChild(group)
+      groups.push({ group, labelEl, swatchWrap, idx, name })
+    })
+
+    const priceEl = priceMarkup(tagged)
+    body.appendChild(priceEl)
+
+    const cta = ctaButton(cfg, (btn) => {
+      const v = pdpState.variant
+      if (!v) return
+      addToCart(v.id, btn, cfg, ctx, { product_id: product.id, tag_id: tagged.tag_id })
+    })
+    body.appendChild(cta)
+
+    syncVariant(product, body, groups, optionNames, priceEl, cta, cfg)
+  }
+
+  function uniqueOptionValues(product, idx) {
+    const seen = []
+    for (const v of product.variants) {
+      const val = v.options[idx]
+      if (val !== undefined && seen.indexOf(val) === -1) seen.push(val)
+    }
+    return seen
+  }
+
+  function isValueAvailable(product, idx, val, optionValues) {
+    return product.variants.some((v) => {
+      if (v.options[idx] !== val) return false
+      for (let i = 0; i < optionValues.length; i++) {
+        if (i === idx) continue
+        if (optionValues[i] && v.options[i] !== optionValues[i]) return false
+      }
+      return v.available
+    })
+  }
+
+  function swatchImageFor(product, idx, val) {
+    // Use a variant's featured image whose option[idx] === val (color swatches)
+    const v = product.variants.find((x) => x.options[idx] === val && x.featured_image)
+    return v?.featured_image ? v.featured_image.src : null
+  }
+
+  function buildSwatch(product, idx, val) {
+    const img = swatchImageFor(product, idx, val)
+    if (img) {
+      const sw = h('button', { type: 'button', class: `${C}__swatch`, 'aria-label': val }, [
+        h('span', { class: `${C}__swatch-dot`, style: `background-image:url(${img})` }),
+      ])
+      sw._value = val
+      sw._idx = idx
+      return sw
+    }
+    const sw = h('button', { type: 'button', class: `${C}__swatch ${C}__swatch--text`, text: val })
+    sw._value = val
+    sw._idx = idx
+    return sw
+  }
+
+  function findVariant(product, optionValues) {
+    return (
+      product.variants.find((v) => {
+        for (let i = 0; i < optionValues.length; i++) {
+          if (optionValues[i] && v.options[i] !== optionValues[i]) return false
+        }
+        return true
+      }) || null
+    )
+  }
+
+  function syncVariant(product, body, groups, optionNames, priceEl, cta, cfg) {
+    const variant = findVariant(product, pdpState.optionValues)
+    pdpState.variant = variant
+
+    // Update group labels + swatch states
+    for (const g of groups) {
+      const selected = pdpState.optionValues[g.idx]
+      g.labelEl.textContent = ''
+      g.labelEl.appendChild(document.createTextNode(`${g.name} : `))
+      g.labelEl.appendChild(h('b', { text: selected || '' }))
+      for (const sw of g.swatchWrap.querySelectorAll(`.${C}__swatch`)) {
+        const on = sw._value === selected
+        sw.setAttribute('aria-pressed', on ? 'true' : 'false')
+        const avail = isValueAvailable(product, g.idx, sw._value, pdpState.optionValues)
+        sw.disabled = !avail
+      }
+    }
+
+    // Price
+    if (variant) {
+      const now = window.Spectrum?.format?.money
+        ? window.Spectrum.format.money(variant.price)
+        : formatMoney(variant.price)
+      const nowEl = priceEl.querySelector(`.${C}__pdp-price-now`)
+      if (nowEl) nowEl.textContent = now
+      const wasEl = priceEl.querySelector(`.${C}__pdp-price-was`)
+      if (variant.compare_at_price && variant.compare_at_price > variant.price) {
+        const wasTxt = window.Spectrum?.format?.money
+          ? window.Spectrum.format.money(variant.compare_at_price)
+          : formatMoney(variant.compare_at_price)
+        if (wasEl) wasEl.textContent = wasTxt
+        else
+          priceEl
+            .querySelector(`.${C}__pdp-price-now`)
+            .after(h('span', { class: `${C}__pdp-price-was`, text: wasTxt }))
+      } else if (wasEl) {
+        wasEl.remove()
+      }
+    }
+
+    // CTA availability
+    if (!variant || !variant.available) {
+      cta.disabled = true
+      if (cta.dataset.loading !== '1') cta.textContent = 'Sold out'
+    } else {
+      cta.disabled = false
+      if (cta.dataset.loading !== '1') cta.textContent = cfg.ctaText
+    }
+  }
+
+  // Shopify /products/{h}.js prices are integer cents in the shop currency.
+  function formatMoney(cents) {
+    const amount = (Number(cents) || 0) / 100
+    try {
+      return amount.toLocaleString(undefined, {
+        style: 'currency',
+        currency: window.Shopify?.currency?.active || 'INR',
+      })
+    } catch (e) {
+      return String(amount)
+    }
+  }
+
+  // ── Bind / bootstrap ──
+  function bindInstance(node) {
+    const rootEl = node.querySelector(TAG)
+    if (!rootEl) return
+    const pool = readSnippetPool(node)
+    const cards = pool?.cards || {}
+    const cfg = readConfig(rootEl)
+    const api = window.__spectrumAi?.snippet
+    if (!api || typeof api.bind !== 'function') {
+      // No SDK — degrade to a no-analytics direct hydration so the grid still works.
+      hydrateAll(rootEl, cards, cfg, { track: () => {}, emit: () => {} })
+      return
+    }
+
+    let trackHandle = () => {}
+    let emitHandle = () => {}
+    const track = (...args) => trackHandle(...args)
+    const emit = (...args) => emitHandle(...args)
+    const ctx = { track, emit }
+
+    const handles = api.bind(node, () => {
+      hydrateAll(rootEl, cards, cfg, ctx)
+    })
+    if (handles && typeof handles === 'object') {
+      if (typeof handles.track === 'function') trackHandle = handles.track
+      if (typeof handles.emit === 'function') emitHandle = handles.emit
+    }
+
+    if (typeof IntersectionObserver !== 'undefined') {
+      const io = new IntersectionObserver(
+        (entries, obs) => {
+          for (const entry of entries) {
+            if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+              track(`${EVENT_NS}:list_impression`, {
+                card_count: rootEl.querySelectorAll(`.${C}__tile`).length,
+              })
+              obs.disconnect()
+            }
+          }
+        },
+        { threshold: [0.5] },
+      )
+      io.observe(node)
+    }
+  }
+
+  function hydrateAll(rootEl, cards, cfg, ctx) {
+    const tiles = rootEl.querySelectorAll(`.${C}__tile`)
+    for (const tile of tiles) {
+      const card = cards[tile.dataset.handle]
+      if (card) hydrateTile(tile, card, cfg, ctx)
+    }
+    wireNav(rootEl)
+  }
+
+  // Header prev/next scroll the grid when it overflows (mobile carousel). On
+  // the desktop bento the grid does not scroll, so they no-op but stay visible
+  // to match the design header.
+  function wireNav(rootEl) {
+    const nav = rootEl.querySelector('[data-sai-nav]')
+    const grid = rootEl.querySelector(`.${C}__grid`)
+    if (!nav || !grid || nav.dataset.saiWired === '1') return
+    nav.dataset.saiWired = '1'
+    const step = () => Math.max(grid.clientWidth * 0.8, 240)
+    const prev = nav.querySelector('[data-sai-prev]')
+    const next = nav.querySelector('[data-sai-next]')
+    if (prev)
+      prev.addEventListener('click', () => grid.scrollBy({ left: -step(), behavior: 'smooth' }))
+    if (next)
+      next.addEventListener('click', () => grid.scrollBy({ left: step(), behavior: 'smooth' }))
+  }
+
+  function initAll() {
+    const wrappers = document.querySelectorAll(
+      `[data-spectrum-snippet-id="${SNIPPET_ID}"][data-spectrum-instance-id]`,
+    )
+    for (const w of wrappers) {
+      if (w.dataset.saiRyi2st97Bound === '1') continue
+      w.dataset.saiRyi2st97Bound = '1'
+      bindInstance(w)
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initAll, { once: true })
+  } else {
+    initAll()
+  }
+
+  if (typeof globalThis !== 'undefined' && globalThis.__SAI_TEST_HARNESS__) {
+    globalThis.__saiRyi2st97 = {
+      SNIPPET_ID,
+      EVENT_NS,
+      readSnippetPool,
+      readConfig,
+      findTagged,
+      hydrateTile,
+      hydrateAll,
+      uniqueOptionValues,
+      isValueAvailable,
+      findVariant,
+      bindInstance,
+    }
+  }
+})()
