@@ -264,6 +264,9 @@
     if m.inactive.labelPlacement == 'above' or m.active.labelPlacement == 'above'
       assign has_above = 'on'
     endif
+    if m.inactive.markerStyle == 'pin_asset_text' or m.active.markerStyle == 'pin_asset_text'
+      assign has_above = 'on'
+    endif
     assign last_title = m.title
     assign last_active_helper = m.active.helperText | default: ''
     if cart_total >= t_cents
