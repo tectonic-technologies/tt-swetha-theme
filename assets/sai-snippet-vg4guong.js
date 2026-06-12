@@ -116,46 +116,42 @@
     return res.json()
   }
 
+  // Sum of selling prices (final_line_price) excluding envelope-listed
+  // product ids — must mirror the Liquid SSR computation exactly.
   function eligibleTotal(cart, cfg) {
     if (!cart) return 0
-    if (cfg.excludeDiscounted) {
-      // Sum only lines selling at full price; cart-level codes still reduce
-      // total_price, so per-line comparison is the discounted-item signal.
-      return (cart.items || []).reduce((sum, item) => {
-        const lineTotal = item.final_line_price != null ? item.final_line_price : item.line_price
-        const original = item.original_line_price != null ? item.original_line_price : lineTotal
-        return lineTotal >= original ? sum + lineTotal : sum
-      }, 0)
-    }
-    return cart.total_price || 0
+    const excluded = cfg.excludedProductIds || []
+    return (cart.items || []).reduce((sum, item) => {
+      if (excluded.indexOf(item.product_id) !== -1) return sum
+      const lineTotal = item.final_line_price != null ? item.final_line_price : item.line_price
+      return sum + (lineTotal || 0)
+    }, 0)
   }
 
-  // Message HTML: templates + labels come from merchant config/metaobjects
+  // Message HTML: helper texts come from the portal-authored envelope
   // (server-rendered through Liquid), so interpolation is trusted per the
-  // library's no-client-escaping rule. {reward} renders bold per design.
-  function buildMessage(cfg, milestones, total, currency) {
-    const reached = milestones.filter((m) => total >= m.threshold)
+  // library's no-client-escaping rule. The next unreached milestone's
+  // inactive helper shows until all milestones are reached, then the final
+  // milestone's active helper. Blank helpers fall back to default copy so
+  // the message line is never empty. Must mirror the Liquid SSR messaging.
+  function buildMessage(milestones, total, currency) {
     const next = milestones.find((m) => total < m.threshold)
     let template
-    const tokens = {}
+    let rewardTitle
+    let remaining = ''
     if (!next) {
-      template = cfg.completeMessage
-      tokens.reward = milestones[milestones.length - 1].label
-    } else if (reached.length === 0) {
-      template = cfg.preGoalTemplate
-      tokens.remaining = money(next.threshold - total, currency)
-      tokens.reward = next.label
+      const last = milestones[milestones.length - 1]
+      template = last.activeHelper || "Congrats! You've unlocked {reward} 🎉"
+      rewardTitle = last.title
     } else {
-      template = cfg.midProgressTemplate
-      tokens.remaining = money(next.threshold - total, currency)
-      tokens.reward = next.label
-      tokens.unlocked_reward = reached[reached.length - 1].label
+      template = next.inactiveHelper || 'Add {remaining} more to unlock {reward}'
+      rewardTitle = next.title
+      remaining = money(next.threshold - total, currency)
     }
     return (template || '')
-      .replace(/\{remaining_amount\}/g, tokens.remaining || '')
-      .replace(/\{remaining\}/g, tokens.remaining || '')
-      .replace(/\{unlocked_reward\}/g, tokens.unlocked_reward || '')
-      .replace(/\{reward\}/g, tokens.reward ? `<strong>${tokens.reward}</strong>` : '')
+      .replace(/\{remaining_amount\}/g, remaining)
+      .replace(/\{remaining\}/g, remaining)
+      .replace(/\{reward\}/g, rewardTitle ? `<strong>${rewardTitle}</strong>` : '')
   }
 
   function fillPercent(milestones, total) {
@@ -207,7 +203,7 @@
     // converges. Gift lines are $0 so they never feed back into the total.
     async function reconcileGifts(cart, total) {
       if (reconciling) return false
-      const gifts = milestones.filter((m) => m.type === 'free_gift' && m.giftVariantId)
+      const gifts = milestones.filter((m) => m.giftVariantId)
       if (!gifts.length) return false
       reconciling = true
       let changed = false
@@ -217,11 +213,11 @@
           const reached = total >= m.threshold
           if (reached && !line) {
             await cartAdd(m.giftVariantId)
-            track('cart_progress:reward_added', { threshold: m.threshold, reward_label: m.label, variant_id: m.giftVariantId })
+            track('cart_progress:reward_added', { threshold: m.threshold, milestone_title: m.title, variant_id: m.giftVariantId })
             changed = true
           } else if (!reached && line) {
             await cartRemove(line.key)
-            track('cart_progress:reward_removed', { threshold: m.threshold, reward_label: m.label, variant_id: m.giftVariantId })
+            track('cart_progress:reward_removed', { threshold: m.threshold, milestone_title: m.title, variant_id: m.giftVariantId })
             changed = true
           }
         }
@@ -247,7 +243,7 @@
         if (reached) reachedCount++
       })
 
-      if (msgEl) msgEl.innerHTML = buildMessage(cfg, milestones, total, currency) || '&nbsp;'
+      if (msgEl) msgEl.innerHTML = buildMessage(milestones, total, currency) || '&nbsp;'
 
       // First render establishes the baseline; only later crossings count as
       // unlock events (page loads with milestones already met stay silent).
@@ -256,16 +252,16 @@
         newly.forEach((m) => {
           track('cart_progress:milestone_unlocked', {
             threshold: m.threshold,
-            reward_type: m.type,
-            reward_label: m.label,
+            milestone_title: m.title,
           })
         })
         nodeEls.forEach((el) => {
           const threshold = Number(el.getAttribute('data-sai-threshold')) || 0
-          if (total >= threshold && newly.some((m) => m.threshold === threshold)) {
+          const crossed = newly.find((m) => m.threshold === threshold)
+          if (total >= threshold && crossed) {
             el.classList.add('sai-vg4guong__node-wrap--pulse')
             setTimeout(() => el.classList.remove('sai-vg4guong__node-wrap--pulse'), 600)
-            if (cfg.showConfetti) burstConfetti(el)
+            if (crossed.confetti) burstConfetti(el)
           }
         })
       }

@@ -1,46 +1,42 @@
 {% doc %}
   @description Amount-based multi-milestone cart progress bar. Renders a
-    templated unlock message, a horizontal track with evenly spaced milestone
-    nodes (check state when reached), and an animated fill driven by the live
-    cart total. Milestone data (thresholds, rewards) comes from
-    spectrum_progress_campaign / spectrum_progress_milestone metaobjects;
-    presentation comes from snippet props.
+    helper-text message line, a horizontal track with evenly spaced milestone
+    markers (independent inactive/active states), and an animated fill driven
+    by the live cart total. All campaign data (bar styling, exclusions,
+    milestones) comes from the portal-managed spectrum_progress_campaign
+    metaobject's `config` json envelope; only presentation knobs remain as
+    snippet props.
 
   @param c {object} Variant content object injected by the snippet wrapper.
     All keys optional — defaults below.
   @param c.campaign_handle {string} Handle of a spectrum_progress_campaign
-    metaobject. Empty = first active campaign on the shop.
-  @param c.bar_style {string} 'continuous' | 'segmented'
-  @param c.marker_style {string} 'node_icon' | 'dot' | 'label_only'
-  @param c.show_milestone_icons {boolean} Show per-milestone reward icons.
+    metaobject. Empty = first active campaign carrying a config envelope.
   @param c.bar_height {number} Track height in px.
-  @param c.bar_corner {string} 'rounded' | 'square'
-  @param c.show_labels {boolean} Show reward labels under nodes.
-  @param c.pre_goal_template {string} Message before first milestone.
-  @param c.mid_progress_template {string} Message between milestones.
-  @param c.complete_message {string} Message when all milestones reached.
+  @param c.show_labels {boolean} Show milestone labels.
   @param c.message_alignment {string} 'left' | 'center' | 'right'
-  @param c.show_check_on_reached {boolean} Icon on reached nodes.
-  @param c.reached_icon_style {string} 'check' | 'star' | 'custom'
-  @param c.reached_icon_url {string} Image URL for 'custom' reached icon.
-  @param c.show_confetti {boolean} Confetti burst on newly reached milestone.
   @param c.fill_animation {boolean} Animate fill width changes.
 {% enddoc %}
 
 {% comment %}
-  Data contract: campaign config is read HERE in Liquid (server-side) because
-  metaobjects are not available to cart.js. The resolved milestones are baked
-  into the embedded JSON config; the asset JS only does cart math + DOM state
-  updates on cart events. No app-proxy round trip.
+  Data contract: the campaign envelope (ProgressBarEnvelope v2 in
+  @spectrum/core/types/progress-bar) is read HERE in Liquid because
+  metaobjects are not available to cart.js. Thresholds arrive as integer
+  cents; the asset JS only does cart math + DOM state updates on cart
+  events. SSR and the runtime must stay in lockstep — both compute the
+  eligible total (sum of final_line_price excluding envelope-listed product
+  ids), the same fill interpolation, and the same helper-text messaging:
+  the next unreached milestone's inactive helperText (with {remaining}
+  money token) until all milestones are reached, then the final milestone's
+  active helperText.
 
-  Eligible-scope caveat: cart.js line items carry no tags/collections, so only
-  scope 'all' is computed client-side in v1. 'collection' / 'tag' scoped
-  campaigns fall back to the full cart total (fields exist in the metaobject
-  so scoped totals can land later without remodeling).
+  Campaign selection skips active entries without a config envelope so
+  legacy hand-seeded metaobjects can coexist during migration without
+  blanking the bar.
 
-  Node positions are evenly spaced at index/(count+1) — matches the reference
-  design (track extends past the last node) and stays stable however uneven
-  the threshold amounts are. Fill interpolates linearly between node positions.
+  Node positions are evenly spaced at index/(count+1) — the track extends
+  past the last marker (reference design) and stays stable however uneven
+  the threshold amounts are. Fill interpolates linearly between node
+  positions.
 
   Color pattern: theme tokens with the reference design's palette as
   fallbacks (light-blue card #e7f0fc, royal-blue fill #4b79dd, rest-track
@@ -68,6 +64,7 @@
 
 .sai-vg4guong__bar { position: relative; padding: 16px 0; }
 .sai-vg4guong[data-sai-labels="on"] .sai-vg4guong__bar { margin-bottom: 3.1em; }
+.sai-vg4guong[data-sai-labels="on"][data-sai-has-above="on"] .sai-vg4guong__bar { margin-top: 3.1em; }
 .sai-vg4guong__track {
   position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%);
   height: var(--sai-vg4guong-bar-h, 5px);
@@ -76,17 +73,33 @@
   overflow: hidden;
 }
 .sai-vg4guong[data-sai-corner="square"] .sai-vg4guong__track { border-radius: 0; }
+/* Stepper bar: the track renders as equal segments with gaps at each
+   marker interval (interval width set inline via --sai-vg4guong-seg). */
+.sai-vg4guong[data-sai-style="stepper"] .sai-vg4guong__track {
+  -webkit-mask: repeating-linear-gradient(90deg, #000 0 calc(var(--sai-vg4guong-seg, 25%) - 6px), transparent calc(var(--sai-vg4guong-seg, 25%) - 6px) var(--sai-vg4guong-seg, 25%));
+  mask: repeating-linear-gradient(90deg, #000 0 calc(var(--sai-vg4guong-seg, 25%) - 6px), transparent calc(var(--sai-vg4guong-seg, 25%) - 6px) var(--sai-vg4guong-seg, 25%));
+}
 .sai-vg4guong__fill {
   height: 100%; width: 0;
   background: var(--sai-color-accent, #4b79dd);
   border-radius: inherit;
+}
+.sai-vg4guong[data-sai-fill-style="striped"] .sai-vg4guong__fill {
+  background-image: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.35) 0 6px, transparent 6px 12px);
 }
 .sai-vg4guong[data-sai-anim="on"] .sai-vg4guong__fill { transition: width 0.45s ease; }
 
 .sai-vg4guong__node-wrap {
   position: absolute; top: 50%; transform: translate(-50%, -50%);
 }
+/* Each marker carries both state renders; the reached class flips them in
+   one frame with no DOM writes. */
+.sai-vg4guong__state--active { display: none; }
+.sai-vg4guong__node-wrap--reached .sai-vg4guong__state--inactive { display: none; }
+.sai-vg4guong__node-wrap--reached .sai-vg4guong__state--active { display: block; }
+
 .sai-vg4guong__node {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
   width: 32px; height: 32px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   background: var(--sai-color-surface-raised, #ffffff);
@@ -94,40 +107,38 @@
   box-shadow: 0 0 0 3px var(--sai-color-info-bg, #e7f0fc);
   color: transparent;
 }
-.sai-vg4guong__node-wrap--reached .sai-vg4guong__node {
+.sai-vg4guong__state--active .sai-vg4guong__node {
   background: var(--sai-color-accent, #4b79dd);
   border-color: var(--sai-color-surface-raised, #ffffff);
   color: var(--sai-color-surface-raised, #ffffff);
 }
-/* Reached icon (check/star svg or custom image) appears only once reached;
-   the reward preview image (when the milestone has one) shows while
-   unreached and swaps out at that moment. */
-.sai-vg4guong__node svg { width: 16px; height: 16px; display: none; }
-.sai-vg4guong__node-wrap--reached .sai-vg4guong__node svg { display: block; }
-.sai-vg4guong__node img { width: 26px; height: 26px; display: block; object-fit: contain; border-radius: 50%; }
-.sai-vg4guong__node .sai-vg4guong__reached-icon { display: none; width: 18px; height: 18px; border-radius: 0; }
-.sai-vg4guong__node-wrap--reached .sai-vg4guong__node .sai-vg4guong__preview { display: none; }
-.sai-vg4guong__node-wrap--reached .sai-vg4guong__node .sai-vg4guong__reached-icon { display: block; }
-.sai-vg4guong__node--icon { width: 40px; height: 40px; }
-.sai-vg4guong__node-wrap--icon .sai-vg4guong__label { top: calc(50% + 28px); }
-/* Once reached, the image swaps to the check — the node collapses to the
-   standard size so all reached milestones read identically. */
-.sai-vg4guong__node-wrap--reached .sai-vg4guong__node--icon { width: 32px; height: 32px; }
-.sai-vg4guong__node-wrap--icon.sai-vg4guong__node-wrap--reached .sai-vg4guong__label { top: calc(50% + 22px); }
-.sai-vg4guong[data-sai-marker="dot"] .sai-vg4guong__node { width: 14px; height: 14px; }
-.sai-vg4guong[data-sai-marker="dot"] .sai-vg4guong__node svg,
-.sai-vg4guong[data-sai-marker="dot"] .sai-vg4guong__node img,
-.sai-vg4guong[data-sai-marker="dot"] .sai-vg4guong__node .sai-vg4guong__reached-icon { display: none; }
-.sai-vg4guong[data-sai-marker="label_only"] .sai-vg4guong__node { display: none; }
-.sai-vg4guong[data-sai-marker="label_only"] .sai-vg4guong__label { top: calc(50% + 12px); }
-.sai-vg4guong[data-sai-style="segmented"] .sai-vg4guong__node { box-shadow: 0 0 0 6px var(--sai-color-info-bg, #e7f0fc); }
-.sai-vg4guong[data-sai-checks="off"] .sai-vg4guong__node svg,
-.sai-vg4guong[data-sai-checks="off"] .sai-vg4guong__node .sai-vg4guong__reached-icon { display: none; }
+.sai-vg4guong__node svg { width: 16px; height: 16px; display: block; }
+.sai-vg4guong__node--asset { width: 40px; height: 40px; }
+.sai-vg4guong__node img { width: 26px; height: 26px; display: block; object-fit: contain; }
+
+/* Pin marker: circle riding above the track with a pointer tail. */
+.sai-vg4guong__pin {
+  position: absolute; bottom: calc(50% + 8px); left: 50%; transform: translateX(-50%);
+  width: 40px; height: 40px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--sai-color-surface-raised, #ffffff);
+  border: 2px solid var(--sai-color-track, #c9daf3);
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.12);
+}
+.sai-vg4guong__pin::after {
+  content: '';
+  position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: var(--sai-color-surface-raised, #ffffff);
+}
+.sai-vg4guong__state--active .sai-vg4guong__pin { border-color: var(--sai-color-accent, #4b79dd); }
+.sai-vg4guong__pin img { width: 26px; height: 26px; display: block; object-fit: contain; }
 
 .sai-vg4guong__label {
-  position: absolute; top: calc(50% + 22px); left: 50%; transform: translateX(-50%);
-  /* Hard 110px cap + fixed-ish size: adjacent labels sit one node-gap apart,
-     so anything wider than ~the gap collides at narrow widths. */
+  position: absolute; left: 50%; transform: translateX(-50%);
+  top: calc(50% + 22px);
+  /* Hard 110px cap: adjacent labels sit one node-gap apart, so anything
+     wider than ~the gap collides at narrow widths. */
   width: 110px; max-width: 110px;
   text-align: center;
   font-size: 0.8rem;
@@ -135,12 +146,13 @@
   line-height: 1.25;
   color: var(--sai-color-text, #3a4456);
 }
+.sai-vg4guong__label--above { top: auto; bottom: calc(50% + 22px); }
 .sai-vg4guong[data-sai-labels="off"] .sai-vg4guong__label { display: none; }
 
-.sai-vg4guong__node-wrap--pulse .sai-vg4guong__node { animation: sai-vg4guong-pulse 0.5s ease; }
+.sai-vg4guong__node-wrap--pulse .sai-vg4guong__state--active { animation: sai-vg4guong-pulse 0.5s ease; }
 @keyframes sai-vg4guong-pulse {
   0% { transform: scale(1); }
-  50% { transform: scale(1.25); }
+  50% { transform: scale(1.18); }
   100% { transform: scale(1); }
 }
 .sai-vg4guong__confetti {
@@ -154,46 +166,19 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .sai-vg4guong[data-sai-anim="on"] .sai-vg4guong__fill { transition: none; }
-  .sai-vg4guong__node-wrap--pulse .sai-vg4guong__node { animation: none; }
+  .sai-vg4guong__node-wrap--pulse .sai-vg4guong__state--active { animation: none; }
   .sai-vg4guong__confetti { display: none; }
 }
 {% endstylesheet %}
 
 {%- liquid
   assign campaign_handle = c.campaign_handle | default: ''
-  assign bar_style = c.bar_style | default: 'continuous'
-  assign marker_style = c.marker_style | default: 'node_icon'
   assign bar_height = c.bar_height | default: 5
-  assign bar_corner = c.bar_corner | default: 'rounded'
   assign message_alignment = c.message_alignment | default: 'center'
-  assign pre_goal_template = c.pre_goal_template | default: 'Add {remaining} more to unlock {reward}'
-  assign mid_progress_template = c.mid_progress_template | default: "You're {remaining} away from {reward}"
-  assign complete_message = c.complete_message | default: "Congrats! You've unlocked {reward} 🎉"
-
-  if c.show_milestone_icons == nil
-    assign show_milestone_icons = true
-  else
-    assign show_milestone_icons = c.show_milestone_icons
-  endif
   if c.show_labels == nil
     assign show_labels = true
   else
     assign show_labels = c.show_labels
-  endif
-  if c.show_check_on_reached == nil
-    assign show_check_on_reached = true
-  else
-    assign show_check_on_reached = c.show_check_on_reached
-  endif
-  assign reached_icon_style = c.reached_icon_style | default: 'check'
-  assign reached_icon_url = c.reached_icon_url | default: ''
-  if reached_icon_style == 'custom' and reached_icon_url == blank
-    assign reached_icon_style = 'check'
-  endif
-  if c.show_confetti == nil
-    assign show_confetti = false
-  else
-    assign show_confetti = c.show_confetti
   endif
   if c.fill_animation == nil
     assign fill_animation = true
@@ -207,25 +192,25 @@
   endif
   if campaign == nil
     for entry in shop.metaobjects['spectrum_progress_campaign'].values
-      if campaign == nil and entry.active.value
+      if campaign == nil and entry.active.value and entry.config.value
         assign campaign = entry
       endif
     endfor
   endif
 
-  assign milestones = nil
+  assign cfg = nil
   if campaign
-    assign milestones = campaign.milestones.value
+    assign cfg = campaign.config.value
+  endif
+  assign milestones = nil
+  if cfg
+    assign milestones = cfg.milestones
   endif
 
   assign labels_attr = 'off'
   if show_labels
     assign labels_attr = 'on'
   endif
-  assign checks_attr = 'on'
-  unless show_check_on_reached
-    assign checks_attr = 'off'
-  endunless
   assign anim_attr = 'off'
   if fill_animation
     assign anim_attr = 'on'
@@ -233,40 +218,63 @@
 -%}
 
 {%- comment -%}
-  Server-rendered first paint: fill width, reached node states, and the
-  templated message are computed here from the cart global so a theme
-  section morph lands fully populated — no blank-message/zero-fill flash
-  while the runtime fetches /cart.js. The runtime repaints the identical
-  state on init, then owns all subsequent updates. Milestones are assumed
-  authored in ascending threshold order (the runtime sorts defensively).
+  Server-rendered first paint: the eligible total, fill width, reached
+  marker states, and the helper-text message are computed here from the
+  cart global so a theme section morph lands fully populated. The runtime
+  repaints the identical state on init, then owns all subsequent updates.
 {%- endcomment -%}
 {%- liquid
-  assign cart_total = cart.total_price
+  assign excluded_key = '|'
+  if cfg
+    for pid in cfg.excludedProductIds
+      assign pid_s = pid | round | append: ''
+      assign excluded_key = excluded_key | append: pid_s | append: '|'
+    endfor
+  endif
+
+  assign cart_total = 0
+  for item in cart.items
+    assign item_pid = item.product_id | append: ''
+    assign item_needle = '|' | append: item_pid | append: '|'
+    unless excluded_key contains item_needle
+      assign cart_total = cart_total | plus: item.final_line_price
+    endunless
+  endfor
+
   assign ms_count = 0
   if milestones
     assign ms_count = milestones.size
   endif
   assign ms_denom = ms_count | plus: 1
+  assign seg_pct = 100.0 | divided_by: ms_denom
   assign fill_pct = 0.0
   assign reached_count = 0
   assign prev_t = 0
   assign prev_p = 0.0
-  assign next_label = ''
-  assign next_remaining = 0
   assign found_next = false
-  assign last_reached_label = ''
+  assign next_title = ''
+  assign next_helper = ''
+  assign next_remaining = 0
+  assign last_title = ''
+  assign last_active_helper = ''
+  assign has_above = 'off'
   for m in milestones
-    assign t_cents = m.threshold_amount.value | times: 100 | round
+    assign t_cents = m.thresholdCents | round
     assign node_p = forloop.index | times: 100.0 | divided_by: ms_denom
+    if m.inactive.labelPlacement == 'above' or m.active.labelPlacement == 'above'
+      assign has_above = 'on'
+    endif
+    assign last_title = m.title
+    assign last_active_helper = m.active.helperText | default: ''
     if cart_total >= t_cents
       assign reached_count = reached_count | plus: 1
       assign fill_pct = node_p
-      assign last_reached_label = m.reward_label.value
       assign prev_t = t_cents
       assign prev_p = node_p
     elsif found_next == false
       assign found_next = true
-      assign next_label = m.reward_label.value
+      assign next_title = m.title
+      assign next_helper = m.inactive.helperText | default: ''
       assign next_remaining = t_cents | minus: cart_total
       assign seg_t = t_cents | minus: prev_t
       assign seg_p = node_p | minus: prev_p
@@ -280,56 +288,44 @@
     assign fill_pct = 100.0
   endif
 
-  if reached_count == ms_count
-    assign msg_tmpl = complete_message
-    assign reward_label_ssr = last_reached_label
+  if ms_count > 0 and reached_count == ms_count
+    assign msg_tmpl = last_active_helper
+    if msg_tmpl == blank
+      assign msg_tmpl = "Congrats! You've unlocked {reward} 🎉"
+    endif
+    assign reward_label_ssr = last_title
     assign remaining_money = ''
-  elsif reached_count == 0
-    assign msg_tmpl = pre_goal_template
-    assign reward_label_ssr = next_label
-    assign remaining_money = next_remaining | money
   else
-    assign msg_tmpl = mid_progress_template
-    assign reward_label_ssr = next_label
+    assign msg_tmpl = next_helper
+    if msg_tmpl == blank
+      assign msg_tmpl = 'Add {remaining} more to unlock {reward}'
+    endif
+    assign reward_label_ssr = next_title
     assign remaining_money = next_remaining | money
   endif
   assign reward_html = '<strong>' | append: reward_label_ssr | append: '</strong>'
-  assign msg_ssr = msg_tmpl | replace: '{remaining_amount}', remaining_money | replace: '{remaining}', remaining_money | replace: '{reward}', reward_html | replace: '{unlocked_reward}', last_reached_label
+  assign msg_ssr = msg_tmpl | replace: '{remaining_amount}', remaining_money | replace: '{remaining}', remaining_money | replace: '{reward}', reward_html
 -%}
 
-{%- if milestones and milestones.size > 0 -%}
+{%- if milestones and ms_count > 0 -%}
 <div class="sai-vg4guong"
      data-sai-progress
-     data-sai-style="{{ bar_style }}"
-     data-sai-marker="{{ marker_style }}"
-     data-sai-corner="{{ bar_corner }}"
+     data-sai-style="{{ cfg.barStyle | default: 'continuous' }}"
+     data-sai-corner="{{ cfg.barBorderRadius | default: 'rounded' }}"
+     data-sai-fill-style="{{ cfg.fillStyle | default: 'solid' }}"
      data-sai-align="{{ message_alignment }}"
      data-sai-labels="{{ labels_attr }}"
-     data-sai-checks="{{ checks_attr }}"
+     data-sai-has-above="{{ has_above }}"
      data-sai-anim="{{ anim_attr }}"
-     style="--sai-vg4guong-bar-h: {{ bar_height }}px;">
+     style="--sai-vg4guong-bar-h: {{ bar_height }}px; --sai-vg4guong-seg: {{ seg_pct }}%;">
   <script type="application/json" data-sai-progress-config>
 {
   "milestones": [
     {%- for m in milestones -%}
-    {%- liquid
-      assign icon_url = ''
-      if m.reward_icon.value
-        assign icon_url = m.reward_icon.value.preview_image | image_url: width: 96
-      elsif m.gift_variant.value.product.featured_image
-        assign icon_url = m.gift_variant.value.product.featured_image | image_url: width: 96
-      endif
-    -%}
-    {"threshold": {{ m.threshold_amount.value | times: 100 | round }}, "label": {{ m.reward_label.value | json }}, "type": {{ m.reward_type.value | json }}, "code": {{ m.discount_code.value | json }}, "giftVariantId": {{ m.gift_variant.value.id | json }}, "icon": {{ icon_url | json }}}{%- unless forloop.last -%},{%- endunless -%}
+    {"threshold": {{ m.thresholdCents | round }}, "title": {{ m.title | json }}, "inactiveHelper": {{ m.inactive.helperText | json }}, "activeHelper": {{ m.active.helperText | json }}, "confetti": {{ m.triggerConfetti | json }}, "giftVariantId": {{ m.giftVariantId | json }}}{%- unless forloop.last -%},{%- endunless -%}
     {%- endfor -%}
   ],
-  "excludeDiscounted": {{ campaign.exclude_discounted_items.value | json }},
-  "eligibleScope": {{ campaign.eligible_scope.value | json }},
-  "preGoalTemplate": {{ pre_goal_template | json }},
-  "midProgressTemplate": {{ mid_progress_template | json }},
-  "completeMessage": {{ complete_message | json }},
-  "showConfetti": {{ show_confetti | json }},
-  "showMilestoneIcons": {{ show_milestone_icons | json }}
+  "excludedProductIds": {{ cfg.excludedProductIds | json }}
 }
   </script>
   <p class="sai-vg4guong__message" data-sai-msg>{{ msg_ssr }}</p>
@@ -337,43 +333,58 @@
     <div class="sai-vg4guong__track">
       <div class="sai-vg4guong__fill" data-sai-fill style="width: {{ fill_pct }}%;"></div>
     </div>
-    {%- assign denom = milestones.size | plus: 1 -%}
     {%- for m in milestones -%}
     {%- liquid
-      assign pos = forloop.index | times: 100.0 | divided_by: denom
-      assign icon_url = ''
-      if show_milestone_icons
-        if m.reward_icon.value
-          assign icon_url = m.reward_icon.value.preview_image | image_url: width: 96
-        elsif m.gift_variant.value.product.featured_image
-          assign icon_url = m.gift_variant.value.product.featured_image | image_url: width: 96
-        endif
-      endif
+      assign pos = forloop.index | times: 100.0 | divided_by: ms_denom
+      assign node_t_cents = m.thresholdCents | round
       assign wrap_class = 'sai-vg4guong__node-wrap'
-      assign node_class = 'sai-vg4guong__node'
-      if icon_url != blank
-        assign wrap_class = wrap_class | append: ' sai-vg4guong__node-wrap--icon'
-        assign node_class = node_class | append: ' sai-vg4guong__node--icon'
-      endif
-      assign node_t_cents = m.threshold_amount.value | times: 100 | round
       if cart_total >= node_t_cents
         assign wrap_class = wrap_class | append: ' sai-vg4guong__node-wrap--reached'
       endif
+      assign inactive_label = m.inactive.label | default: m.title
+      assign active_label = m.active.label | default: m.title
+      assign inactive_label_class = 'sai-vg4guong__label'
+      if m.inactive.labelPlacement == 'above'
+        assign inactive_label_class = inactive_label_class | append: ' sai-vg4guong__label--above'
+      endif
+      assign active_label_class = 'sai-vg4guong__label'
+      if m.active.labelPlacement == 'above'
+        assign active_label_class = active_label_class | append: ' sai-vg4guong__label--above'
+      endif
     -%}
-    <div class="{{ wrap_class }}" data-sai-node data-sai-threshold="{{ m.threshold_amount.value | times: 100 | round }}" style="left: {{ pos }}%;">
-      <div class="{{ node_class }}">
-        {%- if icon_url != blank -%}
-        <img class="sai-vg4guong__preview" src="{{ icon_url }}" alt="{{ m.reward_label.value | escape }}" loading="lazy">
-        {%- endif -%}
-        {%- if reached_icon_style == 'star' -%}
-        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5l2.95 6.27 6.55.62-4.97 4.45 1.44 6.66L12 17.1l-5.97 3.4 1.44-6.66L2.5 9.39l6.55-.62z"/></svg>
-        {%- elsif reached_icon_style == 'custom' -%}
-        <img class="sai-vg4guong__reached-icon" src="{{ reached_icon_url }}" alt="" loading="lazy">
+    <div class="{{ wrap_class }}" data-sai-node data-sai-threshold="{{ node_t_cents }}" data-sai-confetti="{% if m.triggerConfetti %}on{% else %}off{% endif %}" style="left: {{ pos }}%;">
+      <div class="sai-vg4guong__state sai-vg4guong__state--inactive">
+        {%- case m.inactive.markerStyle -%}
+        {%- when 'asset_text' -%}
+        <div class="sai-vg4guong__node sai-vg4guong__node--asset">
+          {%- if m.inactive.assetUrl -%}<img src="{{ m.inactive.assetUrl }}" alt="" loading="lazy">{%- endif -%}
+        </div>
+        {%- when 'pin_asset_text' -%}
+        <div class="sai-vg4guong__pin">
+          {%- if m.inactive.assetUrl -%}<img src="{{ m.inactive.assetUrl }}" alt="" loading="lazy">{%- endif -%}
+        </div>
         {%- else -%}
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg>
-        {%- endif -%}
+        <div class="sai-vg4guong__node"></div>
+        {%- endcase -%}
+        <div class="{{ inactive_label_class }}">{{ inactive_label }}</div>
       </div>
-      <div class="sai-vg4guong__label">{{ m.reward_label.value }}</div>
+      <div class="sai-vg4guong__state sai-vg4guong__state--active">
+        {%- case m.active.markerStyle -%}
+        {%- when 'asset_text' -%}
+        <div class="sai-vg4guong__node sai-vg4guong__node--asset">
+          {%- if m.active.assetUrl -%}<img src="{{ m.active.assetUrl }}" alt="" loading="lazy">{%- endif -%}
+        </div>
+        {%- when 'pin_asset_text' -%}
+        <div class="sai-vg4guong__pin">
+          {%- if m.active.assetUrl -%}<img src="{{ m.active.assetUrl }}" alt="" loading="lazy">{%- endif -%}
+        </div>
+        {%- else -%}
+        <div class="sai-vg4guong__node">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg>
+        </div>
+        {%- endcase -%}
+        <div class="{{ active_label_class }}">{{ active_label }}</div>
+      </div>
     </div>
     {%- endfor -%}
   </div>
