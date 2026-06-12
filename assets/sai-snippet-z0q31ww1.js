@@ -131,6 +131,25 @@
     return !!c && appliedCodes.includes(String(c).toUpperCase())
   }
 
+  // A discount is "user-specific" when the resolver tagged it as targeting the
+  // signed-in customer (tags / segment / personally-issued). The widget reads
+  // any of the markers the discounts pipeline may emit so the section lights
+  // up whenever such data is present; otherwise the section simply renders 0.
+  function isUserSpecific(d) {
+    if (!d) return false
+    return (
+      d.userSpecific === true ||
+      d.isUserSpecific === true ||
+      d.audience === 'customer' ||
+      d.audience === 'user' ||
+      d.sessionGenerated === true
+    )
+  }
+
+  function isSessionGenerated(d) {
+    return !!d && d.sessionGenerated === true
+  }
+
   // Recompute qualification against the live cart subtotal — sometimes the
   // server-baked qualification reflects the variant-level scope rather than
   // the cart total. For subtotal-keyed metrics, override.
@@ -225,19 +244,39 @@
     slot.innerHTML = ENTRY_ICONS[iconName] || ENTRY_ICONS.percent
   }
 
+  // Replace both {{token}} and {token} forms so a merchant can write either.
+  function interpolateTokens(tpl, vars) {
+    if (!tpl) return ''
+    let out = String(tpl)
+    for (const k of Object.keys(vars)) {
+      out = out.split(`{{${k}}}`).join(String(vars[k]))
+      out = out.split(`{${k}}`).join(String(vars[k]))
+    }
+    return out
+  }
+
   function updateEntryMeta(host, ctx) {
     const { config, applicable, applied, autoApplied, subtotal } = ctx
+    const total = applicable.length + applied.length + autoApplied.length
+    const best = applicable
+      .concat(applied)
+      .reduce((max, d) => Math.max(max, savingsAt(d, subtotal)), 0)
+    const maxSavingsLabel = best > 0 ? ctx.money.format(best) : ''
+
+    // CTA label supports {{count}} / {{max_savings}} placeholders.
+    const label = host.querySelector('[data-sai-entry-label]')
+    if (label && config.entryCtaText) {
+      label.textContent = interpolateTokens(config.entryCtaText, {
+        count: total,
+        max_savings: maxSavingsLabel,
+      })
+    }
+
     const meta = host.querySelector('[data-sai-entry-meta]')
     if (!meta) return
     const parts = []
-    const total = applicable.length + applied.length + autoApplied.length
     if (config.entryCtaShowCount && total > 0) parts.push(`${total} offer${total === 1 ? '' : 's'}`)
-    if (config.entryCtaShowMaxSavings) {
-      const best = applicable
-        .concat(applied)
-        .reduce((max, d) => Math.max(max, savingsAt(d, subtotal)), 0)
-      if (best > 0) parts.push(`Save up to ${ctx.money.format(best)}`)
-    }
+    if (config.entryCtaShowMaxSavings && best > 0) parts.push(`Save up to ${maxSavingsLabel}`)
     if (parts.length === 0) {
       meta.hidden = true
     } else {
@@ -261,7 +300,14 @@
 
   function buildCard(d, state, ctx) {
     const { config, money, subtotal } = ctx
-    const card = el('div', `${TAG}-card`, { 'data-state': state })
+    const session = isSessionGenerated(d)
+    const card = el(
+      'div',
+      `${TAG}-card${session && config.sessionCouponHighlight ? ` ${TAG}-card--session` : ''}`,
+      {
+        'data-state': state,
+      },
+    )
     if (d && d.id != null) card.setAttribute('data-discount-id', String(d.id))
 
     // Vertical % OFF bar.
@@ -285,6 +331,10 @@
     if (config.showCodeChip && code)
       body.appendChild(el('div', `${TAG}-card__code`, { text: code }))
     else body.appendChild(el('div', `${TAG}-card__code`, { text: d.title || d.shortSummary || '' }))
+
+    if (session && config.sessionCouponLabel) {
+      body.appendChild(el('div', `${TAG}-card__session-label`, { text: config.sessionCouponLabel }))
+    }
 
     if (state === 'applicable' || state === 'applied') {
       const abs = savingsAt(d, subtotal)
@@ -339,11 +389,13 @@
     return card
   }
 
-  function buildSection(title, count, list, state, ctx) {
+  function buildSection(title, count, list, state, ctx, opts) {
     const { config } = ctx
+    const badgeText = opts?.badgeText
     const wrap = el('section', `${TAG}-page__section`)
     const header = el('div', `${TAG}-page__section-header`)
-    const collapsible = !!config.enableCollapsibleSections
+    // The user-specific section is never collapsible — it's the priority slot.
+    const collapsible = !!config.enableCollapsibleSections && state !== 'user'
     const defaultCollapsed =
       (state === 'applied' && config.defaultCollapsedApplied) ||
       (state === 'applicable' && config.defaultCollapsedApplicable) ||
@@ -372,6 +424,9 @@
 
     if (config.showSectionCountBadge && count > 0) {
       header.appendChild(el('span', `${TAG}-page__section-count`, { text: String(count) }))
+    }
+    if (badgeText) {
+      header.appendChild(el('span', `${TAG}-page__section-badge`, { text: badgeText }))
     }
     wrap.appendChild(header)
 
@@ -433,6 +488,118 @@
     }
 
     wrap.appendChild(body)
+    return wrap
+  }
+
+  // ── Promotional blocks ───────────────────────────────────────────────
+  function promoDismissKey(host, block, idx) {
+    const handle = host.getAttribute('data-mutation-handle') || SNIPPET_ID
+    return `sai-z0q31ww1-promo:${handle}:${idx}:${block.headline || block.type}`
+  }
+
+  function promoDismissed(host, block, idx) {
+    if (!block.dismissible) return false
+    const key = promoDismissKey(host, block, idx)
+    try {
+      const store =
+        block.dismissPersistence === 'permanent' ? window.localStorage : window.sessionStorage
+      return store.getItem(key) === '1'
+    } catch (_) {
+      return false
+    }
+  }
+
+  function rememberPromoDismiss(host, block, idx) {
+    const key = promoDismissKey(host, block, idx)
+    try {
+      const store =
+        block.dismissPersistence === 'permanent' ? window.localStorage : window.sessionStorage
+      store.setItem(key, '1')
+    } catch (_) {
+      /* storage unavailable — dismiss is then session-only in memory */
+    }
+  }
+
+  // Block is shown when not dismissed and the visibility audience matches the
+  // shopper's auth state.
+  function promoVisible(host, block, idx, ctx) {
+    if (!block) return false
+    if (block.visibility === 'logged_in' && !ctx.config.customerLoggedIn) return false
+    if (block.visibility === 'guest' && ctx.config.customerLoggedIn) return false
+    if (promoDismissed(host, block, idx)) return false
+    // A labeled divider is pure chrome — render even with no copy. Other types
+    // need at least a headline, body, or image to be worth showing.
+    if (block.type === 'labeled_divider') return !!block.headline
+    return !!(block.headline || block.body || block.imageUrl)
+  }
+
+  function buildPromoBlock(host, block, idx, ctx) {
+    const wrap = el('div', `${TAG}-page__promo ${TAG}-page__promo--${block.type}`)
+
+    if (block.type === 'labeled_divider') {
+      wrap.appendChild(document.createTextNode(block.headline || ''))
+      return wrap
+    }
+
+    if ((block.type === 'image_banner' || block.type === 'text_image') && block.imageUrl) {
+      wrap.appendChild(
+        el('img', null, { src: block.imageUrl, alt: block.headline || '', loading: 'lazy' }),
+      )
+    }
+
+    // image_banner is image-only; the others carry text.
+    if (block.type !== 'image_banner') {
+      const textWrap = el('div', `${TAG}-page__promo-text`)
+      if (block.headline)
+        textWrap.appendChild(el('p', `${TAG}-page__promo-headline`, { text: block.headline }))
+      if (block.body) textWrap.appendChild(el('p', `${TAG}-page__promo-body`, { text: block.body }))
+
+      // CTA: link (anchor), copy_code (button copies block.link), dismiss (button).
+      if (block.ctaAction === 'link' && block.link) {
+        textWrap.appendChild(
+          el('a', `${TAG}-page__promo-cta`, { href: block.link, text: 'Learn more' }),
+        )
+      } else if (block.ctaAction === 'copy_code' && block.link) {
+        const btn = el('button', `${TAG}-page__promo-cta`, {
+          type: 'button',
+          text: `Copy ${block.link}`,
+        })
+        btn.addEventListener('click', () => {
+          try {
+            navigator.clipboard?.writeText(String(block.link))
+            btn.textContent = 'Copied!'
+            ctx.track(`${FEATURE_SLUG}:promo_copy_code`, { code: block.link })
+          } catch (_) {
+            /* clipboard blocked */
+          }
+        })
+        textWrap.appendChild(btn)
+      } else if (block.ctaAction === 'dismiss') {
+        const btn = el('button', `${TAG}-page__promo-cta`, { type: 'button', text: 'Dismiss' })
+        btn.addEventListener('click', () => {
+          rememberPromoDismiss(host, block, idx)
+          wrap.remove()
+        })
+        textWrap.appendChild(btn)
+      }
+      wrap.appendChild(textWrap)
+    }
+
+    // Dismiss affordance (X) when the block opted in.
+    if (block.dismissible) {
+      const x = el('button', `${TAG}-page__promo-dismiss`, {
+        type: 'button',
+        'aria-label': 'Dismiss',
+        text: '×',
+      })
+      x.addEventListener('click', () => {
+        rememberPromoDismiss(host, block, idx)
+        wrap.remove()
+        ctx.track(`${FEATURE_SLUG}:promo_dismiss`, { position: block.position })
+      })
+      wrap.appendChild(x)
+    }
+
     return wrap
   }
 
@@ -501,6 +668,8 @@
           feedback.className = `${TAG}-page__feedback ${TAG}-page__feedback--success`
           feedback.textContent = 'Coupon applied'
           feedback.hidden = false
+          apply.disabled = true
+          apply.textContent = config.applyLoadingText || 'Applying…'
           ctx.track(`${FEATURE_SLUG}:manual_apply`, { discount_code: code, valid: true })
           window.location.href = discountApplyUrl(code)
         } else {
@@ -518,6 +687,34 @@
     }
 
     if (config.showInputForm && config.inputPosition !== 'bottom') scroll.appendChild(inputForm())
+
+    // Promo blocks — build the visible ones once, emit them at their position.
+    const promoBlocks =
+      config.enablePromoBlocks && Array.isArray(config.promoBlocks) ? config.promoBlocks : []
+    function emitPromos(position) {
+      promoBlocks.forEach((block, idx) => {
+        if (block.position === position && promoVisible(host, block, idx, ctx)) {
+          scroll.appendChild(buildPromoBlock(host, block, idx, ctx))
+        }
+      })
+    }
+
+    emitPromos('top')
+
+    // User-specific section sits above the store coupons.
+    const userSorted = sortDiscounts(ctx.userSpecific, config.applicableSort, ctx.subtotal)
+    if (userSorted.length > 0 && config.userSectionPosition === 'above_store_coupons') {
+      scroll.appendChild(
+        buildSection(
+          config.userSectionHeaderText || 'Your Coupons',
+          userSorted.length,
+          userSorted,
+          'user',
+          ctx,
+          { badgeText: config.userSectionBadgeText },
+        ),
+      )
+    }
 
     // Sections.
     const appliedSorted = sortDiscounts(ctx.applied, config.appliedSort, ctx.subtotal)
@@ -561,18 +758,26 @@
             )
           : null,
     }
-    let renderedAny = false
-    for (const key of sectionsOrder) {
+    let renderedAny = userSorted.length > 0
+    for (let i = 0; i < sectionsOrder.length; i += 1) {
+      const key = sectionsOrder[i]
       const node = sectionMap[key]()
       if (node) {
         scroll.appendChild(node)
         renderedAny = true
+        // Position-anchored promos fire right after their reference section.
+        if (key === 'applied') emitPromos('after_applied')
+        else if (key === 'applicable') emitPromos('after_applicable')
       }
+      // "Between sections" promos go after every section except the last.
+      if (i < sectionsOrder.length - 1) emitPromos('between_sections')
     }
     if (!renderedAny)
       scroll.appendChild(
         el('div', `${TAG}-page__empty`, { text: 'No offers available right now.' }),
       )
+
+    emitPromos('bottom')
 
     if (config.showInputForm && config.inputPosition === 'bottom') scroll.appendChild(inputForm())
 
@@ -615,6 +820,10 @@
         e.preventDefault()
         const code = apply.getAttribute('data-sai-apply')
         if (!code) return
+        if (apply instanceof HTMLButtonElement) {
+          apply.disabled = true
+          apply.textContent = config.applyLoadingText || 'Applying…'
+        }
         ctx.track(`${FEATURE_SLUG}:apply_clicked`, { discount_code: code })
         window.location.href = discountApplyUrl(code)
       }
@@ -776,7 +985,16 @@
     const autoApplied = []
     const applicable = []
     const potential = []
+    const userSpecific = []
     for (const d of recomputed) {
+      // User-specific coupons render in their own section above the store
+      // coupons. Only peel them off when the merchant enabled the section and
+      // the shopper is signed in — otherwise they fall through to the normal
+      // store buckets so nothing is lost.
+      if (config.enableUserSpecificCoupons && config.customerLoggedIn && isUserSpecific(d)) {
+        userSpecific.push(d)
+        continue
+      }
       if (isApplied(d, appliedCodes)) applied.push(d)
       else if (d.applicationType === 'automatic' && isApplicable(d)) autoApplied.push(d)
       else if (isApplicable(d)) applicable.push(d)
@@ -803,6 +1021,7 @@
       autoApplied,
       applicable,
       potential,
+      userSpecific,
       subtotal,
       track,
       emit,

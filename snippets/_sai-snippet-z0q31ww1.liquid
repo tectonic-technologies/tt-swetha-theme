@@ -178,6 +178,49 @@
     assign show_min_order_threshold = content.show_min_order_threshold
   endif
 
+  # ── Promotional blocks ────────────────────────────────────────────────
+  if content.enable_promo_blocks == nil
+    assign enable_promo_blocks = false
+  else
+    assign enable_promo_blocks = content.enable_promo_blocks
+  endif
+  assign promo_block_1_type = content.promo_block_1_type | default: 'info_callout'
+  assign promo_block_1_position = content.promo_block_1_position | default: 'top'
+  assign promo_block_1_headline = content.promo_block_1_headline | default: ''
+  assign promo_block_1_body = content.promo_block_1_body | default: ''
+  assign promo_block_1_link = content.promo_block_1_link | default: ''
+  assign promo_block_1_image_url = content.promo_block_1_image_url | default: ''
+  assign promo_block_1_cta_action = content.promo_block_1_cta_action | default: 'link'
+  if content.promo_block_1_dismissible == nil
+    assign promo_block_1_dismissible = false
+  else
+    assign promo_block_1_dismissible = content.promo_block_1_dismissible
+  endif
+  assign promo_block_1_dismiss_persistence = content.promo_block_1_dismiss_persistence | default: 'session'
+  assign promo_block_1_visibility = content.promo_block_1_visibility | default: 'all'
+
+  # ── User-specific coupons ─────────────────────────────────────────────
+  if content.enable_user_specific_coupons == nil
+    assign enable_user_specific_coupons = false
+  else
+    assign enable_user_specific_coupons = content.enable_user_specific_coupons
+  endif
+  assign user_section_header_text = content.user_section_header_text | default: 'Your Coupons'
+  assign user_section_position = content.user_section_position | default: 'above_store_coupons'
+  assign user_section_badge_text = content.user_section_badge_text | default: 'For You'
+  assign session_coupon_label = content.session_coupon_label | default: 'Just for you'
+  if content.session_coupon_highlight == nil
+    assign session_coupon_highlight = true
+  else
+    assign session_coupon_highlight = content.session_coupon_highlight
+  endif
+
+  # Logged-in detection drives promo-block visibility + the user section.
+  assign customer_logged_in = false
+  if customer
+    assign customer_logged_in = true
+  endif
+
   assign currency_code = shop.currency
 -%}
 
@@ -564,6 +607,135 @@
   color: var(--sai-z0q31ww1-muted-fg);
   font-size: 0.875rem;
 }
+
+/* ── Promotional blocks ─────────────────────────────────────────────── */
+
+.sai-z0q31ww1-page__promo {
+  position: relative;
+  margin: 0.75rem 0 1rem;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.sai-z0q31ww1-page__promo--info_callout {
+  background: rgba(194, 99, 46, 0.08);
+  border: 1px solid rgba(194, 99, 46, 0.2);
+  padding: 0.75rem 0.875rem;
+}
+
+.sai-z0q31ww1-page__promo--image_banner img,
+.sai-z0q31ww1-page__promo--text_image img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.sai-z0q31ww1-page__promo--text_image {
+  display: grid;
+  grid-template-columns: 5rem 1fr;
+  gap: 0.75rem;
+  align-items: center;
+  border: 1px solid var(--sai-z0q31ww1-border);
+  padding: 0.625rem;
+}
+
+.sai-z0q31ww1-page__promo--text_image img {
+  border-radius: 0.375rem;
+}
+
+.sai-z0q31ww1-page__promo--labeled_divider {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  margin: 1.25rem 0 0.75rem;
+  color: var(--sai-z0q31ww1-muted-fg);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.sai-z0q31ww1-page__promo--labeled_divider::before,
+.sai-z0q31ww1-page__promo--labeled_divider::after {
+  content: '';
+  flex: 1 1 auto;
+  height: 1px;
+  background: var(--sai-z0q31ww1-border);
+}
+
+.sai-z0q31ww1-page__promo-headline {
+  margin: 0 0 0.25rem;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--sai-z0q31ww1-fg);
+}
+
+.sai-z0q31ww1-page__promo-body {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--sai-z0q31ww1-muted-fg);
+}
+
+.sai-z0q31ww1-page__promo-cta {
+  display: inline-block;
+  margin-top: 0.5rem;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--sai-z0q31ww1-cta-fg);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.sai-z0q31ww1-page__promo-dismiss {
+  position: absolute;
+  top: 0.375rem;
+  right: 0.375rem;
+  appearance: none;
+  background: rgba(0, 0, 0, 0.06);
+  border: 0;
+  border-radius: 999px;
+  width: 1.25rem;
+  height: 1.25rem;
+  line-height: 1;
+  font-size: 0.875rem;
+  color: var(--sai-z0q31ww1-muted-fg);
+  cursor: pointer;
+}
+
+/* ── User-specific section ──────────────────────────────────────────── */
+
+.sai-z0q31ww1-page__section-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.5rem;
+  padding: 0 0.45rem;
+  height: 1.25rem;
+  border-radius: 999px;
+  background: var(--sai-z0q31ww1-cta-fg);
+  color: #ffffff;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.sai-z0q31ww1-card--session {
+  box-shadow: 0 2px 6px rgba(194, 99, 46, 0.18), 0 0 0 1.5px var(--sai-z0q31ww1-cta-fg);
+}
+
+.sai-z0q31ww1-card__session-label {
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--sai-z0q31ww1-cta-fg);
+}
 </style>
 
 {% comment %}
@@ -649,7 +821,29 @@
     "termsLabel": {{ terms_label | json }},
     "showCouponAsset": {{ show_coupon_asset | json }},
     "showMinOrderThreshold": {{ show_min_order_threshold | json }},
-    "currencyCode": {{ currency_code | json }}
+    "currencyCode": {{ currency_code | json }},
+    "customerLoggedIn": {{ customer_logged_in | json }},
+    "enablePromoBlocks": {{ enable_promo_blocks | json }},
+    "promoBlocks": [
+      {
+        "type": {{ promo_block_1_type | json }},
+        "position": {{ promo_block_1_position | json }},
+        "headline": {{ promo_block_1_headline | json }},
+        "body": {{ promo_block_1_body | json }},
+        "link": {{ promo_block_1_link | json }},
+        "imageUrl": {{ promo_block_1_image_url | json }},
+        "ctaAction": {{ promo_block_1_cta_action | json }},
+        "dismissible": {{ promo_block_1_dismissible | json }},
+        "dismissPersistence": {{ promo_block_1_dismiss_persistence | json }},
+        "visibility": {{ promo_block_1_visibility | json }}
+      }
+    ],
+    "enableUserSpecificCoupons": {{ enable_user_specific_coupons | json }},
+    "userSectionHeaderText": {{ user_section_header_text | json }},
+    "userSectionPosition": {{ user_section_position | json }},
+    "userSectionBadgeText": {{ user_section_badge_text | json }},
+    "sessionCouponLabel": {{ session_coupon_label | json }},
+    "sessionCouponHighlight": {{ session_coupon_highlight | json }}
   },
   "discountsByVariant": {},
   "cart": { "subtotal": 0, "appliedCodes": [] }
