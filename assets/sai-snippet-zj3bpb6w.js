@@ -79,12 +79,30 @@
   }
 
   // The theme's summary (totals, subtotals, badges) is theme-owned SSR HTML
-  // that only the theme's own cart ops refresh. After OUR mutations, re-render
-  // the enclosing section via the Section Rendering API and swap it in — the
-  // theme's totals update, and our wiped snippet roots re-bind instantly via
-  // the DOM observer + cache paint. Debounced so rapid stepper clicks cost
-  // one re-render. The ?sections= GET does not match the cart-watch regex,
-  // so this never feeds back into the update loop.
+  // that only the theme's own cart ops refresh. After cart changes, re-render
+  // the enclosing section via the Section Rendering API and SURGICALLY sync
+  // only theme-owned subtrees. Never replace any subtree containing a
+  // Spectrum snippet root — a whole-section swap wipes live snippet DOM and
+  // cascades re-inits (visible collapse + main-thread churn). Unchanged theme
+  // parts are skipped via isEqualNode, so repeat syncs are no-ops. The
+  // ?sections= GET does not match the cart-watch regex, so no feedback loop.
+  const SPECTRUM_ROOTS = '[data-spectrum-snippet-id],[data-spectrum-lq-snippet],[data-sai-progress],[data-sai-cart-line]'
+  function syncThemeDom(curr, fresh) {
+    if (curr.matches && curr.matches(SPECTRUM_ROOTS)) return
+    const holdsSnippet = curr.querySelector && curr.querySelector(SPECTRUM_ROOTS)
+    if (!holdsSnippet) {
+      if (!curr.isEqualNode(fresh)) curr.replaceWith(fresh)
+      return
+    }
+    // Mixed subtree: recurse pairwise while the child shape still aligns;
+    // on shape drift leave it alone (cart data itself renders via snippets).
+    if (curr.children.length === fresh.children.length) {
+      const cc = Array.prototype.slice.call(curr.children)
+      const fc = Array.prototype.slice.call(fresh.children)
+      for (let i = 0; i < cc.length; i++) syncThemeDom(cc[i], fc[i])
+    }
+  }
+
   let sectionRefreshTimer = null
   function refreshThemeSection(node) {
     const sec = node.closest('[id^="shopify-section-"]')
@@ -102,7 +120,8 @@
         const tpl = document.createElement('div')
         tpl.innerHTML = html
         const fresh = tpl.querySelector('[id^="shopify-section-"]') || tpl
-        sec.innerHTML = fresh.innerHTML
+        if (!sec.isConnected) return
+        syncThemeDom(sec, fresh)
       } catch {
         /* totals refresh is cosmetic — cart state itself is already correct */
       }
