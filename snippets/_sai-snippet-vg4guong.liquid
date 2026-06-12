@@ -61,6 +61,17 @@
 .sai-vg4guong__message strong { color: var(--sai-color-info-strong, #2f55a4); font-weight: 700; }
 .sai-vg4guong[data-sai-align="center"] .sai-vg4guong__message { text-align: center; }
 .sai-vg4guong[data-sai-align="right"] .sai-vg4guong__message { text-align: right; }
+.sai-vg4guong__submsg {
+  margin: var(--sai-space-2, 0.5rem) 0 0;
+  font-size: var(--sai-font-size-sm, 0.875rem);
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--sai-color-info-text, #647eb5);
+}
+.sai-vg4guong__submsg:empty { display: none; }
+.sai-vg4guong__submsg strong { color: var(--sai-color-info-strong, #2f55a4); font-weight: 700; }
+.sai-vg4guong[data-sai-align="center"] .sai-vg4guong__submsg { text-align: center; }
+.sai-vg4guong[data-sai-align="right"] .sai-vg4guong__submsg { text-align: right; }
 
 .sai-vg4guong__bar { position: relative; padding: 16px 0; }
 .sai-vg4guong[data-sai-labels="on"] .sai-vg4guong__bar { margin-bottom: 3.1em; }
@@ -84,8 +95,11 @@
   background: var(--sai-color-accent, #4b79dd);
   border-radius: inherit;
 }
+/* Candy-stripe at 45° — white at 50% alpha over the fill color reads as two
+   alternating tones (reference: avimee cart bar, 32px tile). */
 .sai-vg4guong[data-sai-fill-style="striped"] .sai-vg4guong__fill {
-  background-image: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.35) 0 6px, transparent 6px 12px);
+  background-image: linear-gradient(45deg, rgba(255, 255, 255, 0.5) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.5) 50%, rgba(255, 255, 255, 0.5) 75%, transparent 75%, transparent);
+  background-size: 32px 32px;
 }
 .sai-vg4guong[data-sai-anim="on"] .sai-vg4guong__fill { transition: width 0.45s ease; }
 
@@ -257,6 +271,8 @@
   assign next_remaining = 0
   assign last_title = ''
   assign last_active_helper = ''
+  assign reached_active_helper = ''
+  assign reached_active_title = ''
   assign has_above = 'off'
   for m in milestones
     assign t_cents = m.thresholdCents | round
@@ -274,6 +290,11 @@
       assign fill_pct = node_p
       assign prev_t = t_cents
       assign prev_p = node_p
+      assign m_active_helper = m.active.helperText | default: ''
+      if m_active_helper != blank
+        assign reached_active_helper = m_active_helper
+        assign reached_active_title = m.title
+      endif
     elsif found_next == false
       assign found_next = true
       assign next_title = m.title
@@ -308,6 +329,18 @@
   endif
   assign reward_html = '<strong>' | append: reward_label_ssr | append: '</strong>'
   assign msg_ssr = msg_tmpl | replace: '{remaining_amount}', remaining_money | replace: '{remaining}', remaining_money | replace: '{reward}', reward_html
+
+  comment
+    Sub-message below the bar: the highest reached milestone's active
+    message. Suppressed once all milestones are reached — the bar-level
+    message shows the final active helper then, and both saying the same
+    thing reads as a bug. Empty renders collapse via the :empty CSS rule.
+  endcomment
+  assign submsg_ssr = ''
+  if reached_count < ms_count and reached_active_helper != blank
+    assign sub_reward_html = '<strong>' | append: reached_active_title | append: '</strong>'
+    assign submsg_ssr = reached_active_helper | replace: '{remaining_amount}', '' | replace: '{remaining}', '' | replace: '{reward}', sub_reward_html
+  endif
 -%}
 
 {%- if milestones and ms_count > 0 -%}
@@ -325,7 +358,7 @@
 {
   "milestones": [
     {%- for m in milestones -%}
-    {"threshold": {{ m.thresholdCents | round }}, "title": {{ m.title | json }}, "inactiveHelper": {{ m.inactive.helperText | json }}, "activeHelper": {{ m.active.helperText | json }}, "confetti": {{ m.triggerConfetti | json }}, "giftVariantId": {{ m.giftVariantId | json }}}{%- unless forloop.last -%},{%- endunless -%}
+    {"threshold": {{ m.thresholdCents | round }}, "title": {{ m.title | json }}, "inactiveHelper": {{ m.inactive.helperText | json }}, "activeHelper": {{ m.active.helperText | json }}, "confetti": {{ m.triggerConfetti | json }}, "confettiAssetUrl": {{ m.active.confettiAssetUrl | json }}, "giftVariantId": {{ m.giftVariantId | json }}}{%- unless forloop.last -%},{%- endunless -%}
     {%- endfor -%}
   ],
   "excludedProductIds": {{ cfg.excludedProductIds | json }}
@@ -391,5 +424,6 @@
     </div>
     {%- endfor -%}
   </div>
+  <p class="sai-vg4guong__submsg" data-sai-submsg>{{ submsg_ssr }}</p>
 </div>
 {%- endif -%}

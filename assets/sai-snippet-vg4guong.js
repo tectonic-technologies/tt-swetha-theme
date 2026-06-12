@@ -168,12 +168,18 @@
     return prevP + frac * (pos(k) - prevP)
   }
 
-  function burstConfetti(wrap) {
+  function burstConfetti(wrap, assetUrl) {
     const colors = ['#4b79dd', '#f5b942', '#e2574c', '#43b97f', '#8a63d2']
     for (let i = 0; i < 12; i++) {
       const piece = document.createElement('span')
       piece.className = 'sai-vg4guong__confetti'
-      piece.style.background = colors[i % colors.length]
+      if (assetUrl) {
+        // Merchant-supplied burst image (envelope active.confettiAssetUrl) —
+        // rendered as a background so the particle keeps the burst animation.
+        piece.style.width = '16px'
+        piece.style.height = '16px'
+        piece.style.background = `url("${assetUrl}") center / contain no-repeat`
+      } else piece.style.background = colors[i % colors.length]
       piece.style.left = '50%'
       piece.style.top = '50%'
       // Deterministic spread per index — no layout reads, removed after the
@@ -192,6 +198,7 @@
       .sort((a, b) => a.threshold - b.threshold)
     const fillEl = node.querySelector('[data-sai-fill]')
     const msgEl = node.querySelector('[data-sai-msg]')
+    const submsgEl = node.querySelector('[data-sai-submsg]')
     const nodeEls = Array.prototype.slice.call(node.querySelectorAll('[data-sai-node]'))
     let lastReachedCount = null
     let reconciling = false
@@ -256,6 +263,24 @@
 
       if (msgEl) msgEl.innerHTML = buildMessage(milestones, total, currency) || '&nbsp;'
 
+      // Below-bar line: the highest reached milestone's active message.
+      // Suppressed once everything is reached — the bar message shows the
+      // final active helper then, and duplicating it reads as a bug.
+      if (submsgEl) {
+        let sub = ''
+        if (reachedCount < milestones.length) {
+          const reachedWithMsg = milestones.filter((m) => total >= m.threshold && m.activeHelper)
+          const top = reachedWithMsg[reachedWithMsg.length - 1]
+          if (top) {
+            sub = top.activeHelper
+              .replace(/\{remaining_amount\}/g, '')
+              .replace(/\{remaining\}/g, '')
+              .replace(/\{reward\}/g, `<strong>${top.title}</strong>`)
+          }
+        }
+        submsgEl.innerHTML = sub
+      }
+
       // First render establishes the baseline; only later crossings count as
       // unlock events (page loads with milestones already met stay silent).
       if (lastReachedCount !== null && reachedCount > lastReachedCount) {
@@ -272,7 +297,7 @@
           if (total >= threshold && crossed) {
             el.classList.add('sai-vg4guong__node-wrap--pulse')
             setTimeout(() => el.classList.remove('sai-vg4guong__node-wrap--pulse'), 600)
-            if (crossed.confetti) burstConfetti(el)
+            if (crossed.confetti) burstConfetti(el, crossed.confettiAssetUrl)
           }
         })
       }
