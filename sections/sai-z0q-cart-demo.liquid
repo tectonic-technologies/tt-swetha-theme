@@ -1,6 +1,5 @@
-
-
-{%- comment -%}z0q31ww1 demo + inline cart-discount data.{%- endcomment -%}
+{%- comment -%}z0q31ww1 demo + inline cart-discount data. Variant content read from
+  spectrum_snippet_instance metaobject so promo blocks are exercised.{%- endcomment -%}
 <div data-sai-cart-data hidden style="display:none">{
   "discountsByVariant": {
     {%- assign sai_first = true -%}
@@ -27,7 +26,9 @@
     ]
   }
 }</div>
-{% render '_sai-snippet-z0q31ww1', mutation_handle: 'mut-9wbjxpgqa9', experience_handle: '_system-196419092640' %}
+{%- assign sai_z0q_mo = metaobjects.spectrum_snippet_instance['spectrum_snippet_z0q31ww1_promotest_live'] -%}
+{%- assign sai_z0q_variant = sai_z0q_mo.variants.value.variants[0] -%}
+{% render '_sai-snippet-z0q31ww1', variant: sai_z0q_variant, mutation_handle: 'mut-9wbjxpgqa9', experience_handle: '_system-196419092640' %}
 {% schema %}
 { "name": "Z0Q demo", "presets": [{ "name": "Z0Q demo" }] }
 {% endschema %}
