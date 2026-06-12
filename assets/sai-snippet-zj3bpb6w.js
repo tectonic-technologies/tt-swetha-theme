@@ -87,20 +87,31 @@
   // parts are skipped via isEqualNode, so repeat syncs are no-ops. The
   // ?sections= GET does not match the cart-watch regex, so no feedback loop.
   const SPECTRUM_ROOTS = '[data-spectrum-snippet-id],[data-spectrum-lq-snippet],[data-sai-progress],[data-sai-cart-line]'
+  // Children are matched by tag+class key, not index — the live DOM's child
+  // list drifts from the SSR shape (theme JS adds/removes wrappers), and
+  // index pairing bails on the first drift, leaving totals stale forever.
+  const domKey = (el) => `${el.tagName}|${el.getAttribute('class') || ''}`
   function syncThemeDom(curr, fresh) {
     if (curr.matches && curr.matches(SPECTRUM_ROOTS)) return
     const holdsSnippet = curr.querySelector && curr.querySelector(SPECTRUM_ROOTS)
     if (!holdsSnippet) {
-      if (!curr.isEqualNode(fresh)) curr.replaceWith(fresh)
+      if (fresh && !curr.isEqualNode(fresh)) curr.replaceWith(fresh)
       return
     }
-    // Mixed subtree: recurse pairwise while the child shape still aligns;
-    // on shape drift leave it alone (cart data itself renders via snippets).
-    if (curr.children.length === fresh.children.length) {
-      const cc = Array.prototype.slice.call(curr.children)
-      const fc = Array.prototype.slice.call(fresh.children)
-      for (let i = 0; i < cc.length; i++) syncThemeDom(cc[i], fc[i])
-    }
+    if (!fresh) return
+    const freshKids = Array.prototype.slice.call(fresh.children)
+    const used = new Set()
+    Array.prototype.slice.call(curr.children).forEach((child) => {
+      let match = null
+      for (let i = 0; i < freshKids.length; i++) {
+        if (!used.has(i) && domKey(freshKids[i]) === domKey(child)) {
+          match = freshKids[i]
+          used.add(i)
+          break
+        }
+      }
+      syncThemeDom(child, match)
+    })
   }
 
   let sectionRefreshTimer = null
