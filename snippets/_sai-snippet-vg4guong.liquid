@@ -132,6 +132,13 @@
 .sai-vg4guong__node svg { width: 16px; height: 16px; display: block; }
 .sai-vg4guong__node--asset { width: 40px; height: 40px; }
 .sai-vg4guong__node img { width: 26px; height: 26px; display: block; object-fit: contain; }
+/* A custom node image overrides the glyph (empty dot / checkmark); the accent
+   fill is dropped so any image reads on a clean surface, active or not. */
+.sai-vg4guong__node--img { background: var(--sai-color-surface-raised, #ffffff); }
+.sai-vg4guong__state--active .sai-vg4guong__node--img {
+  background: var(--sai-color-surface-raised, #ffffff);
+  border-color: var(--sai-color-accent, #4b79dd);
+}
 
 /* Pin marker: circle riding above the track with a pointer tail. */
 .sai-vg4guong__pin {
@@ -417,7 +424,11 @@
           {%- if m.inactive.assetUrl -%}<img src="{{ m.inactive.assetUrl }}" alt="" loading="lazy">{%- endif -%}
         </div>
         {%- else -%}
+        {%- if m.inactive.assetUrl -%}
+        <div class="sai-vg4guong__node sai-vg4guong__node--img"><img src="{{ m.inactive.assetUrl }}" alt="" loading="lazy"></div>
+        {%- else -%}
         <div class="sai-vg4guong__node"></div>
+        {%- endif -%}
         {%- endcase -%}
         <div class="{{ inactive_label_class }}">{{ inactive_label }}</div>
       </div>
@@ -432,9 +443,13 @@
           {%- if m.active.assetUrl -%}<img src="{{ m.active.assetUrl }}" alt="" loading="lazy">{%- endif -%}
         </div>
         {%- else -%}
+        {%- if m.active.assetUrl -%}
+        <div class="sai-vg4guong__node sai-vg4guong__node--img"><img src="{{ m.active.assetUrl }}" alt="" loading="lazy"></div>
+        {%- else -%}
         <div class="sai-vg4guong__node">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg>
         </div>
+        {%- endif -%}
         {%- endcase -%}
         <div class="{{ active_label_class }}">{{ active_label }}</div>
       </div>
