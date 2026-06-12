@@ -93,9 +93,9 @@
     clearTimeout(sectionRefreshTimer)
     sectionRefreshTimer = setTimeout(async () => {
       try {
-        const res = await fetch(`${window.location.pathname}?sections=${encodeURIComponent(sectionId)}`, {
-          headers: { Accept: 'application/json' },
-        })
+        // No Accept: application/json header — on /cart that header makes
+        // Shopify return the cart resource instead of the section render.
+        const res = await fetch(`${window.location.pathname}?sections=${encodeURIComponent(sectionId)}`)
         const data = await res.json()
         const html = data && data[sectionId]
         if (!html) return
