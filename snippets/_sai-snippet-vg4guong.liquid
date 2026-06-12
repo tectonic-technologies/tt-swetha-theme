@@ -108,11 +108,13 @@
 
 .sai-vg4guong__label {
   position: absolute; top: calc(50% + 22px); left: 50%; transform: translateX(-50%);
-  width: max-content; max-width: 140px;
+  /* Hard 110px cap + fixed-ish size: adjacent labels sit one node-gap apart,
+     so anything wider than ~the gap collides at narrow widths. */
+  width: 110px; max-width: 110px;
   text-align: center;
-  font-size: var(--sai-font-size-sm, 0.85rem);
+  font-size: 0.8rem;
   font-weight: 600;
-  line-height: 1.3;
+  line-height: 1.25;
   color: var(--sai-color-text, #3a4456);
 }
 .sai-vg4guong[data-sai-labels="off"] .sai-vg4guong__label { display: none; }
@@ -228,7 +230,7 @@
         assign icon_url = m.reward_icon.value.preview_image | image_url: width: 64
       endif
     -%}
-    {"threshold": {{ m.threshold_amount.value | times: 100 | round }}, "label": {{ m.reward_label.value | json }}, "type": {{ m.reward_type.value | json }}, "code": {{ m.discount_code.value | json }}, "icon": {{ icon_url | json }}}{%- unless forloop.last -%},{%- endunless -%}
+    {"threshold": {{ m.threshold_amount.value | times: 100 | round }}, "label": {{ m.reward_label.value | json }}, "type": {{ m.reward_type.value | json }}, "code": {{ m.discount_code.value | json }}, "giftVariantId": {{ m.gift_variant.value.id | json }}, "icon": {{ icon_url | json }}}{%- unless forloop.last -%},{%- endunless -%}
     {%- endfor -%}
   ],
   "excludeDiscounted": {{ campaign.exclude_discounted_items.value | json }},

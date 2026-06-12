@@ -53,6 +53,32 @@
     return res.json()
   }
 
+  async function cartAdd(variantId) {
+    if (window.Spectrum && window.Spectrum.cart && typeof window.Spectrum.cart.add === 'function') {
+      return window.Spectrum.cart.add([{ id: variantId, quantity: 1, properties: { _sai_progress_reward: '1' } }])
+    }
+    const res = await fetch('/cart/add.js', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ items: [{ id: variantId, quantity: 1, properties: { _sai_progress_reward: '1' } }] }),
+    })
+    if (!res.ok) throw new Error('cart add failed')
+    return res.json()
+  }
+
+  async function cartRemove(lineKey) {
+    if (window.Spectrum && window.Spectrum.cart && typeof window.Spectrum.cart.change === 'function') {
+      return window.Spectrum.cart.change({ id: lineKey, quantity: 0 })
+    }
+    const res = await fetch('/cart/change.js', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ id: lineKey, quantity: 0 }),
+    })
+    if (!res.ok) throw new Error('cart change failed')
+    return res.json()
+  }
+
   function eligibleTotal(cart, cfg) {
     if (!cart) return 0
     if (cfg.excludeDiscounted) {
@@ -135,8 +161,42 @@
     const msgEl = node.querySelector('[data-sai-msg]')
     const nodeEls = Array.prototype.slice.call(node.querySelectorAll('[data-sai-node]'))
     let lastReachedCount = null
+    let reconciling = false
 
-    async function refresh() {
+    // free_gift milestones with a linked variant get their reward product
+    // added to the cart as a real line item when the threshold is crossed,
+    // and removed when the total drops back below. Invariant reconcile (not
+    // crossing-triggered) so a page load with the threshold already met still
+    // converges. Gift lines are $0 so they never feed back into the total.
+    async function reconcileGifts(cart, total) {
+      if (reconciling) return false
+      const gifts = milestones.filter((m) => m.type === 'free_gift' && m.giftVariantId)
+      if (!gifts.length) return false
+      reconciling = true
+      let changed = false
+      try {
+        for (const m of gifts) {
+          const line = (cart.items || []).find((i) => i.variant_id === m.giftVariantId)
+          const reached = total >= m.threshold
+          if (reached && !line) {
+            await cartAdd(m.giftVariantId)
+            track('cart_progress:reward_added', { threshold: m.threshold, reward_label: m.label, variant_id: m.giftVariantId })
+            changed = true
+          } else if (!reached && line) {
+            await cartRemove(line.key)
+            track('cart_progress:reward_removed', { threshold: m.threshold, reward_label: m.label, variant_id: m.giftVariantId })
+            changed = true
+          }
+        }
+      } catch {
+        // Mutation failed (sold out, throttled) — leave the cart as-is; the
+        // next cart event re-runs the reconcile.
+      }
+      reconciling = false
+      return changed
+    }
+
+    async function refresh(depth) {
       let cart
       try {
         cart = await getCart()
@@ -145,6 +205,9 @@
       }
       const currency = (cart && cart.currency) || 'USD'
       const total = eligibleTotal(cart, cfg)
+
+      const giftsChanged = await reconcileGifts(cart, total)
+      if (giftsChanged && (depth || 0) < 2) return refresh((depth || 0) + 1)
 
       if (fillEl) fillEl.style.width = `${fillPercent(milestones, total)}%`
 
