@@ -399,6 +399,61 @@
   "emptyText": {{ empty_text | json }}
 }
   </script>
-  <ul class="sai-zj3bpb6w__lines" data-sai-cart-lines></ul>
-  <p class="sai-zj3bpb6w__empty" data-sai-cart-empty hidden>{{ empty_text }}</p>
+  {%- comment -%}
+    Server-rendered first paint from the cart global. Themes morph this
+    section after cart mutations; without SSR lines the fresh HTML arrives
+    as an empty skeleton and visibly collapses until the runtime re-renders.
+    The runtime's first refresh replaces this list with the full-fidelity
+    client render (badges, editable variants, savings) — keep classes and
+    data attributes in sync with the JS builder so the swap is invisible and
+    the delegated click handlers work on SSR DOM too.
+  {%- endcomment -%}
+  <ul class="sai-zj3bpb6w__lines" data-sai-cart-lines>
+    {%- for item in cart.items -%}
+    {%- liquid
+      assign is_gift = false
+      if item.final_line_price == 0
+        assign is_gift = true
+      endif
+    -%}
+    <li class="sai-zj3bpb6w__line{% if is_gift %} sai-zj3bpb6w__line--gift{% endif %}" data-line-key="{{ item.key }}">
+      {%- if item.image -%}
+      <img class="sai-zj3bpb6w__thumb" src="{{ item.image | image_url: width: 152 }}" alt="{{ item.product_title | escape }}" loading="lazy">
+      {%- else -%}
+      <div class="sai-zj3bpb6w__thumb"></div>
+      {%- endif -%}
+      <div class="sai-zj3bpb6w__body">
+        <div class="sai-zj3bpb6w__title">{{ item.product_title }}</div>
+        {%- if item.options_with_values.size > 0 -%}
+        <div class="sai-zj3bpb6w__variant">
+          {%- for opt in item.options_with_values -%}
+            {{- opt.name }}: {{ opt.value }}{% unless forloop.last %} · {% endunless -%}
+          {%- endfor -%}
+        </div>
+        {%- endif -%}
+      </div>
+      {%- if is_gift -%}
+      <div class="sai-zj3bpb6w__qtyctl"></div>
+      <div class="sai-zj3bpb6w__aside">
+        <div class="sai-zj3bpb6w__prices"><span class="sai-zj3bpb6w__price">{{ free_label_text }}</span></div>
+      </div>
+      {%- else -%}
+      <div class="sai-zj3bpb6w__qtyctl">
+        <div class="sai-zj3bpb6w__stepper">
+          <button type="button" class="sai-zj3bpb6w__step" data-sai-step="-1" aria-label="Decrease quantity">−</button>
+          <span class="sai-zj3bpb6w__qty">{{ item.quantity }}</span>
+          <button type="button" class="sai-zj3bpb6w__step" data-sai-step="1" aria-label="Increase quantity">+</button>
+        </div>
+      </div>
+      <div class="sai-zj3bpb6w__aside">
+        <div class="sai-zj3bpb6w__prices"><span class="sai-zj3bpb6w__price">{{ item.final_line_price | money }}</span></div>
+        <button type="button" class="sai-zj3bpb6w__remove" data-sai-remove aria-label="Remove item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg>
+        </button>
+      </div>
+      {%- endif -%}
+    </li>
+    {%- endfor -%}
+  </ul>
+  <p class="sai-zj3bpb6w__empty" data-sai-cart-empty {% unless cart.item_count == 0 %}hidden{% endunless %}>{{ empty_text }}</p>
 </div>

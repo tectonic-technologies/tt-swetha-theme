@@ -216,6 +216,71 @@
   endif
 -%}
 
+{%- comment -%}
+  Server-rendered first paint: fill width, reached node states, and the
+  templated message are computed here from the cart global so a theme
+  section morph lands fully populated — no blank-message/zero-fill flash
+  while the runtime fetches /cart.js. The runtime repaints the identical
+  state on init, then owns all subsequent updates. Milestones are assumed
+  authored in ascending threshold order (the runtime sorts defensively).
+{%- endcomment -%}
+{%- liquid
+  assign cart_total = cart.total_price
+  assign ms_count = 0
+  if milestones
+    assign ms_count = milestones.size
+  endif
+  assign ms_denom = ms_count | plus: 1
+  assign fill_pct = 0.0
+  assign reached_count = 0
+  assign prev_t = 0
+  assign prev_p = 0.0
+  assign next_label = ''
+  assign next_remaining = 0
+  assign found_next = false
+  assign last_reached_label = ''
+  for m in milestones
+    assign t_cents = m.threshold_amount.value | times: 100 | round
+    assign node_p = forloop.index | times: 100.0 | divided_by: ms_denom
+    if cart_total >= t_cents
+      assign reached_count = reached_count | plus: 1
+      assign fill_pct = node_p
+      assign last_reached_label = m.reward_label.value
+      assign prev_t = t_cents
+      assign prev_p = node_p
+    elsif found_next == false
+      assign found_next = true
+      assign next_label = m.reward_label.value
+      assign next_remaining = t_cents | minus: cart_total
+      assign seg_t = t_cents | minus: prev_t
+      assign seg_p = node_p | minus: prev_p
+      assign into_seg = cart_total | minus: prev_t
+      if seg_t > 0 and into_seg > 0
+        assign fill_pct = into_seg | times: 1.0 | divided_by: seg_t | times: seg_p | plus: prev_p
+      endif
+    endif
+  endfor
+  if ms_count > 0 and reached_count == ms_count
+    assign fill_pct = 100.0
+  endif
+
+  if reached_count == ms_count
+    assign msg_tmpl = complete_message
+    assign reward_label_ssr = last_reached_label
+    assign remaining_money = ''
+  elsif reached_count == 0
+    assign msg_tmpl = pre_goal_template
+    assign reward_label_ssr = next_label
+    assign remaining_money = next_remaining | money
+  else
+    assign msg_tmpl = mid_progress_template
+    assign reward_label_ssr = next_label
+    assign remaining_money = next_remaining | money
+  endif
+  assign reward_html = '<strong>' | append: reward_label_ssr | append: '</strong>'
+  assign msg_ssr = msg_tmpl | replace: '{remaining_amount}', remaining_money | replace: '{remaining}', remaining_money | replace: '{reward}', reward_html | replace: '{unlocked_reward}', last_reached_label
+-%}
+
 {%- if milestones and milestones.size > 0 -%}
 <div class="sai-vg4guong"
      data-sai-progress
@@ -251,10 +316,10 @@
   "showMilestoneIcons": {{ show_milestone_icons | json }}
 }
   </script>
-  <p class="sai-vg4guong__message" data-sai-msg>&nbsp;</p>
+  <p class="sai-vg4guong__message" data-sai-msg>{{ msg_ssr }}</p>
   <div class="sai-vg4guong__bar" data-sai-bar>
     <div class="sai-vg4guong__track">
-      <div class="sai-vg4guong__fill" data-sai-fill></div>
+      <div class="sai-vg4guong__fill" data-sai-fill style="width: {{ fill_pct }}%;"></div>
     </div>
     {%- assign denom = milestones.size | plus: 1 -%}
     {%- for m in milestones -%}
@@ -273,6 +338,10 @@
       if icon_url != blank
         assign wrap_class = wrap_class | append: ' sai-vg4guong__node-wrap--icon'
         assign node_class = node_class | append: ' sai-vg4guong__node--icon'
+      endif
+      assign node_t_cents = m.threshold_amount.value | times: 100 | round
+      if cart_total >= node_t_cents
+        assign wrap_class = wrap_class | append: ' sai-vg4guong__node-wrap--reached'
       endif
     -%}
     <div class="{{ wrap_class }}" data-sai-node data-sai-threshold="{{ m.threshold_amount.value | times: 100 | round }}" style="left: {{ pos }}%;">
