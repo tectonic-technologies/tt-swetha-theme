@@ -691,6 +691,9 @@
     // Promo blocks — build the visible ones once, emit them at their position.
     const promoBlocks =
       config.enablePromoBlocks && Array.isArray(config.promoBlocks) ? config.promoBlocks : []
+    // Promo blocks count as content: don't show the "no offers" empty state
+    // when any promo block is visible, even if all discount sections are empty.
+    const anyPromoVisible = promoBlocks.some((block, idx) => promoVisible(host, block, idx, ctx))
     function emitPromos(position) {
       promoBlocks.forEach((block, idx) => {
         if (block.position === position && promoVisible(host, block, idx, ctx)) {
@@ -772,7 +775,7 @@
       // "Between sections" promos go after every section except the last.
       if (i < sectionsOrder.length - 1) emitPromos('between_sections')
     }
-    if (!renderedAny)
+    if (!renderedAny && !anyPromoVisible)
       scroll.appendChild(
         el('div', `${TAG}-page__empty`, { text: 'No offers available right now.' }),
       )
