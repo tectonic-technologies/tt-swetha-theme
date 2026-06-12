@@ -25,6 +25,12 @@
 
   const SNIPPET_ID = 'zj3bpb6w'
   const FEATURE_SLUG = 'cart_line'
+
+  // Last cart payload across instances. When the theme morphs the cart
+  // section (replacing our rendered DOM), the re-initialized instance paints
+  // synchronously from this cache instead of leaving a blank gap for the
+  // duration of a /cart.js round trip; the async refresh then reconciles.
+  let lastCart = null
   const NS = 'http://www.w3.org/2000/svg'
 
   const ICONS = {
@@ -403,7 +409,9 @@
     async function refresh() {
       if (!cart) return
       try {
-        render(node, cfg, ctx, await cart.get())
+        const fresh = await cart.get()
+        lastCart = fresh
+        render(node, cfg, ctx, fresh)
       } catch {
         /* fail soft: keep last render */
       }
@@ -427,6 +435,7 @@
         } else {
           track('cart_line:qty_change', { line_key: key, quantity })
         }
+        lastCart = updated
         render(node, cfg, ctx, updated)
         emitCartUpdated()
       } catch {
@@ -556,6 +565,13 @@
     }
     const ctx = makeContext(node, cfg, track)
     wire(node, cfg, ctx, track)
+    if (lastCart) {
+      try {
+        render(node, cfg, ctx, lastCart)
+      } catch {
+        /* cache paint is best-effort; the refresh below is authoritative */
+      }
+    }
     ctx.refresh()
   }
 

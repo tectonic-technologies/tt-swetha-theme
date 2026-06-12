@@ -22,6 +22,12 @@
 
   const SNIPPET_ID = 'vg4guong'
 
+  // Last cart payload across instances. When the theme morphs the cart
+  // section (replacing our rendered DOM), the re-initialized instance paints
+  // synchronously from this cache instead of flashing the empty SSR skeleton
+  // for the duration of a /cart.js round trip; the async refresh reconciles.
+  let lastCart = null
+
   function readConfig(node) {
     const script = node.querySelector('script[data-sai-progress-config]')
     if (!script) return null
@@ -227,21 +233,9 @@
       return changed
     }
 
-    async function refresh(depth) {
-      let cart
-      try {
-        cart = await getCart()
-      } catch {
-        return
-      }
+    function paint(cart) {
       const currency = (cart && cart.currency) || 'USD'
       const total = eligibleTotal(cart, cfg)
-
-      const giftsChanged = await reconcileGifts(cart, total)
-      if (giftsChanged) {
-        emitCartUpdated()
-        if ((depth || 0) < 2) return refresh((depth || 0) + 1)
-      }
 
       if (fillEl) fillEl.style.width = `${fillPercent(milestones, total)}%`
 
@@ -277,6 +271,29 @@
       }
       lastReachedCount = reachedCount
     }
+
+    async function refresh(depth) {
+      let cart
+      try {
+        cart = await getCart()
+      } catch {
+        return
+      }
+      lastCart = cart
+      const total = eligibleTotal(cart, cfg)
+
+      const giftsChanged = await reconcileGifts(cart, total)
+      if (giftsChanged) {
+        emitCartUpdated()
+        if ((depth || 0) < 2) return refresh((depth || 0) + 1)
+      }
+
+      paint(cart)
+    }
+
+    // Replaced-root case: paint the cached state synchronously so the morph
+    // gap is one frame, not a network round trip.
+    if (lastCart) paint(lastCart)
 
     return refresh
   }
