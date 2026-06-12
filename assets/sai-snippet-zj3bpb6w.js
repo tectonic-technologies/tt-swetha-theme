@@ -678,6 +678,34 @@
     }
   }
 
+  // Quick-add forms that no theme JS handles fall back to a native POST to
+  // /cart/add — a full page navigation that visibly reloads everything.
+  // When a cart-line instance is on the page, convert that native submit to
+  // an AJAX add so the cart UI updates in place. Bubble phase + the
+  // defaultPrevented check guarantee themes that already AJAX their adds are
+  // never touched; on fetch failure the native submit proceeds as fallback.
+  function installAddFormIntercept() {
+    if (window.__saiAddIntercept__) return
+    window.__saiAddIntercept__ = true
+    document.addEventListener('submit', (e) => {
+      const form = e.target
+      if (!(form instanceof HTMLFormElement)) return
+      if (e.defaultPrevented) return
+      if (!/\/cart\/add/.test(form.getAttribute('action') || '')) return
+      if (!document.querySelector('[data-sai-cart-line]')) return
+      e.preventDefault()
+      fetch('/cart/add.js', { method: 'POST', body: new FormData(form), headers: { Accept: 'application/json' } })
+        .then((r) => {
+          if (!r.ok) throw new Error('add failed')
+          // The cart-watch fetch patch already broadcasts; nothing else to do.
+        })
+        .catch(() => {
+          window.__saiAddIntercept__ = false
+          form.submit()
+        })
+    })
+  }
+
   // Themes morph/replace the cart section's DOM after cart mutations
   // (Section Rendering API). That discards bound instance roots, so re-scan
   // on every subtree change — initNode is a no-op for already-bound nodes,
@@ -699,6 +727,7 @@
   function ready() {
     if (window.Spectrum && window.__spectrumAi) {
       installCartWatch()
+      installAddFormIntercept()
       init()
       watchDom()
       return true
