@@ -433,18 +433,24 @@
     return li
   }
 
+  // Canonical row order: products in cart order, gift/reward lines last.
+  // Must stay in lockstep with the SSR loops in the .liquid — any divergence
+  // shows up as rows visibly reordering when the runtime takes over from the
+  // server-rendered first paint. Bundle grouping only kicks in when bundle
+  // ids actually exist; a blanket key-sort reorders plain carts arbitrarily.
   function orderLines(items, cfg) {
-    if (cfg.bundleDisplay === 'grouped') {
-      const copy = items.slice()
-      copy.sort((a, b) => {
+    let products = items.filter((l) => !isFreeGift(l))
+    const gifts = items.filter(isFreeGift)
+    if (cfg.bundleDisplay === 'grouped' && products.some((l) => bundleId(l))) {
+      products = products.slice()
+      products.sort((a, b) => {
         const ba = bundleId(a) || a.key
         const bb = bundleId(b) || b.key
         return ba < bb ? -1 : ba > bb ? 1 : 0
       })
-      if (!cfg.showComponentLines) return copy.filter((l) => !isBundleChild(l))
-      return copy
+      if (!cfg.showComponentLines) products = products.filter((l) => !isBundleChild(l))
     }
-    return items
+    return products.concat(gifts)
   }
 
   function render(node, cfg, ctx, cart) {
