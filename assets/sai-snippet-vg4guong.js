@@ -53,6 +53,13 @@
     return res.json()
   }
 
+  // Broadcast after this snippet mutates the cart so sibling Spectrum
+  // snippets (cart line, upsell) re-read it. Listeners coalesce, so the
+  // self-delivered copy costs one no-op refresh, never a loop.
+  function emitCartUpdated() {
+    document.dispatchEvent(new CustomEvent('spectrum:cart:updated'))
+  }
+
   async function cartAdd(variantId) {
     if (window.Spectrum && window.Spectrum.cart && typeof window.Spectrum.cart.add === 'function') {
       return window.Spectrum.cart.add([{ id: variantId, quantity: 1, properties: { _sai_progress_reward: '1' } }])
@@ -207,7 +214,10 @@
       const total = eligibleTotal(cart, cfg)
 
       const giftsChanged = await reconcileGifts(cart, total)
-      if (giftsChanged && (depth || 0) < 2) return refresh((depth || 0) + 1)
+      if (giftsChanged) {
+        emitCartUpdated()
+        if ((depth || 0) < 2) return refresh((depth || 0) + 1)
+      }
 
       if (fillEl) fillEl.style.width = `${fillPercent(milestones, total)}%`
 

@@ -97,12 +97,19 @@
   border-color: var(--sai-color-surface-raised, #ffffff);
   color: var(--sai-color-surface-raised, #ffffff);
 }
-.sai-vg4guong__node svg { width: 16px; height: 16px; display: block; }
-.sai-vg4guong__node img { width: 18px; height: 18px; display: block; object-fit: contain; }
+/* Check appears only once reached; the reward image (when the milestone has
+   one) previews the unreached reward and swaps out for the check. */
+.sai-vg4guong__node svg { width: 16px; height: 16px; display: none; }
+.sai-vg4guong__node-wrap--reached .sai-vg4guong__node svg { display: block; }
+.sai-vg4guong__node img { width: 26px; height: 26px; display: block; object-fit: contain; border-radius: 50%; }
+.sai-vg4guong__node-wrap--reached .sai-vg4guong__node img { display: none; }
+.sai-vg4guong__node--icon { width: 40px; height: 40px; }
+.sai-vg4guong__node-wrap--icon .sai-vg4guong__label { top: calc(50% + 28px); }
 .sai-vg4guong[data-sai-marker="dot"] .sai-vg4guong__node { width: 14px; height: 14px; }
 .sai-vg4guong[data-sai-marker="dot"] .sai-vg4guong__node svg,
 .sai-vg4guong[data-sai-marker="dot"] .sai-vg4guong__node img { display: none; }
 .sai-vg4guong[data-sai-marker="label_only"] .sai-vg4guong__node { display: none; }
+.sai-vg4guong[data-sai-marker="label_only"] .sai-vg4guong__label { top: calc(50% + 12px); }
 .sai-vg4guong[data-sai-style="segmented"] .sai-vg4guong__node { box-shadow: 0 0 0 6px var(--sai-color-info-bg, #e7f0fc); }
 .sai-vg4guong[data-sai-checks="off"] .sai-vg4guong__node svg { display: none; }
 
@@ -227,7 +234,9 @@
     {%- liquid
       assign icon_url = ''
       if m.reward_icon.value
-        assign icon_url = m.reward_icon.value.preview_image | image_url: width: 64
+        assign icon_url = m.reward_icon.value.preview_image | image_url: width: 96
+      elsif m.gift_variant.value.product.featured_image
+        assign icon_url = m.gift_variant.value.product.featured_image | image_url: width: 96
       endif
     -%}
     {"threshold": {{ m.threshold_amount.value | times: 100 | round }}, "label": {{ m.reward_label.value | json }}, "type": {{ m.reward_type.value | json }}, "code": {{ m.discount_code.value | json }}, "giftVariantId": {{ m.gift_variant.value.id | json }}, "icon": {{ icon_url | json }}}{%- unless forloop.last -%},{%- endunless -%}
@@ -252,17 +261,26 @@
     {%- liquid
       assign pos = forloop.index | times: 100.0 | divided_by: denom
       assign icon_url = ''
-      if show_milestone_icons and m.reward_icon.value
-        assign icon_url = m.reward_icon.value.preview_image | image_url: width: 64
+      if show_milestone_icons
+        if m.reward_icon.value
+          assign icon_url = m.reward_icon.value.preview_image | image_url: width: 96
+        elsif m.gift_variant.value.product.featured_image
+          assign icon_url = m.gift_variant.value.product.featured_image | image_url: width: 96
+        endif
+      endif
+      assign wrap_class = 'sai-vg4guong__node-wrap'
+      assign node_class = 'sai-vg4guong__node'
+      if icon_url != blank
+        assign wrap_class = wrap_class | append: ' sai-vg4guong__node-wrap--icon'
+        assign node_class = node_class | append: ' sai-vg4guong__node--icon'
       endif
     -%}
-    <div class="sai-vg4guong__node-wrap" data-sai-node data-sai-threshold="{{ m.threshold_amount.value | times: 100 | round }}" style="left: {{ pos }}%;">
-      <div class="sai-vg4guong__node">
+    <div class="{{ wrap_class }}" data-sai-node data-sai-threshold="{{ m.threshold_amount.value | times: 100 | round }}" style="left: {{ pos }}%;">
+      <div class="{{ node_class }}">
         {%- if icon_url != blank -%}
-        <img src="{{ icon_url }}" alt="" loading="lazy">
-        {%- else -%}
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg>
+        <img src="{{ icon_url }}" alt="{{ m.reward_label.value | escape }}" loading="lazy">
         {%- endif -%}
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg>
       </div>
       <div class="sai-vg4guong__label">{{ m.reward_label.value }}</div>
     </div>
