@@ -411,15 +411,15 @@
     {%- if item.final_line_price > 0 -%}
     <li class="sai-zj3bpb6w__line" data-line-key="{{ item.key }}">
       {%- if item.image -%}
-      <img class="sai-zj3bpb6w__thumb" src="{{ item.image | image_url: width: 152 }}" alt="{{ item.product_title | escape }}" loading="lazy">
+      <img class="sai-zj3bpb6w__thumb" src="{{ item.image | image_url: width: 152 }}" alt="{{ item.product.title | default: item.title | escape }}" loading="lazy">
       {%- else -%}
       <div class="sai-zj3bpb6w__thumb"></div>
       {%- endif -%}
       <div class="sai-zj3bpb6w__body">
         {%- if title_links_to_pdp and item.url -%}
-        <a class="sai-zj3bpb6w__title" href="{{ item.url }}">{{ item.product_title }}</a>
+        <a class="sai-zj3bpb6w__title" href="{{ item.url }}">{{ item.product.title | default: item.title }}</a>
         {%- else -%}
-        <div class="sai-zj3bpb6w__title">{{ item.product_title }}</div>
+        <div class="sai-zj3bpb6w__title">{{ item.product.title | default: item.title }}</div>
         {%- endif -%}
         {%- if item.options_with_values.size > 0 -%}
         <div class="sai-zj3bpb6w__variant">
@@ -449,12 +449,12 @@
     {%- if item.final_line_price == 0 -%}
     <li class="sai-zj3bpb6w__line sai-zj3bpb6w__line--gift" data-line-key="{{ item.key }}">
       {%- if item.image -%}
-      <img class="sai-zj3bpb6w__thumb" src="{{ item.image | image_url: width: 152 }}" alt="{{ item.product_title | escape }}" loading="lazy">
+      <img class="sai-zj3bpb6w__thumb" src="{{ item.image | image_url: width: 152 }}" alt="{{ item.product.title | default: item.title | escape }}" loading="lazy">
       {%- else -%}
       <div class="sai-zj3bpb6w__thumb"></div>
       {%- endif -%}
       <div class="sai-zj3bpb6w__body">
-        <div class="sai-zj3bpb6w__title">{{ item.product_title }}</div>
+        <div class="sai-zj3bpb6w__title">{{ item.product.title | default: item.title }}</div>
         {%- if item.options_with_values.size > 0 -%}
         <div class="sai-zj3bpb6w__variant">
           {%- for opt in item.options_with_values -%}
