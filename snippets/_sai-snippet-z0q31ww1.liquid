@@ -824,20 +824,7 @@
     "currencyCode": {{ currency_code | json }},
     "customerLoggedIn": {{ customer_logged_in | json }},
     "enablePromoBlocks": {{ enable_promo_blocks | json }},
-    "promoBlocks": [
-      {
-        "type": {{ promo_block_1_type | json }},
-        "position": {{ promo_block_1_position | json }},
-        "headline": {{ promo_block_1_headline | json }},
-        "body": {{ promo_block_1_body | json }},
-        "link": {{ promo_block_1_link | json }},
-        "imageUrl": {{ promo_block_1_image_url | json }},
-        "ctaAction": {{ promo_block_1_cta_action | json }},
-        "dismissible": {{ promo_block_1_dismissible | json }},
-        "dismissPersistence": {{ promo_block_1_dismiss_persistence | json }},
-        "visibility": {{ promo_block_1_visibility | json }}
-      }
-    ],
+    "promoBlocks": {{ content.promo_blocks | json }},
     "enableUserSpecificCoupons": {{ enable_user_specific_coupons | json }},
     "userSectionHeaderText": {{ user_section_header_text | json }},
     "userSectionPosition": {{ user_section_position | json }},
