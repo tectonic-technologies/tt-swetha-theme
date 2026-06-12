@@ -704,9 +704,13 @@
 
     emitPromos('top')
 
-    // User-specific section sits above the store coupons.
+    // User-specific section sits above the store coupons. Everything peeled
+    // into this bucket at the partition step MUST render here — the peel is the
+    // only gate. Never guard this render on a position-equality check without a
+    // matching branch for every position value, or peeled coupons get dropped
+    // (removed from the store buckets but never shown).
     const userSorted = sortDiscounts(ctx.userSpecific, config.applicableSort, ctx.subtotal)
-    if (userSorted.length > 0 && config.userSectionPosition === 'above_store_coupons') {
+    if (userSorted.length > 0) {
       scroll.appendChild(
         buildSection(
           config.userSectionHeaderText || 'Your Coupons',
