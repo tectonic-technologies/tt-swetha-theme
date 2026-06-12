@@ -185,12 +185,13 @@
     assign enable_promo_blocks = content.enable_promo_blocks
   endif
   assign promo_block_1_type = content.promo_block_1_type | default: 'info_callout'
-  assign promo_block_1_position = content.promo_block_1_position | default: 'top'
+  assign promo_block_1_position = content.promo_block_1_position | default: 'between_sections'
   assign promo_block_1_headline = content.promo_block_1_headline | default: ''
   assign promo_block_1_body = content.promo_block_1_body | default: ''
   assign promo_block_1_link = content.promo_block_1_link | default: ''
   assign promo_block_1_image_url = content.promo_block_1_image_url | default: ''
   assign promo_block_1_cta_action = content.promo_block_1_cta_action | default: 'link'
+  assign promo_block_1_cta_label = content.promo_block_1_cta_label | default: 'Learn more'
   if content.promo_block_1_dismissible == nil
     assign promo_block_1_dismissible = false
   else
@@ -205,10 +206,10 @@
   else
     assign enable_user_specific_coupons = content.enable_user_specific_coupons
   endif
-  assign user_section_header_text = content.user_section_header_text | default: 'Your Coupons'
+  assign user_section_header_text = content.user_section_header_text | default: 'For You'
   assign user_section_position = content.user_section_position | default: 'above_store_coupons'
-  assign user_section_badge_text = content.user_section_badge_text | default: 'For You'
-  assign session_coupon_label = content.session_coupon_label | default: 'Just for you'
+  assign user_section_badge_text = content.user_section_badge_text | default: 'Exclusive'
+  assign session_coupon_label = content.session_coupon_label | default: 'Limited-time for you'
   if content.session_coupon_highlight == nil
     assign session_coupon_highlight = true
   else
@@ -224,7 +225,7 @@
   assign currency_code = shop.currency
 -%}
 
-<style data-sai-z0q31ww1-css>
+{% stylesheet %}
 .sai-z0q31ww1 {
   --sai-z0q31ww1-fg: #1a1a1a;
   --sai-z0q31ww1-muted-fg: rgba(0, 0, 0, 0.55);
@@ -558,6 +559,44 @@
   -webkit-line-clamp: unset;
   overflow: visible;
 }
+.sai-z0q31ww1-card__code-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.sai-z0q31ww1-card__copy {
+  appearance: none;
+  background: transparent;
+  border: 1px solid var(--sai-z0q31ww1-border);
+  color: var(--sai-z0q31ww1-muted-fg);
+  border-radius: 0.25rem;
+  padding: 0.0625rem 0.375rem;
+  font: inherit;
+  font-size: 0.6875rem;
+  cursor: pointer;
+}
+.sai-z0q31ww1-card__meta {
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--sai-z0q31ww1-muted-fg);
+}
+.sai-z0q31ww1-card__terms {
+  display: inline-block;
+  margin-top: 0.25rem;
+  font-size: 0.6875rem;
+  color: var(--sai-z0q31ww1-muted-fg);
+  text-decoration: underline;
+}
+.sai-z0q31ww1-card__desc-toggle {
+  appearance: none;
+  background: transparent;
+  border: none;
+  padding: 0.125rem 0;
+  font: inherit;
+  font-size: 0.75rem;
+  color: var(--sai-z0q31ww1-cta-fg);
+  cursor: pointer;
+}
 
 .sai-z0q31ww1-card__trailing {
   display: flex;
@@ -736,7 +775,7 @@
   text-transform: uppercase;
   color: var(--sai-z0q31ww1-cta-fg);
 }
-</style>
+{% endstylesheet %}
 
 {% comment %}
   Top-level wrapper renders the entry CTA on cart only. The full page is
@@ -824,7 +863,27 @@
     "currencyCode": {{ currency_code | json }},
     "customerLoggedIn": {{ customer_logged_in | json }},
     "enablePromoBlocks": {{ enable_promo_blocks | json }},
-    "promoBlocks": {{ content.promo_blocks | json }},
+    "promoBlocks":
+    {%- comment -%}
+      Multi-block: when the variant carries a `promo_blocks` array it is the
+      source of truth (any number of blocks). Falls back to the single
+      promo_block_1_* prop group so the simple portal flow is unchanged.
+    {%- endcomment -%}
+    {%- if content.promo_blocks != blank %} {{ content.promo_blocks | json }}{%- else %} [
+      {
+        "type": {{ promo_block_1_type | json }},
+        "position": {{ promo_block_1_position | json }},
+        "headline": {{ promo_block_1_headline | json }},
+        "body": {{ promo_block_1_body | json }},
+        "link": {{ promo_block_1_link | json }},
+        "imageUrl": {{ promo_block_1_image_url | json }},
+        "ctaAction": {{ promo_block_1_cta_action | json }},
+        "ctaLabel": {{ promo_block_1_cta_label | json }},
+        "dismissible": {{ promo_block_1_dismissible | json }},
+        "dismissPersistence": {{ promo_block_1_dismiss_persistence | json }},
+        "visibility": {{ promo_block_1_visibility | json }}
+      }
+    ]{%- endif %},
     "enableUserSpecificCoupons": {{ enable_user_specific_coupons | json }},
     "userSectionHeaderText": {{ user_section_header_text | json }},
     "userSectionPosition": {{ user_section_position | json }},

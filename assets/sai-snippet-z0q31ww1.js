@@ -204,6 +204,36 @@
     return null
   }
 
+  function discountTypeLabel(d) {
+    const t = d && d.discountValue && d.discountValue.type
+    if (t === 'PERCENTAGE') return '% off'
+    if (t === 'FIXED') return 'Amount off'
+    if (t === 'FREE_SHIPPING') return 'Free shipping'
+    return ''
+  }
+
+  // Expiry text. 'date' = absolute; 'relative'/'countdown' = time remaining
+  // (countdown adds finer units); 'hidden' = nothing. Computed at render time.
+  function formatExpiry(d, fmt) {
+    if (fmt === 'hidden') return ''
+    const end = Date.parse((d && d.endsAt) || '')
+    if (!Number.isFinite(end)) return ''
+    if (fmt === 'date') {
+      try {
+        return `Ends ${new Date(end).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`
+      } catch (_) {
+        return ''
+      }
+    }
+    const ms = end - Date.now()
+    if (ms <= 0) return 'Expired'
+    const days = Math.floor(ms / 86400000)
+    const hours = Math.floor((ms % 86400000) / 3600000)
+    if (days >= 1) return `Ends in ${days}d${fmt === 'countdown' && hours ? ` ${hours}h` : ''}`
+    const mins = Math.floor((ms % 3600000) / 60000)
+    return `Ends in ${hours}h${fmt === 'countdown' ? ` ${mins}m` : ''}`
+  }
+
   // ── Sorting ──────────────────────────────────────────────────────────
   function sortDiscounts(list, mode, subtotal) {
     const c = list.slice()
@@ -328,9 +358,32 @@
     // Body.
     const body = el('div', `${TAG}-card__body`)
     const code = getCode(d)
-    if (config.showCodeChip && code)
-      body.appendChild(el('div', `${TAG}-card__code`, { text: code }))
-    else body.appendChild(el('div', `${TAG}-card__code`, { text: d.title || d.shortSummary || '' }))
+    if (config.showCodeChip && code) {
+      const codeRow = el('div', `${TAG}-card__code-row`)
+      codeRow.appendChild(el('div', `${TAG}-card__code`, { text: code }))
+      if (config.showCopyCodeButton) {
+        const copyBtn = el('button', `${TAG}-card__copy`, {
+          type: 'button',
+          'aria-label': `Copy ${code}`,
+          text: 'Copy',
+        })
+        copyBtn.addEventListener('click', () => {
+          try {
+            navigator.clipboard?.writeText(code)
+            copyBtn.textContent = 'Copied'
+            window.setTimeout(() => {
+              copyBtn.textContent = 'Copy'
+            }, 1500)
+          } catch (_) {
+            /* clipboard blocked */
+          }
+        })
+        codeRow.appendChild(copyBtn)
+      }
+      body.appendChild(codeRow)
+    } else {
+      body.appendChild(el('div', `${TAG}-card__code`, { text: d.title || d.shortSummary || '' }))
+    }
 
     if (session && config.sessionCouponLabel) {
       body.appendChild(el('div', `${TAG}-card__session-label`, { text: config.sessionCouponLabel }))
@@ -339,12 +392,17 @@
     if (state === 'applicable' || state === 'applied') {
       const abs = savingsAt(d, subtotal)
       if (config.showSavingsCallout && abs > 0) {
+        const pct = discountPercent(d, subtotal)
+        let savingsVal = money.format(abs)
+        if (config.savingsFormat === 'percentage' && pct != null) savingsVal = `${pct}%`
+        else if (config.savingsFormat === 'both' && pct != null)
+          savingsVal = `${money.format(abs)} (${pct}%)`
         body.appendChild(
           el('div', `${TAG}-card__savings`, {
             text:
               state === 'applied'
-                ? `Saved ${money.format(abs)} on this order`
-                : `Save ${money.format(abs)} on this order`,
+                ? `Saved ${savingsVal} on this order`
+                : `Save ${savingsVal} on this order`,
           }),
         )
       }
@@ -365,6 +423,44 @@
       const desc = el('div', `${TAG}-card__description`, { text: d.summary || d.shortSummary })
       desc.style.setProperty('--sai-z0q31ww1-desc-lines', String(config.descriptionMaxLines || 2))
       body.appendChild(desc)
+      if (config.descriptionExpandable) {
+        const descToggle = el('button', `${TAG}-card__desc-toggle`, { type: 'button', text: 'More' })
+        descToggle.addEventListener('click', () => {
+          const expanded = desc.classList.toggle(`${TAG}-card__description--expanded`)
+          descToggle.textContent = expanded ? 'Less' : 'More'
+        })
+        body.appendChild(descToggle)
+      }
+    }
+
+    // Config-gated meta line (discount type / min order / expiry) + terms.
+    const metaBits = []
+    if (config.showDiscountTypeLabel) {
+      const tl = discountTypeLabel(d)
+      if (tl) metaBits.push(tl)
+    }
+    if (config.showMinOrderThreshold) {
+      const req = Number(d.qualification && d.qualification.requiredValue)
+      if (Number.isFinite(req) && req > 0) metaBits.push(`Min order ${money.format(req)}`)
+    }
+    if (config.showExpiryDisplay) {
+      const ex = formatExpiry(d, config.expiryFormat || 'relative')
+      if (ex) metaBits.push(ex)
+    }
+    if (metaBits.length) body.appendChild(el('div', `${TAG}-card__meta`, { text: metaBits.join(' · ') }))
+
+    if (config.showTerms && config.termsLabel) {
+      const termsUrl = d.termsUrl || d.terms_url
+      body.appendChild(
+        termsUrl
+          ? el('a', `${TAG}-card__terms`, {
+              href: termsUrl,
+              text: config.termsLabel,
+              target: '_blank',
+              rel: 'noopener',
+            })
+          : el('span', `${TAG}-card__terms`, { text: config.termsLabel }),
+      )
     }
     card.appendChild(body)
 
@@ -557,7 +653,7 @@
       // CTA: link (anchor), copy_code (button copies block.link), dismiss (button).
       if (block.ctaAction === 'link' && block.link) {
         textWrap.appendChild(
-          el('a', `${TAG}-page__promo-cta`, { href: block.link, text: 'Learn more' }),
+          el('a', `${TAG}-page__promo-cta`, { href: block.link, text: block.ctaLabel || 'Learn more' }),
         )
       } else if (block.ctaAction === 'copy_code' && block.link) {
         const btn = el('button', `${TAG}-page__promo-cta`, {
@@ -691,8 +787,8 @@
     // Promo blocks — build the visible ones once, emit them at their position.
     const promoBlocks =
       config.enablePromoBlocks && Array.isArray(config.promoBlocks) ? config.promoBlocks : []
-    // Promo blocks count as content: don't show the "no offers" empty state
-    // when any promo block is visible, even if all discount sections are empty.
+    // Promo blocks count as content: a drawer with only promo blocks (and no
+    // discount sections) must not fall through to the empty state.
     const anyPromoVisible = promoBlocks.some((block, idx) => promoVisible(host, block, idx, ctx))
     function emitPromos(position) {
       promoBlocks.forEach((block, idx) => {
@@ -706,14 +802,14 @@
 
     // User-specific section sits above the store coupons. Everything peeled
     // into this bucket at the partition step MUST render here — the peel is the
-    // only gate. Never guard this render on a position-equality check without a
+    // only gate. Do not guard this render on a position-equality check without a
     // matching branch for every position value, or peeled coupons get dropped
     // (removed from the store buckets but never shown).
     const userSorted = sortDiscounts(ctx.userSpecific, config.applicableSort, ctx.subtotal)
     if (userSorted.length > 0) {
       scroll.appendChild(
         buildSection(
-          config.userSectionHeaderText || 'Your Coupons',
+          config.userSectionHeaderText || 'For You',
           userSorted.length,
           userSorted,
           'user',
@@ -796,6 +892,13 @@
     // because it doesn't depend on initial-state CSS being applied before
     // the change class is added.
     document.body.appendChild(page)
+    // Hide "More" toggles where the description isn't actually clamped.
+    for (const t of page.querySelectorAll(`.${TAG}-card__desc-toggle`)) {
+      const prev = t.previousElementSibling
+      if (prev instanceof HTMLElement && prev.scrollHeight <= prev.clientHeight + 1) {
+        t.style.display = 'none'
+      }
+    }
     const prevOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     page.classList.add(`${TAG}-page--open`)
@@ -861,7 +964,10 @@
       } catch (_) {
         /* WAAPI unsupported */
       }
+      let unmounted = false
       const unmount = () => {
+        if (unmounted) return
+        unmounted = true
         host._pageOpen = false
         host._pageClosing = false
         document.body.style.overflow = prevOverflow
@@ -975,15 +1081,6 @@
         /* fall through with empty data */
       }
     }
-
-    console.log(
-      '[z0q31ww1] subtotal:',
-      subtotal,
-      'appliedCodes:',
-      appliedCodes,
-      'sectionOrder:',
-      config.sectionDisplayOrder,
-    )
 
     const raw = collectDiscounts(discountsByVariant)
     const recomputed = raw.map((d) => recompute(d, subtotal))
