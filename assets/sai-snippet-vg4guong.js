@@ -209,7 +209,12 @@
       let changed = false
       try {
         for (const m of gifts) {
-          const line = (cart.items || []).find((i) => i.variant_id === m.giftVariantId)
+          // The envelope carries giftVariantId as a string (D1 text column);
+          // cart.js returns variant_id as a number. Compare as strings or the
+          // line is never found — the add re-fires every refresh and the
+          // below-threshold remove never runs.
+          const giftId = String(m.giftVariantId)
+          const line = (cart.items || []).find((i) => String(i.variant_id) === giftId)
           const reached = total >= m.threshold
           if (reached && !line) {
             await cartAdd(m.giftVariantId)
