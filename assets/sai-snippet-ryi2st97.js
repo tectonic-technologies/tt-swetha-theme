@@ -224,13 +224,17 @@
     ])
     card.appendChild(head)
 
-    const body = h('div', { class: `${C}__pdp-body` })
+    const body = h('div', {
+      class: `${C}__pdp-body`,
+      style: 'display:flex;flex-direction:column;gap:20px;',
+    })
     card.appendChild(body)
 
-    // Compact fallback first (single-variant or while fetching)
+    // Instant render from pool data, then upgrade to the full gallery +
+    // variant swatches once /products/{handle}.js resolves.
     renderCompact(body, tagged, cfg, ctx)
 
-    if (!cfg.miniPdp || tagged.single_variant || !tagged.handle) return
+    if (!cfg.miniPdp || !tagged.handle) return
 
     fetch(`/products/${tagged.handle}.js`)
       .then((r) => (r.ok ? r.json() : null))
@@ -241,18 +245,17 @@
       .catch(() => {})
   }
 
-  function priceMarkup(tagged) {
-    const now = tagged.price_override || tagged.variant_price || ''
-    const row = h('div', { class: `${C}__pdp-price` }, [
-      h('span', { class: `${C}__pdp-price-now`, text: now }),
+  // Price column skeleton: a price-row (filled by syncVariant / renderCompact)
+  // above the "(Incl. of all taxes)" line.
+  function buildPriceBlock() {
+    return h('div', { class: `${C}__pdp-price` }, [
+      h('div', { class: `${C}__pdp-price-row` }),
+      h('span', { class: `${C}__pdp-tax`, text: '(Incl. of all taxes)' }),
     ])
-    if (tagged.show_compare && tagged.variant_compare_at_price) {
-      row.appendChild(
-        h('span', { class: `${C}__pdp-price-was`, text: tagged.variant_compare_at_price }),
-      )
-    }
-    row.appendChild(h('span', { class: `${C}__pdp-tax`, text: '(Incl. of all taxes)' }))
-    return row
+  }
+
+  function money(cents) {
+    return window.Spectrum?.format?.money ? window.Spectrum.format.money(cents) : formatMoney(cents)
   }
 
   function ctaButton(cfg, onClick) {
@@ -298,19 +301,36 @@
     }
   }
 
-  // Single-variant / loading compact view
+  // Pool-only view: instant render before the product fetch, or final view
+  // when the look has no product handle.
   function renderCompact(body, tagged, cfg, ctx) {
     body.textContent = ''
     if (tagged.thumb_url) {
       body.appendChild(
         h('div', { class: `${C}__pdp-gallery` }, [
-          h('div', { class: `${C}__pdp-thumb` }, [
-            h('img', { src: tagged.thumb_url, alt: tagged.display_name || '', loading: 'lazy' }),
+          h('div', { class: `${C}__pdp-thumbs` }, [
+            h('div', { class: `${C}__pdp-thumb` }, [
+              h('img', { src: tagged.thumb_url, alt: tagged.display_name || '', loading: 'lazy' }),
+            ]),
           ]),
         ]),
       )
     }
-    body.appendChild(priceMarkup(tagged))
+    body.appendChild(h('hr', { class: `${C}__pdp-divider` }))
+    const priceEl = buildPriceBlock()
+    const row = priceEl.querySelector(`.${C}__pdp-price-row`)
+    row.appendChild(
+      h('span', {
+        class: `${C}__pdp-price-now`,
+        text: tagged.price_override || tagged.variant_price || '',
+      }),
+    )
+    if (tagged.show_compare && tagged.variant_compare_at_price) {
+      row.appendChild(h('span', { class: `${C}__pdp-price-was`, text: 'MRP' }))
+      row.appendChild(
+        h('s', { class: `${C}__pdp-price-strike`, text: tagged.variant_compare_at_price }),
+      )
+    }
     const cta = ctaButton(cfg, (btn) =>
       addToCart(tagged.variant_id, btn, cfg, ctx, {
         product_id: tagged.product_id,
@@ -321,68 +341,99 @@
       cta.disabled = true
       cta.textContent = 'Sold out'
     }
-    body.appendChild(cta)
+    body.appendChild(h('div', { class: `${C}__pdp-foot` }, [priceEl, cta]))
   }
 
-  // Full Mini-PDP with gallery + option swatches
+  // Single-variant products (or the Shopify default "Title / Default Title")
+  // carry no real choice — skip the swatch containers entirely.
+  function isTrivialOptions(product, optionNames) {
+    if (product.variants.length <= 1) return true
+    if (optionNames.length === 1) {
+      const vals = uniqueOptionValues(product, 0)
+      if (vals.length === 1 && vals[0] === 'Default Title') return true
+    }
+    return false
+  }
+
+  // Full Mini-PDP: gallery + carousel dots, bordered option containers with
+  // circular image swatches, and a divider + price/CTA footer.
   function renderFull(body, tagged, product, cfg, ctx) {
     body.textContent = ''
     pdpState = { product, optionValues: [], variant: null }
 
-    // Gallery (up to 3 thumbs)
-    const images = (product.images || []).slice(0, 3)
+    const images = (product.images || []).slice(0, 6)
     if (images.length) {
       const gallery = h('div', { class: `${C}__pdp-gallery` })
+      const thumbs = h('div', { class: `${C}__pdp-thumbs` })
       for (const src of images) {
-        gallery.appendChild(
+        thumbs.appendChild(
           h('div', { class: `${C}__pdp-thumb` }, [
-            h('img', { src: src, alt: product.title || '', loading: 'lazy' }),
+            h('img', { src, alt: product.title || '', loading: 'lazy' }),
           ]),
         )
+      }
+      gallery.appendChild(thumbs)
+      if (images.length > 1) {
+        const dots = h('div', { class: `${C}__pdp-dots` })
+        images.forEach((_, i) =>
+          dots.appendChild(
+            h('span', {
+              class: i === 0 ? `${C}__pdp-dot ${C}__pdp-dot--active` : `${C}__pdp-dot`,
+            }),
+          ),
+        )
+        gallery.appendChild(dots)
+        thumbs.addEventListener('scroll', () => {
+          const per = thumbs.clientWidth / 3 || 1
+          const idx = Math.round(thumbs.scrollLeft / per)
+          const ds = dots.children
+          for (let k = 0; k < ds.length; k++) {
+            ds[k].classList.toggle(`${C}__pdp-dot--active`, k === Math.min(idx, ds.length - 1))
+          }
+        })
       }
       body.appendChild(gallery)
     }
 
-    // Resolve the initial variant (preselected from pool, else first available)
     const initial =
       product.variants.find((v) => String(v.id) === String(tagged.variant_id)) ||
       product.variants.find((v) => v.available) ||
       product.variants[0]
-    pdpState.optionValues = (initial?.options ? initial.options.slice() : []) || []
+    pdpState.optionValues = initial?.options ? initial.options.slice() : []
 
     const optionNames = product.options.map((o) => (typeof o === 'string' ? o : o.name))
     const groups = []
-    optionNames.forEach((name, idx) => {
-      const group = h('div', { class: `${C}__pdp-group` })
-      const labelEl = h('span', { class: `${C}__pdp-group-label` })
-      group.appendChild(labelEl)
-      const swatchWrap = h('div', { class: `${C}__pdp-swatches` })
-      const values = uniqueOptionValues(product, idx)
-      for (const val of values) {
-        const sw = buildSwatch(product, idx, val)
-        sw.addEventListener('click', () => {
-          if (sw.disabled) return
-          pdpState.optionValues[idx] = val
-          syncVariant(product, body, groups, optionNames, priceEl, cta, cfg)
-        })
-        swatchWrap.appendChild(sw)
-      }
-      group.appendChild(swatchWrap)
-      body.appendChild(group)
-      groups.push({ group, labelEl, swatchWrap, idx, name })
-    })
+    if (!isTrivialOptions(product, optionNames)) {
+      optionNames.forEach((name, idx) => {
+        const group = h('div', { class: `${C}__pdp-group` })
+        const labelEl = h('span', { class: `${C}__pdp-group-label` })
+        group.appendChild(labelEl)
+        const swatchWrap = h('div', { class: `${C}__pdp-swatches` })
+        for (const val of uniqueOptionValues(product, idx)) {
+          const sw = buildSwatch(product, idx, val)
+          sw.addEventListener('click', () => {
+            if (sw.disabled) return
+            pdpState.optionValues[idx] = val
+            syncVariant(product, groups, priceEl, cta, cfg)
+          })
+          swatchWrap.appendChild(sw)
+        }
+        group.appendChild(swatchWrap)
+        body.appendChild(group)
+        groups.push({ labelEl, swatchWrap, idx, name })
+      })
+    }
 
-    const priceEl = priceMarkup(tagged)
-    body.appendChild(priceEl)
-
+    body.appendChild(h('hr', { class: `${C}__pdp-divider` }))
+    const priceEl = buildPriceBlock()
     const cta = ctaButton(cfg, (btn) => {
       const v = pdpState.variant
       if (!v) return
       addToCart(v.id, btn, cfg, ctx, { product_id: product.id, tag_id: tagged.tag_id })
     })
-    body.appendChild(cta)
+    body.appendChild(h('div', { class: `${C}__pdp-foot` }, [priceEl, cta]))
 
-    syncVariant(product, body, groups, optionNames, priceEl, cta, cfg)
+    syncVariant(product, groups, priceEl, cta, cfg)
   }
 
   function uniqueOptionValues(product, idx) {
@@ -438,47 +489,39 @@
     )
   }
 
-  function syncVariant(product, body, groups, optionNames, priceEl, cta, cfg) {
+  function syncVariant(product, groups, priceEl, cta, cfg) {
     const variant = findVariant(product, pdpState.optionValues)
     pdpState.variant = variant
 
-    // Update group labels + swatch states
+    // Update group labels (Name : Value) + swatch selected/availability states
     for (const g of groups) {
       const selected = pdpState.optionValues[g.idx]
       g.labelEl.textContent = ''
       g.labelEl.appendChild(document.createTextNode(`${g.name} : `))
       g.labelEl.appendChild(h('b', { text: selected || '' }))
       for (const sw of g.swatchWrap.querySelectorAll(`.${C}__swatch`)) {
-        const on = sw._value === selected
-        sw.setAttribute('aria-pressed', on ? 'true' : 'false')
-        const avail = isValueAvailable(product, g.idx, sw._value, pdpState.optionValues)
-        sw.disabled = !avail
+        sw.setAttribute('aria-pressed', sw._value === selected ? 'true' : 'false')
+        sw.disabled = !isValueAvailable(product, g.idx, sw._value, pdpState.optionValues)
       }
     }
 
-    // Price
+    // Price row: now + MRP strike + "N% OFF" badge
+    const row = priceEl.querySelector(`.${C}__pdp-price-row`)
+    row.textContent = ''
     if (variant) {
-      const now = window.Spectrum?.format?.money
-        ? window.Spectrum.format.money(variant.price)
-        : formatMoney(variant.price)
-      const nowEl = priceEl.querySelector(`.${C}__pdp-price-now`)
-      if (nowEl) nowEl.textContent = now
-      const wasEl = priceEl.querySelector(`.${C}__pdp-price-was`)
+      row.appendChild(h('span', { class: `${C}__pdp-price-now`, text: money(variant.price) }))
       if (variant.compare_at_price && variant.compare_at_price > variant.price) {
-        const wasTxt = window.Spectrum?.format?.money
-          ? window.Spectrum.format.money(variant.compare_at_price)
-          : formatMoney(variant.compare_at_price)
-        if (wasEl) wasEl.textContent = wasTxt
-        else
-          priceEl
-            .querySelector(`.${C}__pdp-price-now`)
-            .after(h('span', { class: `${C}__pdp-price-was`, text: wasTxt }))
-      } else if (wasEl) {
-        wasEl.remove()
+        row.appendChild(h('span', { class: `${C}__pdp-price-was`, text: 'MRP' }))
+        row.appendChild(
+          h('s', { class: `${C}__pdp-price-strike`, text: money(variant.compare_at_price) }),
+        )
+        const pct = Math.round(
+          ((variant.compare_at_price - variant.price) / variant.compare_at_price) * 100,
+        )
+        if (pct > 0) row.appendChild(h('span', { class: `${C}__pdp-badge`, text: `${pct}% OFF` }))
       }
     }
 
-    // CTA availability
     if (!variant || !variant.available) {
       cta.disabled = true
       if (cta.dataset.loading !== '1') cta.textContent = 'Sold out'
