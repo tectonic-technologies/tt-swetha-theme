@@ -631,7 +631,7 @@
     tiles.forEach((tile, i) => {
       const dot = h('button', {
         type: 'button',
-        class: i === 0 ? `${C}__dot ${C}__dot--active` : `${C}__dot`,
+        class: `${C}__dot`,
         'aria-label': `Go to slide ${i + 1}`,
       })
       dot.addEventListener('click', () => {
@@ -639,6 +639,15 @@
       })
       dotsWrap.appendChild(dot)
     })
+    // Active dot = pill; dots get smaller the further they are from active
+    // (≥3 away → 4px), per the Figma pagination treatment.
+    const paint = (active) => {
+      const ds = dotsWrap.children
+      for (let k = 0; k < ds.length; k++) {
+        ds[k].classList.toggle(`${C}__dot--active`, k === active)
+        ds[k].classList.toggle(`${C}__dot--sm`, Math.abs(k - active) >= 3)
+      }
+    }
     const sync = () => {
       const gridLeft = grid.getBoundingClientRect().left
       let active = 0
@@ -650,11 +659,9 @@
           active = i
         }
       })
-      const ds = dotsWrap.children
-      for (let k = 0; k < ds.length; k++) {
-        ds[k].classList.toggle(`${C}__dot--active`, k === active)
-      }
+      paint(active)
     }
+    paint(0)
     grid.addEventListener('scroll', sync, { passive: true })
   }
 

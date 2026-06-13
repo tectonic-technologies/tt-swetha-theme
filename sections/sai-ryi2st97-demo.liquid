@@ -119,9 +119,9 @@
     width: 100%;
     max-width: var(--sai-ryi2st97-maxw);
     margin: 0 auto;
-    padding: clamp(20px, 3vw, 36px);
+    padding: 24px 20px;
     box-sizing: border-box;
-    border-radius: 40px;
+    border-radius: 32px;
     font-family: var(--font-body-family, "Outfit", sans-serif);
     /* The section is a rounded white card (Figma 40px frame) whose background is
        the warm radial glow — yellow center fading to white end-to-end behind the
@@ -184,13 +184,21 @@
     border-radius: 100px;
     border: 0;
     padding: 0;
-    background: #d4d4d4;
+    background: #bcbcbc;
     cursor: pointer;
-    transition: width 0.2s ease, background 0.2s ease;
+    flex: none;
+    transition: width 0.2s ease, height 0.2s ease, background 0.2s ease;
+  }
+  /* Dots shrink with distance from the active one (Figma pagination: 6px near,
+     4px far). JS sets --sm on dots ≥3 away from active. */
+  .sai-ryi2st97__dot--sm {
+    width: 4px;
+    height: 4px;
   }
   .sai-ryi2st97__dot--active {
-    width: 20px;
-    background: #141414;
+    width: 21px;
+    height: 6px;
+    background: #131212;
   }
 
   /* Bento: % positioning baked from the 1200×1452 Figma mosaic. */
@@ -392,30 +400,11 @@
     border-radius: 50%;
     background: var(--sai-ryi2st97-pin-dot);
   }
-  .sai-ryi2st97__pin::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: 50%;
-    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.45);
-    animation: sai-ryi2st97-pulse 2.4s ease-out infinite;
-  }
   .sai-ryi2st97__pin--active {
     background: var(--sai-ryi2st97-accent);
   }
   .sai-ryi2st97__pin--active::after {
     background: var(--sai-ryi2st97-accent-text);
-  }
-  @keyframes sai-ryi2st97-pulse {
-    0% {
-      box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.5);
-    }
-    70% {
-      box-shadow: 0 0 0 10px rgba(255, 255, 255, 0);
-    }
-    100% {
-      box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
-    }
   }
 
   /* ── Mini-PDP popup ── */
@@ -711,14 +700,12 @@
   /* ── Accessibility / motion ── */
   .sai-ryi2st97__pin:focus-visible,
   .sai-ryi2st97__tile-arrow:focus-visible,
-  .sai-ryi2st97__nav-btn:focus-visible,
   .sai-ryi2st97__pdp-cta:focus-visible,
   .sai-ryi2st97__swatch:focus-visible {
     outline: 2px solid var(--sai-ryi2st97-accent);
     outline-offset: 2px;
   }
   @media (prefers-reduced-motion: reduce) {
-    .sai-ryi2st97__pin::before,
     .sai-ryi2st97__pdp-spinner {
       animation: none;
     }
@@ -728,8 +715,17 @@
     }
   }
 
-  /* ── Mobile: bento collapses to a horizontal snap carousel ── */
+  /* ── Mobile: full-bleed card; bento collapses to a snap carousel ── */
   @media screen and (max-width: 749px) {
+    .sai-ryi2st97 {
+      /* Break out of any theme container so the card runs edge-to-edge. */
+      width: 100vw;
+      max-width: 100vw;
+      margin-left: calc(50% - 50vw);
+      margin-right: calc(50% - 50vw);
+      border-radius: 32px;
+      box-shadow: none;
+    }
     .sai-ryi2st97[data-layout="bento"] .sai-ryi2st97__grid {
       aspect-ratio: auto;
       display: flex;
@@ -754,12 +750,21 @@
       position: relative;
       left: auto;
       top: auto;
-      width: 82%;
-      max-width: 360px;
+      width: calc(100% - 24px);
+      max-width: none;
       height: auto;
-      aspect-ratio: 3 / 4;
+      aspect-ratio: 362 / 460;
       flex: 0 0 auto;
-      scroll-snap-align: start;
+      scroll-snap-align: center;
+    }
+    /* Smaller, calmer pins on the compact card (Figma mobile pin ≈ 22px). */
+    .sai-ryi2st97__pin {
+      width: 22px;
+      height: 22px;
+    }
+    .sai-ryi2st97__pin::after {
+      width: 9px;
+      height: 9px;
     }
   }
 
