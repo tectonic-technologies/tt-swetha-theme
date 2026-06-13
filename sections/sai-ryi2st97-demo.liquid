@@ -735,18 +735,21 @@
     .sai-ryi2st97[data-layout="bento"] .sai-ryi2st97__grid::-webkit-scrollbar {
       display: none;
     }
-    .sai-ryi2st97[data-layout="bento"] .sai-ryi2st97__tile {
+    /* :nth-child(n) matches every tile at the SAME specificity (0,4,0) as the
+       desktop per-index bento rules above, so this later (in-source) override
+       wins on mobile and resets the absolute mosaic geometry. A plain .tile
+       selector (0,3,0) would lose to those nth-child rules and the tiles would
+       keep their desktop %-widths and overlap. */
+    .sai-ryi2st97[data-layout="bento"] .sai-ryi2st97__tile:nth-child(n) {
       position: relative;
       left: auto;
       top: auto;
       width: 82%;
+      max-width: 360px;
       height: auto;
       aspect-ratio: 3 / 4;
       flex: 0 0 auto;
       scroll-snap-align: start;
-    }
-    .sai-ryi2st97[data-layout="bento"] .sai-ryi2st97__tile:first-child {
-      aspect-ratio: 3 / 4;
     }
   }
 
