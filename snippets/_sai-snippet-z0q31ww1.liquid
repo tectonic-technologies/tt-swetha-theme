@@ -31,6 +31,7 @@
   assign entry_cta_text = content.entry_cta_text | default: 'View All Offers'
   assign entry_cta_style = content.entry_cta_style | default: 'card'
   assign entry_cta_icon = content.entry_cta_icon | default: 'percent'
+  assign entry_cta_icon_image_url = content.entry_cta_icon_image.url
 
   if content.entry_cta_show_count == nil
     assign entry_cta_show_count = false
@@ -278,6 +279,7 @@
 }
 
 .sai-z0q31ww1__entry-icon svg { width: 100%; height: 100%; }
+.sai-z0q31ww1__entry-icon img { width: 100%; height: 100%; object-fit: contain; display: block; }
 
 .sai-z0q31ww1__entry-text {
   flex: 1 1 auto;
@@ -794,7 +796,9 @@
       data-sai-entry
       data-sai-entry-min-coupons="{{ entry_cta_min_coupons }}"
     >
-      {%- if entry_cta_icon != 'none' -%}
+      {%- if entry_cta_icon_image_url != blank -%}
+        <span class="sai-z0q31ww1__entry-icon"><img src="{{ entry_cta_icon_image_url | escape }}" alt="" aria-hidden="true"></span>
+      {%- elsif entry_cta_icon != 'none' -%}
         <span class="sai-z0q31ww1__entry-icon" data-sai-entry-icon="{{ entry_cta_icon }}"></span>
       {%- endif -%}
       <span class="sai-z0q31ww1__entry-text">
@@ -814,6 +818,7 @@
     "entryCtaShowMaxSavings": {{ entry_cta_show_max_savings | json }},
     "entryCtaMinCoupons": {{ entry_cta_min_coupons | json }},
     "entryCtaIcon": {{ entry_cta_icon | json }},
+    "entryCtaIconImageUrl": {{ entry_cta_icon_image_url | json }},
     "pageTitle": {{ page_title | json }},
     "pageEntryAnimation": {{ page_entry_animation | json }},
     "pageCloseStyle": {{ page_close_style | json }},
