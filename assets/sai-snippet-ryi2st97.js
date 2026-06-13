@@ -220,13 +220,11 @@
       finish()
       return
     }
-    const card = pdpBackdrop._card
-    const onEnd = () => {
-      card.removeEventListener('animationend', onEnd)
-      finish()
-    }
-    card.addEventListener('animationend', onEnd)
+    // Trigger the CSS slide-down, then hide once it has played. A fixed timer
+    // (not `animationend`) is used deliberately — the listener is unreliable
+    // when the element already finished its open animation.
     pdpBackdrop.dataset.closing = 'true'
+    setTimeout(finish, 240)
   }
 
   function openPdp(tagged, cfg, ctx) {
