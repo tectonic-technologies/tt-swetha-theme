@@ -1,0 +1,910 @@
+{% doc %}
+  Explore Our Range — Shoppable Grid
+
+  A placement-wide bento grid of category image-cards. Each card is a
+  `spectrum_shoppable_image` metaobject: its `image` is the tile, its title is
+  the card label, and its `legends` (tagged-product hotspots with x/y) are the
+  coordinate pins that pop a Mini-PDP product card with variant swatches and
+  add-to-cart. Reuses the Shop the Look `spectrum_tagged_product` child type.
+
+  @param {string} mutation_handle - Mutation handle for DOM scoping (infrastructure)
+  @param {string} experience_handle - Experience handle for attribution (infrastructure)
+  @param {object} variant - Resolved snippet-instance variant; user-configurable values live on `variant.content`
+  @param {object} mo - spectrum_snippet_instance metaobject drop; carries typed reference pools
+
+  variant.content fields:
+    - looks {object} — { refIds: string[] } metaobject handles of the cards, in order
+    - section_title {string} — Heading shown above the grid
+    - layout {string} — "bento" | "grid"
+    - grid_columns {string} — "2" | "3" | "4" (uniform grid only)
+    - cta_label {string} — per-tile hover button label
+    - enable_hotspots {boolean} — render coordinate pins
+    - enable_mini_pdp {boolean} — open Mini-PDP on hotspot tap (else compact card)
+    - cta_text {string} — Mini-PDP add-to-cart label
+
+  @example
+  {%- comment -%} Production caller — emitted by `_sai-{instanceId}.liquid` {%- endcomment -%}
+  {% render '_sai-snippet-ryi2st97',
+    variant: variant,
+    mo: mo,
+    mutation_handle: 'mut-ryi2st97abcd1234',
+    experience_handle: 'home-explore'
+  %}
+{% enddoc %}
+
+{%- comment -%}
+  ── Institutional Knowledge ──
+  - Data model reused from Shop the Look: spectrum_shoppable_image carries
+    image (the tile) + legends[] (tagged-product hotspots with x/y → product,
+    full variant/price data). The legends list is both the pins and the
+    Mini-PDP product list. Pool keying is by handle (== content.looks.refIds).
+  - Bento layout is the Figma "Explore Our Range" 7-slot mosaic. Slots are
+    assigned by card order via :nth-child — slot 1 is the large hero, slot 7
+    the bottom-wide tile. Positions are baked as % of a 1200×1452 box so the
+    mosaic scales at any width. ≠7 cards fall back to a uniform grid look.
+  - Mini-PDP variant swatches are fetched client-side from /products/{handle}.js
+    (the pool carries handle + the preselected variant only).
+  - Add-to-cart goes through window.Spectrum.cart.addAndOpen (spectrum-sdk.js).
+  - Colors map to theme vars; brand accent (Frido yellow #fcd00b) → --color-button.
+  - Per Shopify Liquid: reference-list bracket access is broken (use
+    for+offset+limit:1); comparisons only inside if-blocks; every JSON value
+    piped through `json` to escape `</script>` and unsafe chars.
+{%- endcomment -%}
+
+{% stylesheet %}
+  .sai-ryi2st97 {
+    --sai-ryi2st97-maxw: 1200px;
+    --sai-ryi2st97-gap: 16px;
+    --sai-ryi2st97-radius: 16px;
+    --sai-ryi2st97-fg: var(--color-foreground, #131313);
+    --sai-ryi2st97-bg: var(--color-background, #ffffff);
+    --sai-ryi2st97-accent: var(--color-button, #fcd00b);
+    --sai-ryi2st97-accent-text: #131313;
+    --sai-ryi2st97-muted: #8a8a8a;
+    --sai-ryi2st97-pdp-radius: 24px;
+    --sai-ryi2st97-pin-bg: rgba(0, 0, 0, 0.65);
+    --sai-ryi2st97-pin-dot: #f7f7f7;
+    --sai-ryi2st97-glow: #f5f06c;
+    --sai-ryi2st97-card: #ffffff;
+    --sai-ryi2st97-arrow: #307fe2;
+    display: block;
+    width: 100%;
+    max-width: var(--sai-ryi2st97-maxw);
+    margin: 0 auto;
+    padding: 24px 20px;
+    box-sizing: border-box;
+    border-radius: 32px;
+    font-family: var(--font-body-family, "Outfit", sans-serif);
+    /* The section is a rounded white card (Figma 40px frame) whose background is
+       the warm radial glow — yellow center fading to white end-to-end behind the
+       grid — plus a soft drop shadow. */
+    background: radial-gradient(
+      78% 52% at 50% 45%,
+      var(--sai-ryi2st97-glow) 12%,
+      var(--sai-ryi2st97-card) 73%
+    );
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.08);
+  }
+  .sai-ryi2st97 *,
+  .sai-ryi2st97 *::before,
+  .sai-ryi2st97 *::after {
+    box-sizing: border-box;
+  }
+
+  .sai-ryi2st97__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    margin-bottom: 32px;
+  }
+  .sai-ryi2st97__section-title {
+    margin: 0;
+    font-family: var(--font-heading-family, "Outfit", sans-serif);
+    font-weight: 500;
+    font-size: clamp(22px, 2.4vw, 28px);
+    line-height: 1;
+    letter-spacing: -0.02em;
+    color: var(--sai-ryi2st97-fg);
+  }
+  @supports (background-clip: text) or (-webkit-background-clip: text) {
+    .sai-ryi2st97__section-title {
+      background: linear-gradient(101deg, #131313 0%, #ffe46b 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+  }
+
+  /* ── Grid ── */
+  .sai-ryi2st97__grid {
+    position: relative;
+    width: 100%;
+  }
+
+  /* Carousel position dots — only meaningful in the mobile carousel */
+  .sai-ryi2st97__dots {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 16px;
+  }
+  .sai-ryi2st97__dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 100px;
+    border: 0;
+    padding: 0;
+    background: #bcbcbc;
+    cursor: pointer;
+    flex: none;
+    transition: width 0.2s ease, height 0.2s ease, background 0.2s ease;
+  }
+  /* Dots shrink with distance from the active one (Figma pagination: 6px near,
+     4px far). JS sets --sm on dots ≥3 away from active. */
+  .sai-ryi2st97__dot--sm {
+    width: 4px;
+    height: 4px;
+  }
+  .sai-ryi2st97__dot--active {
+    width: 21px;
+    height: 6px;
+    background: #131212;
+  }
+
+  /* Bento: % positioning baked from the 1200×1452 Figma mosaic. */
+  .sai-ryi2st97[data-layout="bento"] .sai-ryi2st97__grid {
+    aspect-ratio: 1200 / 1452;
+  }
+  .sai-ryi2st97[data-layout="bento"] .sai-ryi2st97__tile {
+    position: absolute;
+  }
+  .sai-ryi2st97[data-layout="bento"] .sai-ryi2st97__tile:nth-child(1) {
+    left: 0;
+    top: 0;
+    width: 64.667%;
+    height: 38.567%;
+  }
+  .sai-ryi2st97[data-layout="bento"] .sai-ryi2st97__tile:nth-child(2) {
+    left: 66%;
+    top: 0;
+    width: 34%;
+    height: 31.680%;
+  }
+  .sai-ryi2st97[data-layout="bento"] .sai-ryi2st97__tile:nth-child(3) {
+    left: 0;
+    top: 39.669%;
+    width: 35%;
+    height: 27.548%;
+  }
+  .sai-ryi2st97[data-layout="bento"] .sai-ryi2st97__tile:nth-child(4) {
+    left: 36.333%;
+    top: 39.669%;
+    width: 28.333%;
+    height: 27.548%;
+  }
+  .sai-ryi2st97[data-layout="bento"] .sai-ryi2st97__tile:nth-child(5) {
+    left: 66%;
+    top: 32.782%;
+    width: 33.333%;
+    height: 34.435%;
+  }
+  .sai-ryi2st97[data-layout="bento"] .sai-ryi2st97__tile:nth-child(6) {
+    left: 0;
+    top: 68.320%;
+    width: 35%;
+    height: 31.680%;
+  }
+  .sai-ryi2st97[data-layout="bento"] .sai-ryi2st97__tile:nth-child(7) {
+    left: 36.333%;
+    top: 68.320%;
+    width: 63.667%;
+    height: 31.680%;
+  }
+
+  /* Uniform grid fallback (and bento with ≠7 cards via the --fallback flag). */
+  .sai-ryi2st97[data-layout="grid"] .sai-ryi2st97__grid,
+  .sai-ryi2st97--grid-fallback .sai-ryi2st97__grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--sai-ryi2st97-gap);
+    aspect-ratio: auto;
+  }
+  .sai-ryi2st97[data-layout="grid"] .sai-ryi2st97__tile,
+  .sai-ryi2st97--grid-fallback .sai-ryi2st97__tile {
+    position: relative;
+    aspect-ratio: 4 / 3;
+  }
+
+  /* ── Tile ── */
+  .sai-ryi2st97__tile {
+    display: block;
+    border-radius: var(--sai-ryi2st97-radius);
+    overflow: hidden;
+    background: #ededed;
+    isolation: isolate;
+  }
+  .sai-ryi2st97__tile-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 0;
+  }
+  .sai-ryi2st97__tile-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: linear-gradient(
+      180deg,
+      rgba(0, 0, 0, 0) 38%,
+      rgba(0, 0, 0, 0.78) 92%
+    );
+    pointer-events: none;
+  }
+  .sai-ryi2st97__tile-bar {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: clamp(14px, 1.6vw, 24px);
+  }
+  .sai-ryi2st97__tile-bar-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+  }
+  .sai-ryi2st97__tile-label {
+    margin: 0;
+    color: #ffffff;
+    font-family: var(--font-heading-family, "Outfit", sans-serif);
+    font-weight: 600;
+    font-size: clamp(15px, 1.5vw, 22px);
+    line-height: 1.1;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .sai-ryi2st97__tile-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 16px;
+    border-radius: 8px;
+    background: #131313;
+    color: #ffffff;
+    font-family: var(--font-heading-family, "Outfit", sans-serif);
+    font-weight: 500;
+    font-size: 14px;
+    line-height: 1;
+    text-decoration: none;
+    white-space: nowrap;
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 0.18s ease, transform 0.18s ease;
+    pointer-events: none;
+  }
+  .sai-ryi2st97__tile:hover .sai-ryi2st97__tile-cta,
+  .sai-ryi2st97__tile:focus-within .sai-ryi2st97__tile-cta {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+  .sai-ryi2st97__tile-arrow {
+    flex: none;
+    width: clamp(34px, 3vw, 40px);
+    height: clamp(34px, 3vw, 40px);
+    border-radius: 50%;
+    background: #ffffff;
+    color: var(--sai-ryi2st97-arrow, #307fe2);
+    border: 0;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    text-decoration: none;
+    transition: transform 0.15s ease;
+  }
+  .sai-ryi2st97__tile-arrow:hover {
+    transform: scale(1.06);
+  }
+  .sai-ryi2st97__tile-arrow svg {
+    width: 42%;
+    height: 42%;
+  }
+
+  /* ── Hotspot pins ── */
+  .sai-ryi2st97__pins {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+  }
+  .sai-ryi2st97__pin {
+    position: absolute;
+    left: var(--sai-x, 50%);
+    top: var(--sai-y, 50%);
+    transform: translate(-50%, -50%);
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 0;
+    padding: 0;
+    background: var(--sai-ryi2st97-pin-bg);
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    pointer-events: auto;
+    color: currentColor;
+  }
+  .sai-ryi2st97__pin::after {
+    content: "";
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--sai-ryi2st97-pin-dot);
+  }
+  .sai-ryi2st97__pin--active {
+    background: var(--sai-ryi2st97-accent);
+  }
+  .sai-ryi2st97__pin--active::after {
+    background: var(--sai-ryi2st97-accent-text);
+  }
+
+  /* ── Mini-PDP popup ── */
+  .sai-ryi2st97__pdp-backdrop {
+    /* The popup is portalled to <body> (to escape tile overflow/stacking), so it
+       lives outside .sai-ryi2st97 and cannot inherit its scoped vars — redeclare
+       the ones the Mini-PDP needs here, with theme-var fallbacks. */
+    --sai-ryi2st97-bg: var(--color-background, #ffffff);
+    --sai-ryi2st97-fg: var(--color-foreground, #131313);
+    --sai-ryi2st97-accent: var(--color-button, #fcd00b);
+    --sai-ryi2st97-accent-text: #131313;
+    --sai-ryi2st97-muted: #8a8a8a;
+    --sai-ryi2st97-pdp-radius: 24px;
+    position: fixed;
+    inset: 0;
+    z-index: 2147483000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.45);
+    overscroll-behavior: contain;
+  }
+  .sai-ryi2st97__pdp-backdrop[data-open="true"] {
+    display: flex;
+  }
+  .sai-ryi2st97__pdp {
+    position: relative;
+    width: 100%;
+    max-width: 618px;
+    max-height: 92vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background: var(--sai-ryi2st97-bg, #ffffff);
+    border-radius: var(--sai-ryi2st97-pdp-radius, 24px);
+    padding: 20px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+    font-family: var(--font-body-family, "Outfit", sans-serif);
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .sai-ryi2st97__pdp-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+  }
+  .sai-ryi2st97__pdp-title {
+    margin: 0;
+    font-family: var(--font-heading-family, "Outfit", sans-serif);
+    font-weight: 500;
+    font-size: 24px;
+    line-height: 1;
+    color: var(--sai-ryi2st97-fg, #000000);
+  }
+  .sai-ryi2st97__pdp-close {
+    flex: none;
+    width: 24px;
+    height: 24px;
+    border: 0;
+    background: transparent;
+    color: var(--sai-ryi2st97-fg, #000000);
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+  }
+  .sai-ryi2st97__pdp-close svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  /* gallery */
+  .sai-ryi2st97__pdp-gallery {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .sai-ryi2st97__pdp-thumbs {
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+  }
+  .sai-ryi2st97__pdp-thumbs::-webkit-scrollbar {
+    display: none;
+  }
+  .sai-ryi2st97__pdp-thumb {
+    flex: 0 0 calc((100% - 8px) / 3);
+    aspect-ratio: 1 / 1;
+    border-radius: 16px;
+    overflow: hidden;
+    background: #f0f0f0;
+    scroll-snap-align: start;
+  }
+  .sai-ryi2st97__pdp-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .sai-ryi2st97__pdp-dots {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    height: 6px;
+  }
+  .sai-ryi2st97__pdp-dot {
+    width: 4px;
+    height: 4px;
+    border-radius: 100px;
+    background: #bcbcbc;
+    transition: width 0.2s ease, background 0.2s ease;
+  }
+  .sai-ryi2st97__pdp-dot--active {
+    width: 14px;
+    background: #141414;
+  }
+
+  /* variant selectors — bordered containers */
+  .sai-ryi2st97__pdp-group {
+    border: 1px solid #f0f0f0;
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  .sai-ryi2st97__pdp-group-label {
+    display: block;
+    padding: 10px 14px;
+    border-bottom: 1px solid #f0f0f0;
+    font-family: var(--font-body-family, "Outfit", sans-serif);
+    font-weight: 400;
+    font-size: 14px;
+    line-height: 1;
+    color: #9d9d9d;
+  }
+  .sai-ryi2st97__pdp-group-label b {
+    color: var(--sai-ryi2st97-fg, #131313);
+    font-weight: 600;
+  }
+  .sai-ryi2st97__pdp-swatches {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 14px;
+  }
+  .sai-ryi2st97__swatch {
+    width: 50px;
+    height: 50px;
+    border-radius: 1000px;
+    border: 1.25px solid #f0f0f0;
+    background: transparent;
+    cursor: pointer;
+    padding: 4px;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+  }
+  .sai-ryi2st97__swatch-dot {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background-size: cover;
+    background-position: center;
+  }
+  .sai-ryi2st97__swatch[aria-pressed="true"] {
+    border-color: var(--sai-ryi2st97-accent, #fcd00b);
+    background: #fffae6;
+  }
+  .sai-ryi2st97__swatch[disabled] {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .sai-ryi2st97__swatch--text {
+    width: auto;
+    min-width: 50px;
+    height: 44px;
+    padding: 0 16px;
+    font-family: var(--font-body-family, "Outfit", sans-serif);
+    font-size: 14px;
+    color: var(--sai-ryi2st97-fg, #131313);
+  }
+
+  /* footer */
+  .sai-ryi2st97__pdp-divider {
+    height: 1px;
+    background: #f0f0f0;
+    border: 0;
+    margin: 0;
+  }
+  .sai-ryi2st97__pdp-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+  }
+  .sai-ryi2st97__pdp-price {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .sai-ryi2st97__pdp-price-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .sai-ryi2st97__pdp-price-now {
+    font-weight: 600;
+    font-size: 24px;
+    line-height: 1;
+    color: var(--sai-ryi2st97-fg, #000000);
+  }
+  .sai-ryi2st97__pdp-price-was {
+    font-weight: 300;
+    font-size: 14px;
+    color: #808080;
+  }
+  .sai-ryi2st97__pdp-price-strike {
+    font-weight: 300;
+    font-size: 14px;
+    color: #808080;
+    text-decoration: line-through;
+  }
+  .sai-ryi2st97__pdp-badge {
+    font-family: var(--font-body-family, "Outfit", sans-serif);
+    font-weight: 500;
+    font-size: 13px;
+    line-height: 1;
+    color: #ffffff;
+    background: #1ba94c;
+    border-radius: 6px;
+    padding: 3px 6px;
+  }
+  .sai-ryi2st97__pdp-tax {
+    font-weight: 300;
+    font-size: 12px;
+    color: #bcbcbc;
+  }
+  .sai-ryi2st97__pdp-cta {
+    flex: 0 0 auto;
+    min-width: 279px;
+    border: 0;
+    border-radius: 16px;
+    height: 56px;
+    padding: 0 24px;
+    background: var(--sai-ryi2st97-accent, #fcd00b);
+    color: var(--sai-ryi2st97-accent-text, #000000);
+    font-family: var(--font-heading-family, "Outfit", sans-serif);
+    font-weight: 600;
+    font-size: 20px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .sai-ryi2st97__pdp-cta[data-loading="1"] {
+    opacity: 0.7;
+    cursor: progress;
+  }
+  .sai-ryi2st97__pdp-spinner {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    animation: sai-ryi2st97-spin 0.7s linear infinite;
+  }
+  @keyframes sai-ryi2st97-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  /* mobile: stacked footer + full-width CTA */
+  @media screen and (max-width: 600px) {
+    .sai-ryi2st97__pdp {
+      max-width: 440px;
+      padding: 20px 20px 32px;
+    }
+    .sai-ryi2st97__pdp-foot {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 14px;
+    }
+    .sai-ryi2st97__pdp-cta {
+      width: 100%;
+      min-width: 0;
+    }
+  }
+
+  /* ── Accessibility / motion ── */
+  .sai-ryi2st97__pin:focus-visible,
+  .sai-ryi2st97__tile-arrow:focus-visible,
+  .sai-ryi2st97__pdp-cta:focus-visible,
+  .sai-ryi2st97__swatch:focus-visible {
+    outline: 2px solid var(--sai-ryi2st97-accent);
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .sai-ryi2st97__pdp-spinner {
+      animation: none;
+    }
+    .sai-ryi2st97__tile-cta,
+    .sai-ryi2st97__tile-arrow {
+      transition: none;
+    }
+  }
+
+  /* ── Mobile: full-bleed card; bento collapses to a snap carousel ── */
+  @media screen and (max-width: 749px) {
+    .sai-ryi2st97 {
+      /* Break out of any theme container so the card runs edge-to-edge. */
+      width: 100vw;
+      max-width: 100vw;
+      margin-left: calc(50% - 50vw);
+      margin-right: calc(50% - 50vw);
+      border-radius: 32px;
+      box-shadow: none;
+    }
+    .sai-ryi2st97[data-layout="bento"] .sai-ryi2st97__grid {
+      aspect-ratio: auto;
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .sai-ryi2st97[data-layout="bento"] .sai-ryi2st97__grid::-webkit-scrollbar {
+      display: none;
+    }
+    .sai-ryi2st97[data-layout="bento"] .sai-ryi2st97__dots {
+      display: flex;
+    }
+    /* :nth-child(n) matches every tile at the SAME specificity (0,4,0) as the
+       desktop per-index bento rules above, so this later (in-source) override
+       wins on mobile and resets the absolute mosaic geometry. A plain .tile
+       selector (0,3,0) would lose to those nth-child rules and the tiles would
+       keep their desktop %-widths and overlap. */
+    .sai-ryi2st97[data-layout="bento"] .sai-ryi2st97__tile:nth-child(n) {
+      position: relative;
+      left: auto;
+      top: auto;
+      width: calc(100% - 24px);
+      max-width: none;
+      height: auto;
+      aspect-ratio: 362 / 460;
+      flex: 0 0 auto;
+      scroll-snap-align: center;
+    }
+    /* Figma mobile pin: a 16px ring with a 12px white dot — reads as a white
+       dot with a thin dark edge, not a heavy dark circle. */
+    .sai-ryi2st97__pin {
+      width: 16px;
+      height: 16px;
+    }
+    .sai-ryi2st97__pin::after {
+      width: 12px;
+      height: 12px;
+    }
+  }
+
+  @media screen and (min-width: 750px) {
+    .sai-ryi2st97[data-layout="grid"][data-cols="2"] .sai-ryi2st97__grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    .sai-ryi2st97[data-layout="grid"][data-cols="3"] .sai-ryi2st97__grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+    .sai-ryi2st97[data-layout="grid"][data-cols="4"] .sai-ryi2st97__grid {
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
+{% endstylesheet %}
+
+{%- liquid
+  assign content = variant.content
+  assign section_title = content.section_title | default: 'Explore Our Range'
+  assign layout = content.layout | default: 'bento'
+  assign grid_columns = content.grid_columns | default: '3'
+  assign cta_label = content.cta_label | default: 'Shop Now'
+  assign cta_text = content.cta_text | default: 'Add to Cart'
+
+  if content.enable_hotspots == nil
+    assign enable_hotspots = true
+  else
+    assign enable_hotspots = content.enable_hotspots
+  endif
+
+  if content.enable_mini_pdp == nil
+    assign enable_mini_pdp = true
+  else
+    assign enable_mini_pdp = content.enable_mini_pdp
+  endif
+
+  assign card_handles = content.looks.refIds
+  assign card_count = 0
+  if card_handles
+    assign card_count = card_handles.size
+  endif
+  assign use_grid_fallback = false
+  if layout == 'bento' and card_count != 7
+    assign use_grid_fallback = true
+  endif
+-%}
+
+{%- if card_count > 0 -%}
+<sai-ryi2st97
+  class="sai-ryi2st97{% if use_grid_fallback %} sai-ryi2st97--grid-fallback{% endif %}"
+  data-layout="{{ layout }}"
+  data-cols="{{ grid_columns }}"
+  data-hotspots="{{ enable_hotspots }}"
+  data-mini-pdp="{{ enable_mini_pdp }}"
+  data-cta-label="{{ cta_label | escape }}"
+  data-cta-text="{{ cta_text | escape }}"
+>
+  {%- if section_title != blank -%}
+    <header class="sai-ryi2st97__header">
+      <h2 class="sai-ryi2st97__section-title">{{ section_title }}</h2>
+    </header>
+  {%- endif -%}
+
+  {%- comment -%}
+    Skeleton tiles — one per card handle. JS reads data-handle, looks up
+    pool[handle], and hydrates the image / label / arrow / pins. A missing
+    pool entry leaves the tile empty (silent-degraded: "no data yet", not an
+    error — see .claude/CLAUDE.md error-handling philosophy).
+  {%- endcomment -%}
+  <div class="sai-ryi2st97__grid" role="list">
+    {%- for handle in card_handles -%}
+      <div
+        class="sai-ryi2st97__tile sai-ryi2st97__tile--placeholder"
+        data-handle="{{ handle }}"
+        role="listitem"
+      ></div>
+    {%- endfor -%}
+  </div>
+  <div class="sai-ryi2st97__dots" data-sai-dots aria-hidden="true"></div>
+</sai-ryi2st97>
+
+{%- comment -%}
+  Bespoke pool — sibling of <sai-ryi2st97>, NOT inside it (JS reads it via
+  direct-children iteration on the outer instance container).
+
+  Per card (handle): title, optional cta_url (collection link for the tile
+  arrow), tile_image (the card image url), and the legends list emitted twice —
+  as tagged_products[] (full variant/price data + handle for the Mini-PDP) and
+  as pins[] (hotspot x/y), with tag_id tying each pin to its tagged_product.
+{%- endcomment -%}
+<script type="application/json" data-spectrum-snippet-pool>
+{
+  "cards":{
+    {%- for handle in card_handles -%}
+      {%- assign entry = metaobjects.spectrum_shoppable_image[handle] -%}
+      {%- if entry -%}
+      {%- unless forloop.first -%},{%- endunless -%}
+      {{ handle | json }}:{
+        "title":{{ entry.title | default: 'Explore' | json }},
+        "cta_url":{{ entry.cta_url.value | json }},
+        "tile_image":{{ entry.image.value | image_url: width: 1200 | json }},
+        "tagged_products":[
+          {%- comment -%}
+            Full product/variant data for each hotspot, for the Mini-PDP. The
+            legends list IS the tagged-product list — each legend carries the
+            product + variant + price overrides plus its hotspot x/y.
+          {%- endcomment -%}
+          {%- if entry.legends != blank -%}
+          {%- assign total_tags = entry.legends.value.size -%}
+          {%- assign first_tag = true -%}
+          {%- for i in (0..total_tags) -%}
+            {%- if i >= total_tags -%}{%- break -%}{%- endif -%}
+            {%- assign tagged = nil -%}
+            {%- for t in entry.legends.value offset: i limit: 1 -%}
+              {%- assign tagged = t -%}
+            {%- endfor -%}
+            {%- if tagged -%}
+              {%- assign product = tagged.product.value -%}
+              {%- if product -%}
+                {%- unless first_tag -%},{%- endunless -%}
+                {%- assign first_tag = false -%}
+                {%- assign target_variant = tagged.pre_selected_variant.value | default: product.selected_or_first_available_variant -%}
+                {%- assign single_variant = false -%}
+                {%- if product.variants.size == 1 -%}{%- assign single_variant = true -%}{%- endif -%}
+                {%- assign display_name = tagged.display_name_override.value | default: product.title -%}
+                {%- assign thumb_img = tagged.thumbnail_override.value | default: product.featured_image -%}
+                {%- assign thumb_url = '' -%}
+                {%- if thumb_img != blank -%}
+                  {%- assign thumb_url = thumb_img | image_url: width: 320 -%}
+                {%- endif -%}
+                {%- assign show_compare = false -%}
+                {%- if target_variant.compare_at_price > target_variant.price -%}
+                  {%- assign show_compare = true -%}
+                {%- endif -%}
+                {
+                  "tag_id":{{ tagged.system.id | json }},
+                  "product_id":{{ product.id | json }},
+                  "handle":{{ product.handle | json }},
+                  "display_name":{{ display_name | json }},
+                  "thumb_url":{{ thumb_url | json }},
+                  "product_url":{{ product.url | json }},
+                  "single_variant":{{ single_variant | json }},
+                  "variant_id":{{ target_variant.id | json }},
+                  "variant_available":{{ target_variant.available | json }},
+                  "variant_price":{{ target_variant.price | money | json }},
+                  "variant_compare_at_price":{{ target_variant.compare_at_price | money | json }},
+                  "show_compare":{{ show_compare | json }},
+                  "price_override":{{ tagged.price_override.value | json }}
+                }
+              {%- endif -%}
+            {%- endif -%}
+          {%- endfor -%}
+          {%- endif -%}
+        ],
+        "pins":[
+          {%- comment -%} Same legends list as a coordinate set; tag_id ties each pin to its tagged_product. {%- endcomment -%}
+          {%- if entry.legends != blank -%}
+          {%- assign total_legends = entry.legends.value.size -%}
+          {%- assign first_pin = true -%}
+          {%- for j in (0..total_legends) -%}
+            {%- if j >= total_legends -%}{%- break -%}{%- endif -%}
+            {%- assign legend = nil -%}
+            {%- for t in entry.legends.value offset: j limit: 1 -%}
+              {%- assign legend = t -%}
+            {%- endfor -%}
+            {%- if legend -%}
+              {%- assign legend_product = legend.product.value -%}
+              {%- if legend_product -%}
+                {%- unless first_pin -%},{%- endunless -%}
+                {%- assign first_pin = false -%}
+                {
+                  "tag_id":{{ legend.system.id | json }},
+                  "product_id":{{ legend_product.id | json }},
+                  "hotspot_x":{{ legend.hotspot_x_position.value | json }},
+                  "hotspot_y":{{ legend.hotspot_y_position.value | json }}
+                }
+              {%- endif -%}
+            {%- endif -%}
+          {%- endfor -%}
+          {%- endif -%}
+        ]
+      }
+      {%- endif -%}
+    {%- endfor -%}
+  }
+}
+</script>
+
+<script src="{{ 'sai-snippet-ryi2st97.js' | asset_url }}" defer></script>
+{%- endif -%}
