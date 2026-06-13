@@ -28,17 +28,16 @@
 }</div>
 {%- assign sai_z0q_mo = metaobjects.spectrum_snippet_instance['spectrum_snippet_z0q31ww1_promotest_live'] -%}
 {%- assign sai_z0q_variant = sai_z0q_mo.variants.value.variants[0] -%}
-{%- comment -%}SPECTRUM TEST (PR spectrum#2625): demo of the new `entry_icon` styler node.
-  Wraps the snippet render in an instance/variant scope and injects the exact CSS that
-  emitInstanceCss() produces for style.entry_icon = { sizing 56x56, color #e11d48, margin-inline-end 14 }.
-  This is what the portal styler + bake would emit for a merchant override. Remove this wrapper to revert.{%- endcomment -%}
+{%- comment -%}SPECTRUM TEST (PR spectrum#2627): demo of the new `entry_cta_icon_image` upload prop.
+  The metaobject variant content carries entry_cta_icon_image:{url:.../coupon500.png}, so the entry CTA
+  renders that custom image instead of the preset percent glyph. The wrapper + <style> only enlarge the
+  icon box to 48px (the styler-sizing node from #2625) so the uploaded image is clearly visible.
+  Remove this wrapper to revert.{%- endcomment -%}
 <div data-spectrum-instance-id="iid-z0qicon" data-spectrum-variant-id="var-z0qicon">
 <style>
 [data-spectrum-instance-id="iid-z0qicon"][data-spectrum-variant-id="var-z0qicon"] .sai-z0q31ww1__entry-icon {
-  inline-size: 56px;
-  block-size: 56px;
-  color: #e11d48;
-  margin-inline-end: 14px;
+  inline-size: 48px;
+  block-size: 48px;
 }
 </style>
 {% render '_sai-snippet-z0q31ww1', variant: sai_z0q_variant, mutation_handle: 'mut-9wbjxpgqa9', experience_handle: '_system-196419092640' %}
