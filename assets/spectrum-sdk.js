@@ -41,14 +41,6 @@
  *   Spectrum.products.getByHandle(handle)         → product JSON
  *   Spectrum.products.getRecommendations(id, { intent, limit })
  *
- * ── Recently Viewed ─────────────────────────────────────────────────
- *   Spectrum.recentlyViewed.getHistory()          → string[] (handles, most-recent-first)
- *   Spectrum.recentlyViewed.push(handle)          → dedupe + prepend + cap at 20
- *   Spectrum.recentlyViewed.clear()               → wipe history
- *   Auto-tracks the current PDP product on SDK load via `/products/<handle>`
- *   URL match. Off-PDP pages skip the auto-push silently. localStorage-backed
- *   under `spectrum:rv:product-handles`; per-origin, per-device.
- *
  * ── Sections (HTML) ─────────────────────────────────────────────────
  *   Spectrum.sections.fetch(url)                  → rendered HTML string
  *
@@ -178,20 +170,7 @@
 
 // ─── Configuration ───────────────────────────────────────────────────
 
-/*
- * The entire SDK runs inside this IIFE so its top-level declarations
- * (cart, products, sections, money, …) stay private and never enter the
- * page's shared global lexical scope. Only `window.Spectrum` is exposed.
- *
- * Without the wrapper a top-level `const cart` lands in global scope and
- * collides with any other global `cart` on the page (e.g. the edge
- * bundle's cart.js), throwing "Identifier 'cart' has already been
- * declared" — a SyntaxError that aborts this whole file before it can
- * assign `window.Spectrum`, silently breaking every storefront API call.
- */
-;(function () {
-
-const VERSION = '1.8.1';
+const VERSION = '1.8.0';
 
 const _config = {};
 
@@ -940,66 +919,6 @@ const products = {
   },
 };
 
-// ─── Recently Viewed Products ────────────────────────────────────────
-//
-// Client-side history of product handles the visitor has landed on. Shopify
-// has no native recently-viewed surface (no Storefront field, no Liquid
-// object, no Admin endpoint), so storefronts that need this — e.g. the
-// Recently Viewed Products library snippet — read from here.
-//
-// Storage: localStorage under `spectrum:rv:product-handles`, capped at 20
-// entries, most-recent-first, deduped. The auto-tracker below pushes the
-// current product on every SDK load whose URL matches `/products/<handle>`.
-// Theme-agnostic — no dependency on `ShopifyAnalytics.meta` or theme JS.
-
-const _RV_STORAGE_KEY = 'spectrum:rv:product-handles';
-const _RV_CAP = 20;
-
-const recentlyViewed = {
-  /**
-   * Read the history list, most-recent-first. Returns an empty array when
-   * storage is empty, corrupt, or denied (private mode, blocked origins).
-   * @returns {string[]}
-   */
-  getHistory() {
-    try {
-      const raw = window.localStorage.getItem(_RV_STORAGE_KEY);
-      if (!raw) return [];
-      const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed)) return [];
-      return parsed.filter((h) => typeof h === 'string' && h.length > 0);
-    } catch {
-      return [];
-    }
-  },
-
-  /**
-   * Prepend a handle, dedupe against existing entries, cap at 20. No-op for
-   * empty / non-string input or when localStorage is denied.
-   * @param {string} handle
-   */
-  push(handle) {
-    if (typeof handle !== 'string' || handle === '') return;
-    try {
-      const current = recentlyViewed.getHistory();
-      const filtered = current.filter((h) => h !== handle);
-      const next = [handle, ...filtered].slice(0, _RV_CAP);
-      window.localStorage.setItem(_RV_STORAGE_KEY, JSON.stringify(next));
-    } catch {
-      // localStorage unavailable; recently-viewed is best-effort.
-    }
-  },
-
-  /**
-   * Wipe the history.
-   */
-  clear() {
-    try {
-      window.localStorage.removeItem(_RV_STORAGE_KEY);
-    } catch {}
-  },
-};
-
 // ─── Sections (HTML rendering) ───────────────────────────────────────
 
 const sections = {
@@ -1491,11 +1410,6 @@ const _predictiveCache = new Map();
 const _PREDICTIVE_CACHE_TTL = 30000; // 30 seconds
 const _PREDICTIVE_CACHE_MAX = 50;
 
-// `va` (view activity) is deliberately NOT part of the key: a view recorded
-// mid-session (quick-view, SPA theme, another tab) can serve up to
-// _PREDICTIVE_CACHE_TTL of pre-view personalized ranking for a repeated
-// query. Accepted staleness — on classic themes the page navigation that
-// records the view destroys this in-memory cache anyway.
 function _predictiveCacheKey(q, opts) {
   const filterStr = opts.filters ? JSON.stringify(opts.filters) : '';
   const sortStr = opts.sort || '';
@@ -1521,51 +1435,6 @@ function _predictiveCacheSet(key, result) {
     _predictiveCache.delete(oldest);
   }
   _predictiveCache.set(key, { result, ts: Date.now() });
-}
-
-// ─── Internal — View Activity (search personalization) ─────────────
-
-/**
- * Cross-bundle localStorage contract with the analytics SDK's activity
- * tracker. Key `__spectrum_activity_context` holds:
- *   { activity: { productViews: {
- *       recent: [{ productId: string, viewedAt: epochMs }],   // ≤10 entries
- *       countsByProductId: { [productId]: number } } } }
- * The activity tracker owns the shape; this side only reads it. Serialized
- * as `va=<productId>:<count>:<epochSeconds>,…` (≤10 triplets). The server
- * treats `va` as best-effort and drops malformed/stale triplets itself, so
- * this helper's only hard requirements are: never throw, never block a
- * search call, emit nothing when there is no usable view history.
- */
-
-// Mirrors the server-side seed cap (MAX_AFFINITY_SEEDS in the affinity engine) —
-// the server silently drops triplets beyond it, so sending more is wasted bytes.
-const _VA_MAX_TRIPLETS = 10;
-
-function _buildViewActivityParam() {
-  try {
-    const raw = localStorage.getItem('__spectrum_activity_context');
-    if (!raw) return null;
-    const state = JSON.parse(raw);
-    const views = state && state.activity && state.activity.productViews;
-    if (!views || !Array.isArray(views.recent)) return null;
-    const counts =
-      views.countsByProductId && typeof views.countsByProductId === 'object'
-        ? views.countsByProductId
-        : {};
-    const triplets = [];
-    for (const entry of views.recent) {
-      if (triplets.length >= _VA_MAX_TRIPLETS) break;
-      if (!entry || typeof entry.productId !== 'string' || !entry.productId) continue;
-      const seconds = Math.floor(Number(entry.viewedAt) / 1000);
-      if (!Number.isFinite(seconds) || seconds <= 0) continue;
-      const count = Math.max(1, Math.floor(Number(counts[entry.productId])) || 1);
-      triplets.push(`${entry.productId}:${count}:${seconds}`);
-    }
-    return triplets.length > 0 ? triplets.join(',') : null;
-  } catch {
-    return null;
-  }
 }
 
 // ─── Internal — Recent Searches ─────────────────────────────────────
@@ -1621,9 +1490,6 @@ const search = {
         if (value !== undefined && value !== null) params[key] = value;
       }
     }
-
-    const va = _buildViewActivityParam();
-    if (va) params.va = va;
 
     const url = _buildUrl(`${base}/search`, '', params);
     const result = await _searchJSON(url, { signal: opts.signal });
@@ -1683,8 +1549,6 @@ const search = {
     const base = _proxyBase();
     if (!base) return _normalizeError('Proxy not configured', 'NO_PROXY');
 
-    const va = _buildViewActivityParam();
-
     const params = {};
     if (q) params.q = q;
     if (opts.sort) params.sort = opts.sort;
@@ -1695,7 +1559,6 @@ const search = {
         if (value !== undefined && value !== null) params[key] = value;
       }
     }
-    if (va) params.va = va;
 
     const url = _buildUrl(`${base}/search`, '', params);
     const result = await _searchJSON(url, { signal: _predictiveController.signal });
@@ -2658,7 +2521,6 @@ const SpectrumSDK = {
   getActiveCurrency,
   cart,
   products,
-  recentlyViewed,
   sections,
   platform,
   priceAdjustments,
@@ -2674,18 +2536,6 @@ const SpectrumSDK = {
 
 window.Spectrum = SpectrumSDK;
 
-// ─── Recently-viewed: auto-track current PDP ─────────────────────────
-//
-// PDP detection is URL-based (`/products/<handle>`) — theme-agnostic and
-// independent of `ShopifyAnalytics.meta` (not present on every theme). Runs
-// once at SDK load. Off-PDP pages match nothing and skip silently.
-try {
-  const _rvPathMatch = window.location.pathname.match(/\/products\/([^/?#]+)/);
-  if (_rvPathMatch && _rvPathMatch[1]) {
-    recentlyViewed.push(_rvPathMatch[1]);
-  }
-} catch {}
-
 // ─── Auto-Merge Guest Wishlist on Login ──────────────────────────────
 
 if (_isLoggedIn()) {
@@ -2700,5 +2550,3 @@ if (_isLoggedIn()) {
     });
   }
 }
-
-})();
