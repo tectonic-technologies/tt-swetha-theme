@@ -25,11 +25,7 @@
   >
     <header class="sai-ryi2st97__header">
       <h2 class="sai-ryi2st97__section-title">Explore Our Range</h2>
-      <div class="sai-ryi2st97__nav" data-sai-nav>
-        <button type="button" class="sai-ryi2st97__nav-btn" data-sai-prev aria-label="Previous"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M10 3 5 8l5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-        <button type="button" class="sai-ryi2st97__nav-btn" data-sai-next aria-label="Next"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6 3l5 5-5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-      </div>
-    </header>
+      </header>
     <div class="sai-ryi2st97__grid" role="list">
       {%- for t in tiles -%}
         <div class="sai-ryi2st97__tile sai-ryi2st97__tile--placeholder" data-handle="tile-{{ forloop.index }}" role="listitem"></div>
@@ -116,13 +112,21 @@
     --sai-ryi2st97-pdp-radius: 24px;
     --sai-ryi2st97-pin-bg: rgba(0, 0, 0, 0.65);
     --sai-ryi2st97-pin-dot: #f7f7f7;
+    --sai-ryi2st97-glow: rgba(245, 240, 108, 0.55);
     display: block;
     width: 100%;
     max-width: var(--sai-ryi2st97-maxw);
     margin: 0 auto;
-    padding: 0 16px;
+    padding: 40px 16px;
     box-sizing: border-box;
     font-family: var(--font-body-family, "Outfit", sans-serif);
+    /* Soft warm radial glow behind the section (Figma radial #f5f06c → #fff).
+       Fades to transparent so it sits on any theme background. */
+    background: radial-gradient(
+      ellipse 110% 82% at 50% 34%,
+      var(--sai-ryi2st97-glow) 0%,
+      transparent 70%
+    );
   }
   .sai-ryi2st97 *,
   .sai-ryi2st97 *::before,
@@ -153,32 +157,6 @@
       background-clip: text;
       color: transparent;
     }
-  }
-  .sai-ryi2st97__nav {
-    display: flex;
-    gap: 8px;
-    flex: none;
-  }
-  .sai-ryi2st97__nav-btn {
-    width: 38px;
-    height: 38px;
-    border-radius: 50%;
-    background: #f7f7f7;
-    color: #131313;
-    border: 0;
-    display: grid;
-    place-items: center;
-    cursor: pointer;
-    padding: 0;
-    transition: opacity 0.15s ease, background 0.15s ease;
-  }
-  .sai-ryi2st97__nav-btn:disabled {
-    opacity: 0.4;
-    cursor: default;
-  }
-  .sai-ryi2st97__nav-btn svg {
-    width: 14px;
-    height: 14px;
   }
 
   /* ── Grid ── */

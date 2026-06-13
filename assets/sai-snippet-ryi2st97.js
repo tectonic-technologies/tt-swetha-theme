@@ -615,7 +615,6 @@
       const card = cards[tile.dataset.handle]
       if (card) hydrateTile(tile, card, cfg, ctx)
     }
-    wireNav(rootEl)
     buildDots(rootEl)
   }
 
@@ -657,23 +656,6 @@
       }
     }
     grid.addEventListener('scroll', sync, { passive: true })
-  }
-
-  // Header prev/next scroll the grid when it overflows (mobile carousel). On
-  // the desktop bento the grid does not scroll, so they no-op but stay visible
-  // to match the design header.
-  function wireNav(rootEl) {
-    const nav = rootEl.querySelector('[data-sai-nav]')
-    const grid = rootEl.querySelector(`.${C}__grid`)
-    if (!nav || !grid || nav.dataset.saiWired === '1') return
-    nav.dataset.saiWired = '1'
-    const step = () => Math.max(grid.clientWidth * 0.8, 240)
-    const prev = nav.querySelector('[data-sai-prev]')
-    const next = nav.querySelector('[data-sai-next]')
-    if (prev)
-      prev.addEventListener('click', () => grid.scrollBy({ left: -step(), behavior: 'smooth' }))
-    if (next)
-      next.addEventListener('click', () => grid.scrollBy({ left: step(), behavior: 'smooth' }))
   }
 
   function initAll() {
