@@ -616,6 +616,47 @@
       if (card) hydrateTile(tile, card, cfg, ctx)
     }
     wireNav(rootEl)
+    buildDots(rootEl)
+  }
+
+  // Carousel position dots (CSS shows them only in the mobile carousel). One
+  // per tile; the active dot tracks whichever tile is nearest the grid's left
+  // edge as it scrolls.
+  function buildDots(rootEl) {
+    const dotsWrap = rootEl.querySelector('[data-sai-dots]')
+    const grid = rootEl.querySelector(`.${C}__grid`)
+    if (!dotsWrap || !grid || dotsWrap.dataset.saiBuilt === '1') return
+    const tiles = grid.querySelectorAll(`.${C}__tile`)
+    if (tiles.length < 2) return
+    dotsWrap.dataset.saiBuilt = '1'
+    tiles.forEach((tile, i) => {
+      const dot = h('button', {
+        type: 'button',
+        class: i === 0 ? `${C}__dot ${C}__dot--active` : `${C}__dot`,
+        'aria-label': `Go to slide ${i + 1}`,
+      })
+      dot.addEventListener('click', () => {
+        grid.scrollTo({ left: tile.offsetLeft - grid.offsetLeft, behavior: 'smooth' })
+      })
+      dotsWrap.appendChild(dot)
+    })
+    const sync = () => {
+      const gridLeft = grid.getBoundingClientRect().left
+      let active = 0
+      let min = Number.POSITIVE_INFINITY
+      tiles.forEach((tile, i) => {
+        const d = Math.abs(tile.getBoundingClientRect().left - gridLeft)
+        if (d < min) {
+          min = d
+          active = i
+        }
+      })
+      const ds = dotsWrap.children
+      for (let k = 0; k < ds.length; k++) {
+        ds[k].classList.toggle(`${C}__dot--active`, k === active)
+      }
+    }
+    grid.addEventListener('scroll', sync, { passive: true })
   }
 
   // Header prev/next scroll the grid when it overflows (mobile carousel). On
