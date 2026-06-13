@@ -642,6 +642,14 @@
       transform: translateY(0);
     }
   }
+  @keyframes sai-ryi2st97-pdp-down {
+    from {
+      transform: translateY(0);
+    }
+    to {
+      transform: translateY(100%);
+    }
+  }
   /* Mobile: the Mini-PDP is a bottom sheet, not a centered modal — anchored to
      the bottom edge, full-width, rounded on the top corners only, sliding up on
      open. Desktop keeps the centered all-corner-radius modal. */
@@ -656,6 +664,9 @@
       border-radius: 24px 24px 0 0;
       padding: 20px 20px 32px;
       animation: sai-ryi2st97-pdp-up 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+    }
+    .sai-ryi2st97__pdp-backdrop[data-closing="true"] .sai-ryi2st97__pdp {
+      animation: sai-ryi2st97-pdp-down 0.24s cubic-bezier(0.32, 0.72, 0, 1) forwards;
     }
     .sai-ryi2st97__pdp-foot {
       flex-direction: column;

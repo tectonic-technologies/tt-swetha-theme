@@ -205,10 +205,28 @@
   }
 
   function closePdp() {
-    if (!pdpBackdrop) return
-    pdpBackdrop.dataset.open = 'false'
-    pdpState = null
-    lockBodyScroll(false)
+    if (!pdpBackdrop || pdpBackdrop.dataset.open !== 'true') return
+    const finish = () => {
+      pdpBackdrop.dataset.open = 'false'
+      pdpBackdrop.removeAttribute('data-closing')
+      pdpState = null
+      lockBodyScroll(false)
+    }
+    // Mobile sheet slides back down before hiding; desktop modal closes instantly.
+    const isSheet =
+      window.matchMedia('(max-width: 749px)').matches &&
+      !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (!isSheet) {
+      finish()
+      return
+    }
+    const card = pdpBackdrop._card
+    const onEnd = () => {
+      card.removeEventListener('animationend', onEnd)
+      finish()
+    }
+    card.addEventListener('animationend', onEnd)
+    pdpBackdrop.dataset.closing = 'true'
   }
 
   function openPdp(tagged, cfg, ctx) {
@@ -554,6 +572,9 @@
       return amount.toLocaleString(undefined, {
         style: 'currency',
         currency: window.Shopify?.currency?.active || 'INR',
+        // narrowSymbol keeps it "$9.99" not "US$9.99" — matches Shopify's `| money`
+        // SSR price regardless of the visitor's browser locale.
+        currencyDisplay: 'narrowSymbol',
       })
     } catch (e) {
       return String(amount)
