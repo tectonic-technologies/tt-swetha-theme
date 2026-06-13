@@ -387,7 +387,9 @@
         )
       }
       gallery.appendChild(thumbs)
-      if (images.length > 1) {
+      // The strip shows 3 thumbs at once — dots only mean something once the
+      // gallery actually overflows and scrolls (>3 images).
+      if (images.length > 3) {
         const dots = h('div', { class: `${C}__pdp-dots` })
         images.forEach((_, i) =>
           dots.appendChild(

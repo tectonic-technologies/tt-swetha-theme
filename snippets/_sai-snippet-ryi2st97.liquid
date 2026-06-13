@@ -544,7 +544,9 @@
   /* footer */
   .sai-ryi2st97__pdp-divider {
     height: 1px;
-    background: #f0f0f0;
+    /* Figma: 1px dashed line, 6px dash / 6px gap, #f0f0f0. A CSS dashed border
+       can't fix the dash length, so paint it with a repeating gradient. */
+    background: repeating-linear-gradient(to right, #f0f0f0 0 6px, transparent 6px 12px);
     border: 0;
     margin: 0;
   }
