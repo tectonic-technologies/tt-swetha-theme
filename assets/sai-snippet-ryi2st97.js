@@ -171,6 +171,18 @@
   // ── Mini-PDP popup (one per page, reused) ──
   let pdpBackdrop = null
   let pdpState = null
+  let prevBodyOverflow = ''
+
+  // Lock the page behind the dialog so scrolling the modal (or overscrolling
+  // past its ends) doesn't chain to the document underneath.
+  function lockBodyScroll(on) {
+    if (on) {
+      prevBodyOverflow = document.body.style.overflow
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = prevBodyOverflow
+    }
+  }
 
   function ensurePdp(cfg, ctx) {
     if (pdpBackdrop) return pdpBackdrop
@@ -196,6 +208,7 @@
     if (!pdpBackdrop) return
     pdpBackdrop.dataset.open = 'false'
     pdpState = null
+    lockBodyScroll(false)
   }
 
   function openPdp(tagged, cfg, ctx) {
@@ -203,6 +216,7 @@
     const card = pdpBackdrop._card
     card.textContent = ''
     pdpBackdrop.dataset.open = 'true'
+    lockBodyScroll(true)
     ctx.track(`${EVENT_NS}:overlay_card_view`, {
       tag_id: tagged.tag_id,
       product_id: tagged.product_id,
