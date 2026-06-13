@@ -757,14 +757,15 @@
       flex: 0 0 auto;
       scroll-snap-align: center;
     }
-    /* Smaller, calmer pins on the compact card (Figma mobile pin ≈ 22px). */
+    /* Figma mobile pin: a 16px ring with a 12px white dot — reads as a white
+       dot with a thin dark edge, not a heavy dark circle. */
     .sai-ryi2st97__pin {
-      width: 22px;
-      height: 22px;
+      width: 16px;
+      height: 16px;
     }
     .sai-ryi2st97__pin::after {
-      width: 9px;
-      height: 9px;
+      width: 12px;
+      height: 12px;
     }
   }
 
