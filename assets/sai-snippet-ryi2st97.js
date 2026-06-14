@@ -387,7 +387,31 @@
 
   // Full Mini-PDP: gallery + carousel dots, bordered option containers with
   // circular image swatches, and a divider + price/CTA footer.
+  // Smooth the compact → full height change so the sheet grows gracefully
+  // instead of snapping when /products/.js variant data lands.
+  function animateBodyHeight(body, fromH) {
+    if (!fromH) return
+    if (!window.matchMedia('(max-width: 749px)').matches) return
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const toH = body.scrollHeight
+    if (!toH || toH === fromH) return
+    body.style.height = `${fromH}px`
+    body.style.overflow = 'hidden'
+    void body.offsetHeight
+    body.style.transition = 'height 0.22s ease'
+    body.style.height = `${toH}px`
+    const cleanup = () => {
+      body.style.height = ''
+      body.style.overflow = ''
+      body.style.transition = ''
+      body.removeEventListener('transitionend', cleanup)
+    }
+    body.addEventListener('transitionend', cleanup)
+    setTimeout(cleanup, 320)
+  }
+
   function renderFull(body, tagged, product, cfg, ctx) {
+    const prevBodyH = body.offsetHeight
     body.textContent = ''
     pdpState = { product, optionValues: [], variant: null }
 
@@ -466,6 +490,7 @@
     body.appendChild(h('div', { class: `${C}__pdp-foot` }, [priceEl, cta]))
 
     syncVariant(product, groups, priceEl, cta, cfg)
+    animateBodyHeight(body, prevBodyH)
   }
 
   function uniqueOptionValues(product, idx) {
