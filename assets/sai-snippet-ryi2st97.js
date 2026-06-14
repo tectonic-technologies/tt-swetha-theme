@@ -260,10 +260,17 @@
     })
     card.appendChild(body)
 
-    // Instant render from pool data, then upgrade to the full gallery +
-    // variant swatches once /products/{handle}.js resolves.
-    renderCompact(body, tagged, cfg, ctx)
+    // The pool carries the full variant matrix → render the complete Mini-PDP
+    // instantly (gallery + swatches + price), so there is no /products/.js
+    // round-trip and no compact→full reflow (no CLS). Fall back to the
+    // compact-then-fetch path only when pool variant data is absent.
+    const pooled = cfg.miniPdp ? poolProduct(tagged) : null
+    if (pooled) {
+      renderFull(body, tagged, pooled, cfg, ctx)
+      return
+    }
 
+    renderCompact(body, tagged, cfg, ctx)
     if (!cfg.miniPdp || !tagged.handle) return
 
     fetch(`/products/${tagged.handle}.js`)
@@ -387,6 +394,21 @@
 
   // Full Mini-PDP: gallery + carousel dots, bordered option containers with
   // circular image swatches, and a divider + price/CTA footer.
+  // Build a /products/.js-shaped product from pool data when the snippet baked
+  // the full variant matrix in. Returns null when absent (fetch fallback).
+  function poolProduct(tagged) {
+    if (!tagged || !Array.isArray(tagged.variants) || tagged.variants.length === 0) return null
+    return {
+      id: tagged.product_id,
+      title: tagged.display_name,
+      handle: tagged.handle,
+      url: tagged.product_url,
+      options: tagged.options || [],
+      images: tagged.product_images || [],
+      variants: tagged.variants,
+    }
+  }
+
   // Smooth the compact → full height change so the sheet grows gracefully
   // instead of snapping when /products/.js variant data lands.
   function animateBodyHeight(body, fromH) {

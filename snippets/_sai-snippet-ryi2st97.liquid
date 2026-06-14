@@ -896,7 +896,36 @@
                   "variant_price":{{ target_variant.price | money | json }},
                   "variant_compare_at_price":{{ target_variant.compare_at_price | money | json }},
                   "show_compare":{{ show_compare | json }},
-                  "price_override":{{ tagged.price_override.value | json }}
+                  "price_override":{{ tagged.price_override.value | json }},
+                  {%- comment -%}
+                    Full variant matrix baked into the pool so the Mini-PDP
+                    renders complete (gallery + swatches + price) on the first
+                    tap — no /products/.js round-trip, no compact→full reflow.
+                  {%- endcomment -%}
+                  "options":{{ product.options | json }},
+                  "product_images":[
+                    {%- for img in product.images limit: 6 -%}
+                      {%- unless forloop.first -%},{%- endunless -%}
+                      {{ img | image_url: width: 600 | json }}
+                    {%- endfor -%}
+                  ],
+                  "variants":[
+                    {%- for v in product.variants -%}
+                      {%- unless forloop.first -%},{%- endunless -%}
+                      {%- assign vimg = '' -%}
+                      {%- if v.featured_image != blank -%}
+                        {%- assign vimg = v.featured_image | image_url: width: 200 -%}
+                      {%- endif -%}
+                      {
+                        "id":{{ v.id | json }},
+                        "options":{{ v.options | json }},
+                        "price":{{ v.price | json }},
+                        "compare_at_price":{{ v.compare_at_price | json }},
+                        "available":{{ v.available | json }},
+                        "featured_image":{%- if vimg != '' -%}{"src":{{ vimg | json }}}{%- else -%}null{%- endif -%}
+                      }
+                    {%- endfor -%}
+                  ]
                 }
               {%- endif -%}
             {%- endif -%}
