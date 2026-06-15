@@ -38,6 +38,10 @@
   border-radius: var(--sai-radius-card, 16px);
   box-shadow: 0 1px 8px rgba(0, 0, 0, 0.06);
   padding: 4px var(--sai-space-4, 1rem);
+  /* Reflow lines against the rendered width, not the viewport — a cart drawer
+     is narrow even on desktop, so the stacked layout below is gated on the
+     container width via @container, not a viewport @media query. */
+  container-type: inline-size;
 }
 .sai-zj3bpb6w__lines {
   list-style: none; margin: 0; padding: 0;
@@ -82,9 +86,15 @@
   background: var(--sai-color-surface, #f4f4f5);
   display: block;
 }
-.sai-zj3bpb6w[data-sai-fit="contain"] .sai-zj3bpb6w__thumb { object-fit: contain; }
-.sai-zj3bpb6w[data-sai-ar="4:3"] .sai-zj3bpb6w__thumb { aspect-ratio: 4 / 3; width: 96px; }
-.sai-zj3bpb6w[data-sai-ar="3:4"] .sai-zj3bpb6w__thumb { aspect-ratio: 3 / 4; width: 68px; }
+/* Aspect-ratio / fit state lives on the root attribute, but these rules are
+   intentionally NOT prefixed with .sai-zj3bpb6w: the bare attribute qualifier
+   keeps them at (0,2,0), below the per-instance bake's (0,3,0)
+   [data-spectrum-instance-id][data-spectrum-variant-id] .__thumb, so Studio
+   sizing overrides win. They still target .__thumb (a descendant), so they
+   work under @container. */
+[data-sai-fit="contain"] .sai-zj3bpb6w__thumb { object-fit: contain; }
+[data-sai-ar="4:3"] .sai-zj3bpb6w__thumb { aspect-ratio: 4 / 3; width: 96px; }
+[data-sai-ar="3:4"] .sai-zj3bpb6w__thumb { aspect-ratio: 3 / 4; width: 68px; }
 
 .sai-zj3bpb6w__body { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .sai-zj3bpb6w__title {
@@ -197,6 +207,41 @@
   .sai-zj3bpb6w--anim .sai-zj3bpb6w__line { transition: none; }
   .sai-zj3bpb6w__line--qty-bump .sai-zj3bpb6w__qty { animation: none; }
 }
+
+/* Narrow container (cart drawer / mobile). Keep the one-row layout — thumb,
+   title, stepper, price stay side by side — but shrink the fixed columns (thumb,
+   stepper) and the title/price type so the flexible title column keeps real
+   width instead of collapsing to a few characters per line. Reflows against the
+   rendered width via @container (a drawer is narrow even on desktop), so the
+   same compact treatment applies in any narrow drawer.
+
+   Must stay at the end of the block: these rules share single-class specificity
+   with the base rules above and only win the cascade by source order. */
+@container (max-width: 480px) {
+  .sai-zj3bpb6w__lines { column-gap: var(--sai-space-2, 0.5rem); }
+  .sai-zj3bpb6w__thumb { width: 60px; }
+  [data-sai-ar="4:3"] .sai-zj3bpb6w__thumb { width: 72px; }
+  [data-sai-ar="3:4"] .sai-zj3bpb6w__thumb { width: 54px; }
+  .sai-zj3bpb6w__title { font-size: var(--sai-font-size-md, 1.05rem); }
+  .sai-zj3bpb6w__variant { font-size: var(--sai-font-size-sm, 0.85rem); }
+  .sai-zj3bpb6w__stepper { padding: 2px 4px; }
+  .sai-zj3bpb6w__step { width: 30px; height: 30px; font-size: 1.25rem; }
+  .sai-zj3bpb6w__qty { font-size: 1rem; min-width: 1.5ch; }
+  .sai-zj3bpb6w__price { font-size: var(--sai-font-size-md, 1.05rem); }
+  .sai-zj3bpb6w__compare { font-size: 0.8rem; }
+  /* Cap the price rail so verbose extras (savings "amount + %", per-unit) wrap
+     within it instead of widening this auto column and starving the title. */
+  .sai-zj3bpb6w__prices { max-width: 6rem; }
+  .sai-zj3bpb6w__savings, .sai-zj3bpb6w__unit { white-space: normal; text-align: right; line-height: 1.2; }
+}
+/* Very small phones — shave the title once more so a long product name still
+   wraps to ~2 lines beside the controls rather than stacking many short lines. */
+@container (max-width: 360px) {
+  .sai-zj3bpb6w__title { font-size: 0.95rem; }
+  .sai-zj3bpb6w__thumb { width: 52px; }
+  [data-sai-ar="4:3"] .sai-zj3bpb6w__thumb { width: 64px; }
+  [data-sai-ar="3:4"] .sai-zj3bpb6w__thumb { width: 48px; }
+}
 {% endstylesheet %}
 
 {%- liquid
@@ -220,7 +265,7 @@
   else
     assign variant_editable = c.variant_editable
   endif
-  assign variant_editor_type = c.variant_editor_type | default: 'mini_pdp_modal'
+  assign variant_editor_type = c.variant_editor_type | default: 'inline'
 
   if c.show_compare_at == nil
     assign show_compare_at = true
@@ -417,7 +462,7 @@
       {%- endif -%}
       <div class="sai-zj3bpb6w__body">
         {%- if title_links_to_pdp and item.url -%}
-        <a class="sai-zj3bpb6w__title" href="{{ item.url }}">{{ item.product.title | default: item.title }}</a>
+        <a class="sai-zj3bpb6w__title" href="{{ item.url | escape }}">{{ item.product.title | default: item.title }}</a>
         {%- else -%}
         <div class="sai-zj3bpb6w__title">{{ item.product.title | default: item.title }}</div>
         {%- endif -%}

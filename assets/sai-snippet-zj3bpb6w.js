@@ -174,7 +174,17 @@
   const prop = (line, key) => (line.properties && line.properties[key]) != null ? line.properties[key] : null
   const bundleId = (line) => prop(line, '_bundle_id') || prop(line, '__bundle_id') || null
   const isBundleChild = (line) => Boolean(prop(line, '_bundle_parent') || prop(line, '__bundle_parent'))
-  const isFreeGift = (line) => Number(line.price) === 0 || Number(line.total_discount) >= Number(line.original_line_price)
+  // Gift partition must key on the SAME field the SSR loops split on
+  // (final_line_price === 0); otherwise rows hydrate into a different
+  // partition than they were server-rendered in and visibly jump.
+  const isFreeGift = (line) => {
+    const lp = line.final_line_price != null ? line.final_line_price : line.line_price
+    return Number(lp) === 0
+  }
+
+  // Line keys can contain characters that aren't valid unquoted in an
+  // attribute selector; escape before interpolating into querySelector.
+  const cssEscape = (s) => (window.CSS && CSS.escape ? CSS.escape(String(s)) : String(s))
 
   function visibleProperties(line) {
     const props = line.properties || {}
@@ -427,7 +437,7 @@
     const aside = el('div', 'sai-zj3bpb6w__aside')
     const showLinePrice = !gift || cfg.freeShowOriginalStrikethrough || !isBundleChild(line) || cfg.showComponentPrices
     if (showLinePrice) aside.appendChild(buildPrices(line, cfg, currency))
-    if ((!lockGift || cfg.freeRemovable) && cfg.removeStyle) aside.appendChild(buildRemove(cfg))
+    if (!lockGift || cfg.freeRemovable) aside.appendChild(buildRemove(cfg))
     li.appendChild(aside)
 
     return li
@@ -489,13 +499,16 @@
       if (cfg.removeConfirmation && quantity === 0 && !window.confirm('Remove this item?')) {
         return
       }
-      const li = node.querySelector(`[data-line-key="${key}"]`)
+      const li = node.querySelector(`[data-line-key="${cssEscape(key)}"]`)
       showSpinner(busyEl)
       try {
         const updated = await cart.change({ id: key, quantity })
         if (quantity === 0) {
           track('cart_line:remove', { line_key: key })
-          if (li && cfg.enableMicroanimations) {
+          // Root carries `--anim` unconditionally and the leave transition is
+          // disabled under prefers-reduced-motion via CSS, so play it here
+          // whenever the row element is still present.
+          if (li) {
             li.classList.add('sai-zj3bpb6w__line--leaving')
             await new Promise((r) => setTimeout(r, 180))
           }
@@ -551,22 +564,35 @@
     async function onVariantChange(line) {
       const product = await fetchProduct(line.handle)
       if (!product) return
-      const li = node.querySelector(`[data-line-key="${line.key}"]`)
+      const li = node.querySelector(`[data-line-key="${cssEscape(line.key)}"]`)
       if (!li) return
+      // Match by option NAME, not select position: a line's
+      // options_with_values order is not guaranteed to equal product.options
+      // order, and a line may expose fewer options than the product has.
       const selects = li.querySelectorAll('[data-sai-variant-option]')
-      const chosen = Array.prototype.map.call(selects, (s) => s.value)
-      const match = (product.variants || []).find((v) => v.options && v.options.every((val, i) => val === chosen[i]))
+      const chosenByName = {}
+      Array.prototype.forEach.call(selects, (s) => {
+        chosenByName[s.getAttribute('data-sai-variant-option') || ''] = s.value
+      })
+      const optionNames = (product.options || []).map((o) => (o && o.name) || o)
+      const match = (product.variants || []).find(
+        (v) => Array.isArray(v.options) && optionNames.every((name, i) => chosenByName[name] === v.options[i]),
+      )
       if (!match || match.id === line.variant_id) return
       showSpinner(li.querySelector('.sai-zj3bpb6w__variant-pills'))
       try {
-        // Swap variant: remove the old line, add the new variant at same qty.
-        await cart.change({ id: line.key, quantity: 0 })
+        // Add the new variant BEFORE removing the old line. If the add fails
+        // (sold out / inventory race), the original line is left intact rather
+        // than silently emptied.
         await cart.add([{ id: match.id, quantity: line.quantity }])
+        await cart.change({ id: line.key, quantity: 0 })
         track('cart_line:variant_change', { line_key: line.key, variant_id: match.id })
         emitCartUpdated()
         refreshThemeSection(node)
         refresh()
       } catch {
+        // Re-render from the authoritative cart so the line reflects actual
+        // state instead of a half-applied swap.
         refresh()
       }
     }
