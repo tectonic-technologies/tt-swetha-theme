@@ -1,0 +1,181 @@
+{% doc %}
+  Bento Navigation Grid — a grid of image cards that each link to a collection
+  or page. Content is authored entirely as snippet props (no slot, no
+  metaobjects, no shoppable data).
+
+  Wrapper contract (per docs/tech/studio-liquid-snippets.md "Library Snippets"):
+    - variant            : default variant from mo.variants.value.variants
+    - mo                 : spectrum_snippet_instance metaobject drop
+    - mutation_handle    : 'mut-{instanceId}' (consumed by wrapper outer div)
+    - experience_handle  : (consumed by wrapper outer div)
+
+  variant.content fields:
+    - heading   {string}                heading above the grid (blank hides it)
+    - cards     {InlineCard[]}           inline-list, 2–5 items. Each item:
+                                           image {Files-picker output: originalUrl, previewUrl, ...}
+                                           label {string}
+                                           link  {string}  path or full URL
+
+  Render strategy:
+    - SSR emits the optional heading + a CSS grid of <a> cards. The first cards
+      share one aspect ratio (2 columns on mobile, a single row on desktop);
+      the last card spans the full width as a feature banner. Renders nothing
+      when no cards are authored.
+
+  @example
+  {% render '_sai-snippet-sdw7p9pr',
+    variant: variant,
+    mo: mo,
+    mutation_handle: 'mut-q8x3m2pkabcd1234',
+    experience_handle: 'home-experience'
+  %}
+{% enddoc %}
+
+{%- liquid
+  assign content = variant.content
+  assign heading = content.heading
+  assign heading_mobile = content.heading_mobile
+  if heading_mobile == blank
+    assign heading_mobile = heading
+  endif
+  assign cards = content.cards
+-%}
+
+{%- if cards != blank and cards.size > 0 -%}
+  <div class="sai-sdw7p9pr">
+    {%- if heading != blank or heading_mobile != blank -%}
+      <h2 class="sai-sdw7p9pr__heading{% if heading == blank %} sai-sdw7p9pr__heading--no-desktop{% endif %}{% if heading_mobile == blank %} sai-sdw7p9pr__heading--no-mobile{% endif %}">
+        <span class="sai-sdw7p9pr__heading-text sai-sdw7p9pr__heading-text--desktop">{{ heading }}</span>
+        <span class="sai-sdw7p9pr__heading-text sai-sdw7p9pr__heading-text--mobile">{{ heading_mobile }}</span>
+      </h2>
+    {%- endif -%}
+
+    <div class="sai-sdw7p9pr__grid">
+      {%- for card in cards -%}
+        {%- assign img_src = '' -%}
+        {%- if card.image.originalUrl != blank -%}
+          {%- assign img_src = card.image.originalUrl -%}
+        {%- elsif card.image.previewUrl != blank -%}
+          {%- assign img_src = card.image.previewUrl -%}
+        {%- endif -%}
+        {%- assign card_href = card.link | default: '#' -%}
+        <a class="sai-sdw7p9pr__card{% if forloop.last %} sai-sdw7p9pr__card--wide{% endif %}" href="{{ card_href }}" aria-label="{{ card.label | escape }}">
+          {%- if img_src != blank -%}
+            <img class="sai-sdw7p9pr__img" src="{{ img_src }}" alt="{{ card.label | escape }}" loading="lazy" decoding="async">
+          {%- endif -%}
+          <span class="sai-sdw7p9pr__label">{{ card.label }}</span>
+        </a>
+      {%- endfor -%}
+    </div>
+  </div>
+{%- endif -%}
+
+{% stylesheet %}
+.sai-sdw7p9pr {
+  display: block;
+  box-sizing: border-box;
+}
+.sai-sdw7p9pr *,
+.sai-sdw7p9pr *::before,
+.sai-sdw7p9pr *::after {
+  box-sizing: border-box;
+}
+
+.sai-sdw7p9pr__heading {
+  margin: 0 0 var(--sai-size-5, 1.25rem);
+  text-align: center;
+  font-family: var(--sai-font-heading, inherit);
+  font-weight: var(--sai-font-body-weight-bold, 700);
+  font-size: 1.75rem;
+  line-height: 1.15;
+  color: var(--sai-color-fg);
+}
+
+/* Heading text swaps per breakpoint; mobile inherits the desktop string in
+   Liquid when no mobile override is set. */
+.sai-sdw7p9pr__heading-text--desktop { display: none; }
+.sai-sdw7p9pr__heading-text--mobile { display: inline; }
+
+/* Collapse the heading (incl. its margin) on the breakpoint with no text, so a
+   mobile-only heading doesn't leave an empty margin-bearing h2 on desktop. */
+@media (max-width: 749.98px) {
+  .sai-sdw7p9pr__heading--no-mobile { display: none; }
+}
+
+.sai-sdw7p9pr__grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--sai-size-3, 0.75rem);
+}
+
+.sai-sdw7p9pr__card {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border-radius: var(--sai-radius-lg, 16px);
+  aspect-ratio: 1 / 1;
+  text-decoration: none;
+  background: var(--sai-color-muted-bg, rgba(0, 0, 0, 0.06));
+}
+.sai-sdw7p9pr__card--wide {
+  grid-column: 1 / -1;
+  aspect-ratio: 16 / 9;
+}
+
+.sai-sdw7p9pr__img {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.sai-sdw7p9pr__card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0) 55%);
+  pointer-events: none;
+}
+
+.sai-sdw7p9pr__label {
+  position: absolute;
+  inset-inline-start: var(--sai-size-3, 1rem);
+  inset-block-end: var(--sai-size-3, 1rem);
+  z-index: 1;
+  color: #fff;
+  font-family: var(--sai-font-heading, inherit);
+  font-weight: var(--sai-font-body-weight-bold, 700);
+  font-size: 1rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.sai-sdw7p9pr__card:focus-visible {
+  outline: 2px solid var(--sai-color-fg, #000);
+  outline-offset: 2px;
+}
+
+@media (min-width: 750px) {
+  .sai-sdw7p9pr__grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--sai-size-4, 1rem);
+  }
+  .sai-sdw7p9pr__heading {
+    font-size: 2.5rem;
+    margin-bottom: var(--sai-size-6, 2rem);
+  }
+  .sai-sdw7p9pr__heading-text--desktop { display: inline; }
+  .sai-sdw7p9pr__heading-text--mobile { display: none; }
+  .sai-sdw7p9pr__heading--no-desktop { display: none; }
+  .sai-sdw7p9pr__card--wide {
+    aspect-ratio: 1170 / 330;
+  }
+  .sai-sdw7p9pr__label {
+    font-size: 1.125rem;
+    inset-inline-start: var(--sai-size-4, 1.25rem);
+    inset-block-end: var(--sai-size-4, 1.25rem);
+  }
+}
+{% endstylesheet %}
