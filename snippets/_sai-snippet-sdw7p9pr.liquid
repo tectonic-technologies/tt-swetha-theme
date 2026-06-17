@@ -10,17 +10,23 @@
     - experience_handle  : (consumed by wrapper outer div)
 
   variant.content fields:
-    - heading   {string}                heading above the grid (blank hides it)
-    - cards     {InlineCard[]}           inline-list, 2–5 items. Each item:
-                                           image {Files-picker output: originalUrl, previewUrl, ...}
-                                           label {string}
-                                           link  {string}  path or full URL
+    - heading        {string}           heading above the grid (blank hides it)
+    - heading_mobile {string}           optional mobile heading override (blank
+                                        inherits the desktop heading)
+    - label_position {string}           one of 9 grid positions
+                                        (top|mid|bottom)_(left|center|right);
+                                        default 'bottom_left'
+    - cards          {InlineCard[]}     inline-list, 2–5 items. Each item:
+                                          image {Files-picker output: originalUrl, previewUrl, ...}
+                                          label {string}  optional — blank means image-only card, no scrim
+                                          link  {string}  optional — blank means non-clickable card
 
   Render strategy:
-    - SSR emits the optional heading + a CSS grid of <a> cards. The first cards
-      share one aspect ratio (2 columns on mobile, a single row on desktop);
-      the last card spans the full width as a feature banner. Renders nothing
-      when no cards are authored.
+    - SSR emits the optional heading + a CSS grid of cards: an <a> when the card
+      has a link, otherwise a non-clickable <div>. The first cards share one
+      aspect ratio (2 columns on mobile, a single row on desktop); the last card
+      spans the full width as a feature banner. Renders nothing when no cards are
+      authored.
 
   @example
   {% render '_sai-snippet-sdw7p9pr',
@@ -90,8 +96,15 @@
             </span>
           {%- endif -%}
         {%- endcapture -%}
+        {%- comment -%}
+          An image-only card (no label) carries alt="" on the image, so the link
+          would have no accessible name. Fall back to the link target so the
+          anchor always has one.
+        {%- endcomment -%}
+        {%- assign card_a11y = card.label -%}
+        {%- if card_a11y == blank -%}{%- assign card_a11y = card.link -%}{%- endif -%}
         {%- if card.link != blank -%}
-          <a class="{{ card_class }}" href="{{ card.link }}"{% if card.label != blank %} aria-label="{{ card.label | escape }}"{% endif %}>{{ card_inner }}</a>
+          <a class="{{ card_class }}" href="{{ card.link }}" aria-label="{{ card_a11y | escape }}">{{ card_inner }}</a>
         {%- else -%}
           <div class="{{ card_class }}">{{ card_inner }}</div>
         {%- endif -%}
