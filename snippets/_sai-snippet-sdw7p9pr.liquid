@@ -39,6 +39,21 @@
     assign heading_mobile = heading
   endif
   assign cards = content.cards
+
+  # Label placement is a 3x3 grid (top/mid/bottom × left/center/right).
+  # pos_class drives flex alignment on the overlay; vband drives the scrim
+  # direction so the gradient darkens the edge the label sits against.
+  assign label_position = content.label_position
+  if label_position == blank
+    assign label_position = 'bottom_left'
+  endif
+  assign pos_class = label_position | replace: '_', '-'
+  assign vband = 'bottom'
+  if label_position contains 'top'
+    assign vband = 'top'
+  elsif label_position contains 'mid'
+    assign vband = 'mid'
+  endif
 -%}
 
 {%- if cards != blank and cards.size > 0 -%}
@@ -60,13 +75,19 @@
         {%- endif -%}
         {%- assign card_class = 'sai-sdw7p9pr__card' -%}
         {%- if forloop.last -%}{%- assign card_class = card_class | append: ' sai-sdw7p9pr__card--wide' -%}{%- endif -%}
-        {%- if card.label == blank -%}{%- assign card_class = card_class | append: ' sai-sdw7p9pr__card--no-label' -%}{%- endif -%}
+        {%- if card.label == blank -%}
+          {%- assign card_class = card_class | append: ' sai-sdw7p9pr__card--no-label' -%}
+        {%- else -%}
+          {%- assign card_class = card_class | append: ' sai-sdw7p9pr__card--scrim-' | append: vband -%}
+        {%- endif -%}
         {%- capture card_inner -%}
           {%- if img_src != blank -%}
             <img class="sai-sdw7p9pr__img" src="{{ img_src }}" alt="{{ card.label | escape }}" loading="lazy" decoding="async">
           {%- endif -%}
           {%- if card.label != blank -%}
-            <span class="sai-sdw7p9pr__label">{{ card.label }}</span>
+            <span class="sai-sdw7p9pr__label-wrap sai-sdw7p9pr__label-wrap--{{ pos_class }}">
+              <span class="sai-sdw7p9pr__label">{{ card.label }}</span>
+            </span>
           {%- endif -%}
         {%- endcapture -%}
         {%- if card.link != blank -%}
@@ -140,30 +161,67 @@
   object-fit: cover;
 }
 
-/* The scrim exists only to keep the label legible over the image; an
-   image-only card (no label) doesn't need it. */
+/* The scrim exists only to keep the label legible over the image; its
+   direction follows the label's vertical band, and an image-only card
+   (no label) drops it entirely. */
 .sai-sdw7p9pr__card::after {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0) 55%);
   pointer-events: none;
+}
+.sai-sdw7p9pr__card--scrim-bottom::after {
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0) 55%);
+}
+.sai-sdw7p9pr__card--scrim-top::after {
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0) 55%);
+}
+.sai-sdw7p9pr__card--scrim-mid::after {
+  background: rgba(0, 0, 0, 0.35);
 }
 .sai-sdw7p9pr__card--no-label::after {
   content: none;
 }
 
-.sai-sdw7p9pr__label {
+/* Full-card flex overlay positions the label; the modifier sets which of the
+   9 cells it lands in. text-align is set here (inherited by the label) so
+   multi-line labels read the same way — a per-instance text-align bake on
+   .sai-sdw7p9pr__label still wins via higher specificity. */
+.sai-sdw7p9pr__label-wrap {
   position: absolute;
-  inset-inline-start: var(--sai-size-3, 1rem);
-  inset-block-end: var(--sai-size-3, 1rem);
+  inset: 0;
   z-index: 1;
+  display: flex;
+  padding: var(--sai-size-3, 1rem);
+  pointer-events: none;
+}
+.sai-sdw7p9pr__label-wrap--top-left,
+.sai-sdw7p9pr__label-wrap--top-center,
+.sai-sdw7p9pr__label-wrap--top-right { align-items: flex-start; }
+.sai-sdw7p9pr__label-wrap--mid-left,
+.sai-sdw7p9pr__label-wrap--mid-center,
+.sai-sdw7p9pr__label-wrap--mid-right { align-items: center; }
+.sai-sdw7p9pr__label-wrap--bottom-left,
+.sai-sdw7p9pr__label-wrap--bottom-center,
+.sai-sdw7p9pr__label-wrap--bottom-right { align-items: flex-end; }
+.sai-sdw7p9pr__label-wrap--top-left,
+.sai-sdw7p9pr__label-wrap--mid-left,
+.sai-sdw7p9pr__label-wrap--bottom-left { justify-content: flex-start; text-align: left; }
+.sai-sdw7p9pr__label-wrap--top-center,
+.sai-sdw7p9pr__label-wrap--mid-center,
+.sai-sdw7p9pr__label-wrap--bottom-center { justify-content: center; text-align: center; }
+.sai-sdw7p9pr__label-wrap--top-right,
+.sai-sdw7p9pr__label-wrap--mid-right,
+.sai-sdw7p9pr__label-wrap--bottom-right { justify-content: flex-end; text-align: right; }
+
+.sai-sdw7p9pr__label {
   color: #fff;
   font-family: var(--sai-font-heading, inherit);
   font-weight: var(--sai-font-body-weight-bold, 700);
   font-size: 1rem;
   letter-spacing: 0.02em;
   text-transform: uppercase;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
 }
 
 .sai-sdw7p9pr__card:focus-visible {
@@ -186,10 +244,11 @@
   .sai-sdw7p9pr__card--wide {
     aspect-ratio: 1170 / 330;
   }
+  .sai-sdw7p9pr__label-wrap {
+    padding: var(--sai-size-4, 1.25rem);
+  }
   .sai-sdw7p9pr__label {
     font-size: 1.125rem;
-    inset-inline-start: var(--sai-size-4, 1.25rem);
-    inset-block-end: var(--sai-size-4, 1.25rem);
   }
 }
 {% endstylesheet %}
