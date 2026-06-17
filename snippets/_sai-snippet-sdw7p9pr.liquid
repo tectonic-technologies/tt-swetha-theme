@@ -58,13 +58,22 @@
         {%- elsif card.image.previewUrl != blank -%}
           {%- assign img_src = card.image.previewUrl -%}
         {%- endif -%}
-        {%- assign card_href = card.link | default: '#' -%}
-        <a class="sai-sdw7p9pr__card{% if forloop.last %} sai-sdw7p9pr__card--wide{% endif %}" href="{{ card_href }}" aria-label="{{ card.label | escape }}">
+        {%- assign card_class = 'sai-sdw7p9pr__card' -%}
+        {%- if forloop.last -%}{%- assign card_class = card_class | append: ' sai-sdw7p9pr__card--wide' -%}{%- endif -%}
+        {%- if card.label == blank -%}{%- assign card_class = card_class | append: ' sai-sdw7p9pr__card--no-label' -%}{%- endif -%}
+        {%- capture card_inner -%}
           {%- if img_src != blank -%}
             <img class="sai-sdw7p9pr__img" src="{{ img_src }}" alt="{{ card.label | escape }}" loading="lazy" decoding="async">
           {%- endif -%}
-          <span class="sai-sdw7p9pr__label">{{ card.label }}</span>
-        </a>
+          {%- if card.label != blank -%}
+            <span class="sai-sdw7p9pr__label">{{ card.label }}</span>
+          {%- endif -%}
+        {%- endcapture -%}
+        {%- if card.link != blank -%}
+          <a class="{{ card_class }}" href="{{ card.link }}"{% if card.label != blank %} aria-label="{{ card.label | escape }}"{% endif %}>{{ card_inner }}</a>
+        {%- else -%}
+          <div class="{{ card_class }}">{{ card_inner }}</div>
+        {%- endif -%}
       {%- endfor -%}
     </div>
   </div>
@@ -131,12 +140,17 @@
   object-fit: cover;
 }
 
+/* The scrim exists only to keep the label legible over the image; an
+   image-only card (no label) doesn't need it. */
 .sai-sdw7p9pr__card::after {
   content: "";
   position: absolute;
   inset: 0;
   background: linear-gradient(to top, rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0) 55%);
   pointer-events: none;
+}
+.sai-sdw7p9pr__card--no-label::after {
+  content: none;
 }
 
 .sai-sdw7p9pr__label {
