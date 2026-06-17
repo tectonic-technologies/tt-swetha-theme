@@ -41,17 +41,10 @@
   function money(cents, currency) {
     const amount = (Number(cents) || 0) / 100
     try {
-      return new Intl.NumberFormat(undefined, {
-        style: 'currency',
-        currency: currency || 'USD',
-        currencyDisplay: 'narrowSymbol',
-      }).format(amount)
+      return new Intl.NumberFormat(undefined, { style: 'currency', currency: currency || 'USD', currencyDisplay: 'narrowSymbol' }).format(amount)
     } catch {
       try {
-        return new Intl.NumberFormat(undefined, {
-          style: 'currency',
-          currency: currency || 'USD',
-        }).format(amount)
+        return new Intl.NumberFormat(undefined, { style: 'currency', currency: currency || 'USD' }).format(amount)
       } catch {
         return amount.toFixed(2)
       }
@@ -59,7 +52,7 @@
   }
 
   async function getCart() {
-    if (window.Spectrum?.cart && typeof window.Spectrum.cart.get === 'function') {
+    if (window.Spectrum && window.Spectrum.cart && typeof window.Spectrum.cart.get === 'function') {
       return window.Spectrum.cart.get()
     }
     const res = await fetch('/cart.js', { headers: { Accept: 'application/json' } })
@@ -85,7 +78,7 @@
     const isCartMutation = (url) => /\/cart\/(add|change|update|clear)/.test(String(url || ''))
     const origFetch = window.fetch
     window.fetch = function (...args) {
-      const url = typeof args[0] === 'string' ? args[0] : args[0]?.url
+      const url = typeof args[0] === 'string' ? args[0] : args[0] && args[0].url
       const p = origFetch.apply(this, args)
       if (isCartMutation(url)) p.then(() => emitCartUpdated()).catch(() => {})
       return p
@@ -98,24 +91,20 @@
   }
 
   async function cartAdd(variantId) {
-    if (window.Spectrum?.cart && typeof window.Spectrum.cart.add === 'function') {
-      return window.Spectrum.cart.add([
-        { id: variantId, quantity: 1, properties: { _sai_progress_reward: '1' } },
-      ])
+    if (window.Spectrum && window.Spectrum.cart && typeof window.Spectrum.cart.add === 'function') {
+      return window.Spectrum.cart.add([{ id: variantId, quantity: 1, properties: { _sai_progress_reward: '1' } }])
     }
     const res = await fetch('/cart/add.js', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({
-        items: [{ id: variantId, quantity: 1, properties: { _sai_progress_reward: '1' } }],
-      }),
+      body: JSON.stringify({ items: [{ id: variantId, quantity: 1, properties: { _sai_progress_reward: '1' } }] }),
     })
     if (!res.ok) throw new Error('cart add failed')
     return res.json()
   }
 
   async function cartSetQuantity(lineKey, quantity) {
-    if (window.Spectrum?.cart && typeof window.Spectrum.cart.change === 'function') {
+    if (window.Spectrum && window.Spectrum.cart && typeof window.Spectrum.cart.change === 'function') {
       return window.Spectrum.cart.change({ id: lineKey, quantity })
     }
     const res = await fetch('/cart/change.js', {
@@ -189,7 +178,7 @@
         // rendered as a background so the particle keeps the burst animation.
         piece.style.width = '16px'
         piece.style.height = '16px'
-        piece.style.background = `url("${encodeURI(assetUrl)}") center / contain no-repeat`
+        piece.style.background = `url("${assetUrl}") center / contain no-repeat`
       } else piece.style.background = colors[i % colors.length]
       piece.style.left = '50%'
       piece.style.top = '50%'
@@ -197,10 +186,7 @@
       // animation so repeated bursts can't accumulate nodes.
       const angle = (i / 12) * Math.PI * 2
       piece.style.setProperty('--sai-vg4guong-cx', `${Math.cos(angle) * (30 + (i % 3) * 14)}px`)
-      piece.style.setProperty(
-        '--sai-vg4guong-cy',
-        `${Math.sin(angle) * (24 + (i % 4) * 12) - 30}px`,
-      )
+      piece.style.setProperty('--sai-vg4guong-cy', `${Math.sin(angle) * (24 + (i % 4) * 12) - 30}px`)
       wrap.appendChild(piece)
       setTimeout(() => piece.remove(), 1000)
     }
@@ -217,7 +203,7 @@
       if (assetUrl) {
         piece.style.width = '16px'
         piece.style.height = '16px'
-        piece.style.background = `url("${encodeURI(assetUrl)}") center / contain no-repeat`
+        piece.style.background = `url("${assetUrl}") center / contain no-repeat`
         piece.style.borderRadius = '0'
       } else piece.style.background = colors[i % colors.length]
       piece.style.left = `${(i * 137) % 100}%`
@@ -231,7 +217,9 @@
   }
 
   function makeRenderer(node, cfg, track) {
-    const milestones = (cfg.milestones || []).slice().sort((a, b) => a.threshold - b.threshold)
+    const milestones = (cfg.milestones || [])
+      .slice()
+      .sort((a, b) => a.threshold - b.threshold)
     const fillEl = node.querySelector('[data-sai-fill]')
     const msgEl = node.querySelector('[data-sai-msg]')
     const submsgEl = node.querySelector('[data-sai-submsg]')
@@ -261,11 +249,7 @@
           const reached = total >= m.threshold
           if (reached && !line) {
             await cartAdd(m.giftVariantId)
-            track('cart_progress:reward_added', {
-              threshold: m.threshold,
-              milestone_title: m.title,
-              variant_id: m.giftVariantId,
-            })
+            track('cart_progress:reward_added', { threshold: m.threshold, milestone_title: m.title, variant_id: m.giftVariantId })
             changed = true
           } else if (reached && line && line.quantity > 1) {
             // Concurrent sessions can race the add (each reads the cart
@@ -275,11 +259,7 @@
             changed = true
           } else if (!reached && line) {
             await cartSetQuantity(line.key, 0)
-            track('cart_progress:reward_removed', {
-              threshold: m.threshold,
-              milestone_title: m.title,
-              variant_id: m.giftVariantId,
-            })
+            track('cart_progress:reward_removed', { threshold: m.threshold, milestone_title: m.title, variant_id: m.giftVariantId })
             changed = true
           }
         }
@@ -292,18 +272,18 @@
     }
 
     function paint(cart) {
-      const currency = cart?.currency || 'USD'
+      const currency = (cart && cart.currency) || 'USD'
       const total = eligibleTotal(cart, cfg)
 
       if (fillEl) fillEl.style.width = `${fillPercent(milestones, total)}%`
 
       let reachedCount = 0
-      for (const el of nodeEls) {
+      nodeEls.forEach((el) => {
         const threshold = Number(el.getAttribute('data-sai-threshold')) || 0
         const reached = total >= threshold
         el.classList.toggle('sai-vg4guong__node-wrap--reached', reached)
         if (reached) reachedCount++
-      }
+      })
 
       if (msgEl) msgEl.innerHTML = buildMessage(milestones, total, currency) || '&nbsp;'
 
@@ -329,13 +309,13 @@
       // unlock events (page loads with milestones already met stay silent).
       if (lastReachedCount !== null && reachedCount > lastReachedCount) {
         const newly = milestones.filter((m) => total >= m.threshold).slice(lastReachedCount)
-        for (const m of newly) {
+        newly.forEach((m) => {
           track('cart_progress:milestone_unlocked', {
             threshold: m.threshold,
             milestone_title: m.title,
           })
-        }
-        for (const el of nodeEls) {
+        })
+        nodeEls.forEach((el) => {
           const threshold = Number(el.getAttribute('data-sai-threshold')) || 0
           const crossed = newly.find((m) => m.threshold === threshold)
           if (total >= threshold && crossed) {
@@ -346,7 +326,7 @@
               else burstConfetti(el, crossed.confettiAssetUrl)
             }
           }
-        }
+        })
       }
       lastReachedCount = reachedCount
     }
@@ -379,9 +359,7 @@
 
   function initNode(node) {
     if (node.__saiProgressBound) return
-    const root = node.hasAttribute('data-sai-progress')
-      ? node
-      : node.querySelector('[data-sai-progress]')
+    const root = node.hasAttribute('data-sai-progress') ? node : node.querySelector('[data-sai-progress]')
     if (!root) return
     node.__saiProgressBound = true
     if (root !== node) root.__saiProgressBound = true
@@ -389,7 +367,7 @@
     if (!cfg || !Array.isArray(cfg.milestones) || cfg.milestones.length === 0) return
 
     let track = () => {}
-    if (window.__spectrumAi?.snippet) {
+    if (window.__spectrumAi && window.__spectrumAi.snippet) {
       const handles = window.__spectrumAi.snippet.bind(node, () => {})
       if (handles && typeof handles.track === 'function') track = handles.track
     }
@@ -410,19 +388,11 @@
         refresh()
       }, 0)
     }
-    const CART_EVENTS = [
-      'spectrum:cart:updated',
-      'cart:updated',
-      'cart:update',
-      'cart:refresh',
-      'cart:item-added',
-      'cart:add',
-      'cart:build',
-    ]
-    for (const name of CART_EVENTS) {
+    const CART_EVENTS = ['spectrum:cart:updated', 'cart:updated', 'cart:update', 'cart:refresh', 'cart:item-added', 'cart:add', 'cart:build']
+    CART_EVENTS.forEach((name) => {
       document.addEventListener(name, onCartEvent)
       window.addEventListener(name, onCartEvent)
-    }
+    })
     window.addEventListener('pageshow', (e) => {
       if (e.persisted) refresh()
     })
