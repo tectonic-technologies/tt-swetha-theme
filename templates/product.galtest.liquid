@@ -1,0 +1,9 @@
+<div style="max-width:1100px;margin:32px auto;padding:0 24px;font-family:-apple-system,Segoe UI,Roboto,sans-serif">
+  <h1 style="font-size:22px;margin:0 0 4px">{{ product.title }}</h1>
+  {%- if product.metafields.spectrum.media_slots != blank -%}
+    <p style="color:#0a7d28;font-weight:600;margin:0 0 20px">Spectrum gallery — METAFIELD path</p>
+  {%- else -%}
+    <p style="color:#b06a00;font-weight:600;margin:0 0 20px">Spectrum gallery — FALLBACK path (native product.media)</p>
+  {%- endif -%}
+  {% render '_sai-snippet-im4x2uig' %}
+</div>
